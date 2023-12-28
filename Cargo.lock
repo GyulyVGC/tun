@@ -118,6 +118,13 @@ dependencies = [
 
 [[package]]
 name = "tun"
+version = "0.1.0"
+dependencies = [
+ "tun 0.6.1",
+]
+
+[[package]]
+name = "tun"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0adb9992bbd5ca76f3847ed579ad4ee8defb2ec2eea918cceef17ccc66fa4fd4"
@@ -134,13 +141,6 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
-
-[[package]]
-name = "untitled2"
-version = "0.1.0"
-dependencies = [
- "tun",
-]
 
 [[package]]
 name = "windows"
