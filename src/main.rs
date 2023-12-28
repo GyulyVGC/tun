@@ -47,7 +47,7 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap();
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket.send(&buf_out[0..num_bytes_out]).unwrap();
+            socket.send(&buf_out[0..num_bytes_out]).unwrap_or(0);
             println!("OUT {:?}\n", &buf_out[0..num_bytes_out]);
         }
 
@@ -55,7 +55,7 @@ fn main() {
         let num_bytes_in = socket.recv(&mut buf_in).unwrap_or(0);
         // write packet to the kernel
         if num_bytes_in > 0 {
-            dev.write(&buf_in[0..num_bytes_in]).unwrap();
+            dev.write(&buf_in[0..num_bytes_in]).unwrap_or(0);
             println!("IN {:?}\n", &buf_in[0..num_bytes_in]);
         }
     }
