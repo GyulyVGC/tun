@@ -55,7 +55,7 @@ fn main() {
         let num_bytes_in = socket.recv(&mut buf_in).unwrap_or(0);
         // write packet to the kernel
         if num_bytes_in > 0 {
-            dev.write(&buf_out[0..num_bytes_out]).unwrap();
+            dev.write(&buf_in[0..num_bytes_in]).unwrap();
             println!("IN {:?}\n", &buf_in[0..num_bytes_in]);
         }
     }
