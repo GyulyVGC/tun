@@ -6,6 +6,7 @@ use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use std::net::{IpAddr, SocketAddr};
+use std::process::Command;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, io, process};
@@ -36,6 +37,19 @@ async fn main() -> io::Result<()> {
         .up();
 
     let (device_out, device_in) = tun::create(&config).unwrap().split();
+
+    // to work on macOS, the route must be setup manually
+    #[cfg(target_os = "macos")]
+    Command::new("route")
+        .args([
+            "-n",
+            "add",
+            "-net",
+            "10.0.0.0/24",
+            &ETHERNET_TO_TUN.get(&src_eth_address).unwrap().to_string(),
+        ])
+        .spawn()
+        .unwrap();
 
     let socket = UdpSocket::bind(src_socket_address).await?;
     let socket_in = Arc::new(socket);
