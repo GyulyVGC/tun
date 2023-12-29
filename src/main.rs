@@ -60,7 +60,7 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket.send(&buf_out[0..num_bytes_out]).unwrap_or(0);
+            socket.send(&buf_out[0..num_bytes_out]).unwrap();
             println!("OUT {:?}\n", &buf_out[0..num_bytes_out]);
         }
 
