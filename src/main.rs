@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::{UdpSocket};
 use std::{env, process};
 use std::thread::sleep;
@@ -50,8 +50,8 @@ fn main() {
     let mut buf_in = [0; 4096];
 
     let socket_out = UdpSocket::bind(src_socket_address).unwrap();
-    socket_out.set_read_timeout(Some(Duration::from_millis(1))).unwrap();
-    // socket.set_nonblocking(true).unwrap();
+    // socket_out.set_read_timeout(Some(Duration::from_millis(1))).unwrap();
+    socket_out.set_nonblocking(true).unwrap();
     // socket_out.connect(dst_socket_address).unwrap();
 
     // let socket_in = UdpSocket::bind(format!("{}:{}", Ipv4Addr::UNSPECIFIED, PORT)).unwrap();
@@ -67,15 +67,23 @@ fn main() {
         // send the packet to the socket
         if num_bytes_out > 0 {
             socket_out.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
-            println!("OUT {:?}\n", &buf_out[0..num_bytes_out]);
+            println!("OUT to {}\n\t{:?}\n", dst_socket_address, &buf_out[0..num_bytes_out]);
         }
 
         // receive possible packet from the socket
-        let (num_bytes_in, from) = socket_out.recv_from(&mut buf_in).unwrap();
-        // write packet to the kernel
-        if num_bytes_in > 0 {
-            dev.write(&buf_in[0..num_bytes_in]).unwrap_or(0);
-            println!("IN (from {}) {:?}\n", from, &buf_in[0..num_bytes_in]);
+        let recv_result = socket_out.recv_from(&mut buf_in);
+        match recv_result {
+            Ok((num_bytes_in, from)) => {
+                // write packet to the kernel
+                if num_bytes_in > 0 {
+                    dev.write(&buf_in[0..num_bytes_in]).unwrap_or(0);
+                    println!("IN from {}\n\t{:?}\n", from, &buf_in[0..num_bytes_in]);
+                }
+            }
+            Err(err) => {match err.kind() {
+                ErrorKind::WouldBlock => (),
+                _ => {panic!()}
+            }}
         }
     }
 }
