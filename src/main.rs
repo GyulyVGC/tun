@@ -61,7 +61,7 @@ fn main() {
         }
 
         // receive possible packet from the socket
-        let num_bytes_in = socket.recv(&mut buf_in).unwrap_or(0);
+        let num_bytes_in = socket.recv(&mut buf_in).unwrap();
         // write packet to the kernel
         if num_bytes_in > 0 {
             dev.write(&buf_in[0..num_bytes_in]).unwrap_or(0);
