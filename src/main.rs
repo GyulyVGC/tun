@@ -38,10 +38,10 @@ fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    #[cfg(target_os = "linux")]
-    config.platform(|config| {
-        config.packet_information(true);
-    });
+    // #[cfg(target_os = "linux")]
+    // config.platform(|config| {
+    //     config.packet_information(true);
+    // });
 
     let mut dev = tun::create(&config).unwrap();
     let mut buf_out = [0; 4096];
