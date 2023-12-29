@@ -7,6 +7,7 @@ use tun::platform::Device;
 pub async fn receive(device: Arc<Mutex<Device>>, socket: Arc<UdpSocket>) -> io::Result<()> {
     let mut buf = [0; 4096];
     loop {
+        println!("receive");
         // wait until there is an incoming packet on the socket
         let (num_bytes, from) = socket.recv_from(&mut buf).await?;
         // write packet to the kernel
