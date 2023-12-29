@@ -6,12 +6,11 @@ use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use std::net::{IpAddr, SocketAddr};
-#[cfg(target_os = "macos")]
-use std::process::Command;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, io, process};
 use tokio::net::UdpSocket;
+use tun::Configuration;
 
 const PORT: u16 = 9999;
 
@@ -32,8 +31,7 @@ async fn main() -> io::Result<()> {
     let dst_socket_address = SocketAddr::new(dst_eth_address, PORT);
 
     let mut config = tun::Configuration::default();
-    #[cfg(not(target_os = "macos"))]
-    config.name(tun_name(&src_eth_address));
+    set_tun_name(&src_eth_address, &mut config);
     config
         .address(ETHERNET_TO_TUN.get(&src_eth_address).unwrap())
         .netmask((255, 255, 255, 0))
@@ -41,7 +39,6 @@ async fn main() -> io::Result<()> {
 
     let (device_out, device_in) = tun::create(&config).unwrap().split();
 
-    #[cfg(target_os = "macos")]
     configure_routing_macos(&src_eth_address);
 
     let socket = UdpSocket::bind(src_socket_address).await?;
@@ -57,18 +54,20 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
-/// Returns a name in the form 'tun-nullnet-x' where x is the host part of the TUN's ip
+/// Returns a name in the form 'nullnet-x' where x is the host part of the TUN's ip (doesn't work on macOS)
 /// Example: the TUN with address 10.0.0.1 will be called nullnet-1 (supposing netmask /24)
-#[cfg(not(target_os = "macos"))]
-fn tun_name(src_eth_address: &IpAddr) -> String {
-    let tun_ip = ETHERNET_TO_TUN.get(src_eth_address).unwrap().to_string();
-    let num = tun_ip.split(".").last().unwrap();
-    format!("utun-nullnet-{}", num)
+fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
+    #[cfg(not(target_os = "macos"))] {
+        let tun_ip = ETHERNET_TO_TUN.get(_src_eth_address).unwrap().to_string();
+        let num = tun_ip.split(".").last().unwrap();
+        _config.name(format!("nullnet-{}", num));
+    }
 }
 
 /// To work on macOS, the route must be setup manually (after TUN creation!)
 fn configure_routing_macos(src_eth_address: &IpAddr) {
-    Command::new("route")
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("route")
         .args([
             "-n",
             "add",
