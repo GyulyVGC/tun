@@ -12,6 +12,10 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) -> io::Result<(
             // write packet to the kernel
             if num_bytes > 0 {
                 device.write_all(&buf[..num_bytes]).unwrap_or(());
+                // on linux we need to remove the first 4 bytes
+                // (previously added to be compatible with other OSs)
+                #[cfg(target_os = "linux")]
+                device.write_all(&buf[4..num_bytes]).unwrap_or(());
                 println!("IN from {}:\n{:?}\n", from, &buf[..num_bytes]);
             }
         }

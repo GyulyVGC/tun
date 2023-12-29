@@ -6,6 +6,7 @@ use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use std::net::{IpAddr, SocketAddr};
+#[cfg(target_os = "macos")]
 use std::process::Command;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -35,6 +36,13 @@ async fn main() -> io::Result<()> {
         .address(ETHERNET_TO_TUN.get(&src_eth_address).unwrap())
         .netmask((255, 255, 255, 0))
         .up();
+
+    // to work between linux and macos/other, it's needed to add 4 bytes in front of packets
+    // that's because linux TUNs use link_type=raw, while other use link_type=null/loopback
+    #[cfg(target_os = "linux")]
+    config.platform(|config| {
+        config.packet_information(true);
+    });
 
     let (device_out, device_in) = tun::create(&config).unwrap().split();
 
