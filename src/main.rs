@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::UdpSocket;
+use std::net::{Ipv4Addr, UdpSocket};
 use std::{env, process};
 use std::thread::sleep;
 use std::time::Duration;
@@ -49,9 +49,16 @@ fn main() {
     let mut buf_out = [0; 4096];
     let mut buf_in = [0; 4096];
 
-    let socket = UdpSocket::bind(src_socket_address).unwrap();
+    let socket_out = UdpSocket::bind(src_socket_address).unwrap();
     // socket.set_nonblocking(true).unwrap();
-    socket.connect(dst_socket_address).unwrap();
+    socket_out.connect(dst_socket_address).unwrap();
+
+    let socket_in = UdpSocket::bind(format!("{}:{}", Ipv4Addr::UNSPECIFIED, PORT)).unwrap();
+    socket_in.set_read_timeout(Some(Duration::from_millis(1)));
+    // socket.set_nonblocking(true).unwrap();
+    // socket_in.connect(dst_socket_address).unwrap();
+
+
 
     sleep(Duration::from_secs(10));
 
@@ -60,16 +67,16 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket.send(&buf_out[0..num_bytes_out]).unwrap();
+            socket_out.send(&buf_out[0..num_bytes_out]).unwrap_or(0);
             println!("OUT {:?}\n", &buf_out[0..num_bytes_out]);
         }
 
         // receive possible packet from the socket
-        let num_bytes_in = socket.recv(&mut buf_in).unwrap();
+        let (num_bytes_in, from) = socket_in.recv_from(&mut buf_in).unwrap();
         // write packet to the kernel
         if num_bytes_in > 0 {
             dev.write(&buf_in[0..num_bytes_in]).unwrap_or(0);
-            println!("IN {:?}\n", &buf_in[0..num_bytes_in]);
+            println!("IN (from {}) {:?}\n", from, &buf_in[0..num_bytes_in]);
         }
     }
 }
