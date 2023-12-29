@@ -51,7 +51,7 @@ fn main() {
 
     let socket_out = UdpSocket::bind(src_socket_address).unwrap();
     // socket.set_nonblocking(true).unwrap();
-    socket_out.connect(dst_socket_address).unwrap();
+    // socket_out.connect(dst_socket_address).unwrap();
 
     // let socket_in = UdpSocket::bind(format!("{}:{}", Ipv4Addr::UNSPECIFIED, PORT)).unwrap();
     // socket_in.set_read_timeout(Some(Duration::from_millis(1)));
@@ -67,7 +67,7 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket_out.send(&buf_out[0..num_bytes_out]).unwrap_or(0);
+            socket_out.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
             println!("OUT {:?}\n", &buf_out[0..num_bytes_out]);
         }
 
