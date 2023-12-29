@@ -39,10 +39,10 @@ async fn main() -> io::Result<()> {
 
     // to work between linux and macos/other, it's needed to add 4 bytes in front of packets
     // that's because linux TUNs use link_type=raw, while other use link_type=null/loopback
-    #[cfg(target_os = "linux")]
-    config.platform(|config| {
-        config.packet_information(true);
-    });
+    // #[cfg(target_os = "linux")]
+    // config.platform(|config| {
+    //     config.packet_information(true);
+    // });
 
     let (device_out, device_in) = tun::create(&config).unwrap().split();
 

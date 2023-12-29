@@ -11,8 +11,18 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) -> io::Result<(
         if let Ok((num_bytes, from)) = socket.recv_from(&mut buf).await {
             // write packet to the kernel
             if num_bytes > 0 {
-                device.write_all(&buf[..num_bytes]).unwrap_or(());
-                println!("IN from {}:\n{:?}\n", from, &buf[..num_bytes]);
+                #[cfg(not(target_os = "macos"))]
+                {
+                    device.write_all(&buf[..num_bytes]).unwrap_or(());
+                    println!("IN from {}:\n{:?}\n", from, &buf[..num_bytes]);
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let mut p = vec![0, 0, 0, 2]; // AF_INET_HEADER
+                    p.extend_from_slice(&buf[..num_bytes]);
+                    device.write_all(&p).unwrap_or(());
+                    println!("IN from {}:\n{:?}\n", from, &p);
+                }
             }
         }
     }

@@ -16,11 +16,22 @@ pub async fn send(
         let num_bytes = device.read(&mut buf).unwrap_or(0);
         // send the packet to the socket
         if num_bytes > 0 {
-            socket
-                .send_to(&buf[..num_bytes], dst_socket_address)
-                .await
-                .unwrap_or(0);
-            println!("OUT to {}\n\t{:?}\n", dst_socket_address, &buf[..num_bytes]);
+            #[cfg(not(target_os = "macos"))]
+            {
+                socket
+                    .send_to(&buf[..num_bytes], dst_socket_address)
+                    .await
+                    .unwrap_or(0);
+                println!("OUT to {}:\n{:?}\n", dst_socket_address, &buf[..num_bytes]);
+            }
+            #[cfg(target_os = "macos")]
+            {
+                socket
+                    .send_to(&buf[4..num_bytes], dst_socket_address)
+                    .await
+                    .unwrap_or(0);
+                println!("OUT to {}:\n{:?}\n", dst_socket_address, &buf[4..num_bytes]);
+            }
         }
     }
 }
