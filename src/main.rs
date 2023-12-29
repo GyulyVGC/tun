@@ -36,7 +36,6 @@ async fn main() -> io::Result<()> {
         .up();
 
     let device = tun::create(&config).unwrap();
-    device.set_nonblock().unwrap();
     let device_in = Arc::new(Mutex::new(device));
     let device_out = device_in.clone();
 
