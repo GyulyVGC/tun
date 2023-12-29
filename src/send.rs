@@ -13,7 +13,7 @@ pub async fn send(
     let mut buf = [0; 4096];
     loop {
         // read, blocking until a packet is available from the kernel
-        let num_bytes = device.lock().unwrap().read(&mut buf)?;
+        let num_bytes = device.lock().unwrap().read(&mut buf).unwrap_or(0);
         // send the packet to the socket
         if num_bytes > 0 {
             socket
