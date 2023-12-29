@@ -12,7 +12,6 @@ pub async fn send(
 ) -> io::Result<()> {
     let mut buf = [0; 4096];
     loop {
-        println!("send");
         // read, blocking until a packet is available from the kernel
         let num_bytes = device.lock().unwrap().read(&mut buf).unwrap_or(0);
         // send the packet to the socket
