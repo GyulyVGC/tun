@@ -56,14 +56,14 @@ async fn main() -> io::Result<()> {
     Ok(())
 }
 
-/// Returns a name in the form 'nullnet-x' where x is the host part of the TUN's ip (doesn't work on macOS)
-/// Example: the TUN with address 10.0.0.1 will be called nullnet-1 (supposing netmask /24)
+/// Returns a name in the form 'nullnetX' where X is the host part of the TUN's ip (doesn't work on macOS)
+/// Example: the TUN with address 10.0.0.1 will be called nullnet1 (supposing netmask /24)
 fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     {
         let tun_ip = ETHERNET_TO_TUN.get(_src_eth_address).unwrap().to_string();
         let num = tun_ip.split('.').last().unwrap();
-        _config.name(format!("nullnet-{num}"));
+        _config.name(format!("nullnet{num}"));
     }
 }
 
