@@ -4,15 +4,20 @@ use std::net::IpAddr;
 
 static ETHERNET_TUN_TUPLES: Lazy<Vec<(IpAddr, IpAddr)>> = Lazy::new(|| {
     vec![
-        // VM 999
+        // Proxmox VM 999
         (
             IpAddr::from([192, 168, 1, 162]),
             IpAddr::from([10, 0, 0, 1]),
         ),
-        // VM 997
+        // Proxmox VM 997
         (
             IpAddr::from([192, 168, 1, 144]),
             IpAddr::from([10, 0, 0, 2]),
+        ),
+        // macOS
+        (
+            IpAddr::from([192, 168, 1, 113]),
+            IpAddr::from([10, 0, 0, 3]),
         ),
     ]
 });
