@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::UdpSocket;
 use std::{env, process};
+use std::thread::sleep;
+use std::time::Duration;
 
 const PORT: u16 = 9999;
 
@@ -50,6 +52,8 @@ fn main() {
     let socket = UdpSocket::bind(src_socket_address).unwrap();
     // socket.set_nonblocking(true).unwrap();
     socket.connect(dst_socket_address).unwrap();
+
+    sleep(Duration::from_secs(10));
 
     loop {
         // read a packet from the kernel
