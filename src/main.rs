@@ -1,3 +1,5 @@
+#![allow(clippy::used_underscore_binding)]
+
 mod peers;
 mod receive;
 mod send;
@@ -57,15 +59,16 @@ async fn main() -> io::Result<()> {
 /// Returns a name in the form 'nullnet-x' where x is the host part of the TUN's ip (doesn't work on macOS)
 /// Example: the TUN with address 10.0.0.1 will be called nullnet-1 (supposing netmask /24)
 fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
-    #[cfg(not(target_os = "macos"))] {
+    #[cfg(not(target_os = "macos"))]
+    {
         let tun_ip = ETHERNET_TO_TUN.get(_src_eth_address).unwrap().to_string();
-        let num = tun_ip.split(".").last().unwrap();
-        _config.name(format!("nullnet-{}", num));
+        let num = tun_ip.split('.').last().unwrap();
+        _config.name(format!("nullnet-{num}"));
     }
 }
 
 /// To work on macOS, the route must be setup manually (after TUN creation!)
-fn configure_routing_macos(src_eth_address: &IpAddr) {
+fn configure_routing_macos(_src_eth_address: &IpAddr) {
     #[cfg(target_os = "macos")]
     std::process::Command::new("route")
         .args([
@@ -73,7 +76,7 @@ fn configure_routing_macos(src_eth_address: &IpAddr) {
             "add",
             "-net",
             "10.0.0.0/24",
-            &ETHERNET_TO_TUN.get(src_eth_address).unwrap().to_string(),
+            &ETHERNET_TO_TUN.get(_src_eth_address).unwrap().to_string(),
         ])
         .spawn()
         .unwrap();
