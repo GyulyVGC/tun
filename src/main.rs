@@ -1,44 +1,20 @@
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::net::{IpAddr, SocketAddr, UdpSocket};
+mod peers;
+mod receive;
+mod send;
+
+use crate::peers::ETHERNET_TO_TUN;
+use crate::receive::receive;
+use crate::send::send;
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::{env, process};
+use std::sync::{Arc, Mutex};
+use std::{env, io, process, thread};
+use tokio::net::UdpSocket;
 
 const PORT: u16 = 9999;
 
-static ETHERNET_TUN_TUPLES: Lazy<Vec<(IpAddr, IpAddr)>> = Lazy::new(|| {
-    vec![
-        // VM 999
-        (
-            IpAddr::from([192, 168, 1, 162]),
-            IpAddr::from([10, 0, 0, 1]),
-        ),
-        // VM 997
-        (
-            IpAddr::from([192, 168, 1, 144]),
-            IpAddr::from([10, 0, 0, 2]),
-        ),
-    ]
-});
-
-pub static ETHERNET_TO_TUN: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
-        assert!(map.insert(ethernet.to_owned(), tun.to_owned()).is_none());
-    }
-    map
-});
-
-pub static TUN_TO_ETHERNET: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
-        assert!(map.insert(tun.to_owned(), ethernet.to_owned()).is_none());
-    }
-    map
-});
-
-fn main() {
+#[tokio::main]
+async fn main() -> io::Result<()> {
     let mut args = env::args().skip(1);
     let Some(src_eth_string) = args.next() else {
         eprintln!("Expected CLI arguments: <src_eth_address> <dst_eth_address>");
@@ -59,39 +35,23 @@ fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let mut dev = tun::create(&config).unwrap();
+    let device = tun::create(&config).unwrap();
+    device.set_nonblock().unwrap();
+    let device_in = Arc::new(Mutex::new(device));
+    let device_out = device_in.clone();
 
-    #[cfg(target_os = "linux")]
-    dev.set_nonblock().unwrap();
+    let socket = UdpSocket::bind(src_socket_address).await?;
+    let socket_in = Arc::new(socket);
+    let socket_out = socket_in.clone();
 
-    let mut buf_out = [0; 4096];
-    let mut buf_in = [0; 4096];
+    thread::Builder::new()
+        .name(String::from("receiver"))
+        .spawn(|| async move {
+            receive(device_in, socket_in).await.unwrap();
+        })
+        .unwrap();
 
-    let socket = UdpSocket::bind(src_socket_address).unwrap();
-    socket.set_nonblocking(true).unwrap();
+    send(device_out, socket_out, dst_socket_address).await?;
 
-    loop {
-        // read a packet from the kernel
-        let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
-        // send the packet to the socket
-        if num_bytes_out > 0 {
-            socket
-                .send_to(&buf_out[0..num_bytes_out], dst_socket_address)
-                .unwrap_or(0);
-            println!(
-                "OUT to {}\n\t{:?}\n",
-                dst_socket_address,
-                &buf_out[0..num_bytes_out]
-            );
-        }
-
-        // receive a possible packet from the socket
-        if let Ok((num_bytes_in, from)) = socket.recv_from(&mut buf_in) {
-            // write packet to the kernel
-            if num_bytes_in > 0 {
-                dev.write_all(&buf_in[0..num_bytes_in]).unwrap_or(());
-                println!("IN from {}\n\t{:?}\n", from, &buf_in[0..num_bytes_in]);
-            }
-        }
-    }
+    Ok(())
 }
