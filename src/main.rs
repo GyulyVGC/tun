@@ -40,6 +40,11 @@ fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
+    #[cfg(target_os = "linux")]
+    config.platform(|config| {
+        config.set_nonblock().unwrap();
+    });
+
     // #[cfg(target_os = "linux")]
     // config.platform(|config| {
     //     config.packet_information(true);
@@ -64,9 +69,7 @@ fn main() {
 
     loop {
         // read a packet from the kernel
-        println!("before tun read");
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
-        println!("after tun read");
         // send the packet to the socket
         if num_bytes_out > 0 {
             socket.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
