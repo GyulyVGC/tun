@@ -48,7 +48,7 @@ fn main() {
     let mut buf_in = [0; 4096];
 
     let socket = UdpSocket::bind(src_socket_address).unwrap();
-    socket.set_nonblocking(true).unwrap();
+    // socket.set_nonblocking(true).unwrap();
     socket.connect(dst_socket_address).unwrap();
 
     loop {
