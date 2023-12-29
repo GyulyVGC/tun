@@ -7,7 +7,7 @@ use crate::receive::receive;
 use crate::send::send;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{env, io, process};
 use tokio::net::UdpSocket;
 
@@ -35,9 +35,7 @@ async fn main() -> io::Result<()> {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let device = tun::create(&config).unwrap();
-    let device_in = Arc::new(Mutex::new(device));
-    let device_out = device_in.clone();
+    let (device_out, device_in) = tun::create(&config).unwrap().split();
 
     let socket = UdpSocket::bind(src_socket_address).await?;
     let socket_in = Arc::new(socket);
