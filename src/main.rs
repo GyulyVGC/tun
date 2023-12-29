@@ -50,12 +50,13 @@ fn main() {
     let mut buf_in = [0; 4096];
 
     let socket_out = UdpSocket::bind(src_socket_address).unwrap();
+    socket_out.set_read_timeout(Some(Duration::from_millis(1))).unwrap();
     // socket.set_nonblocking(true).unwrap();
     // socket_out.connect(dst_socket_address).unwrap();
 
     // let socket_in = UdpSocket::bind(format!("{}:{}", Ipv4Addr::UNSPECIFIED, PORT)).unwrap();
     // socket_in.set_read_timeout(Some(Duration::from_millis(1)));
-    socket_out.set_nonblocking(true).unwrap();
+    // socket_in.set_nonblocking(true).unwrap();
     // // socket_in.connect(dst_socket_address).unwrap();
 
     sleep(Duration::from_secs(10));
