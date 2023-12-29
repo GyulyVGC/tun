@@ -1,10 +1,10 @@
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
-use std::net::{UdpSocket};
-use std::{env, process};
+use std::net::UdpSocket;
 use std::thread::sleep;
 use std::time::Duration;
+use std::{env, process};
 
 const PORT: u16 = 9999;
 
@@ -40,23 +40,26 @@ fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    #[cfg(target_os = "linux")]
-    config.platform(|config| {
-        config.set_nonblock().unwrap();
-    });
-
     // #[cfg(target_os = "linux")]
     // config.platform(|config| {
     //     config.packet_information(true);
     // });
 
     let mut dev = tun::create(&config).unwrap();
+
+    #[cfg(target_os = "linux")]
+    dev.set_nonblock().unwrap();
+
     let mut buf_out = [0; 4096];
     let mut buf_in = [0; 4096];
 
     let socket = UdpSocket::bind(src_socket_address).unwrap();
-    socket.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
-    socket.set_write_timeout(Some(Duration::from_millis(1000))).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_millis(1000)))
+        .unwrap();
+    socket
+        .set_write_timeout(Some(Duration::from_millis(1000)))
+        .unwrap();
     // socket_out.set_nonblocking(true).unwrap();
     // socket_out.connect(dst_socket_address).unwrap();
 
@@ -72,8 +75,14 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
-            println!("OUT to {}\n\t{:?}\n", dst_socket_address, &buf_out[0..num_bytes_out]);
+            socket
+                .send_to(&buf_out[0..num_bytes_out], &dst_socket_address)
+                .unwrap_or(0);
+            println!(
+                "OUT to {}\n\t{:?}\n",
+                dst_socket_address,
+                &buf_out[0..num_bytes_out]
+            );
         }
 
         // receive possible packet from the socket
@@ -86,10 +95,12 @@ fn main() {
                     println!("IN from {}\n\t{:?}\n", from, &buf_in[0..num_bytes_in]);
                 }
             }
-            Err(err) => {match err.kind() {
+            Err(err) => match err.kind() {
                 ErrorKind::WouldBlock => (),
-                _ => {panic!()}
-            }}
+                _ => {
+                    panic!()
+                }
+            },
         }
     }
 }
