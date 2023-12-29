@@ -9,6 +9,7 @@ pub async fn receive(device: Arc<Mutex<Device>>, socket: Arc<UdpSocket>) -> io::
     loop {
         // wait until there is an incoming packet on the socket
         let (num_bytes, from) = socket.recv_from(&mut buf).await?;
+        println!("received from socket");
         // write packet to the kernel
         if num_bytes > 0 {
             device.lock().unwrap().write_all(&buf[..num_bytes])?;

@@ -14,6 +14,7 @@ pub async fn send(
     loop {
         // read, blocking until a packet is available from the kernel
         println!("before read");
+        // let x = *device.lock().unwrap();
         let num_bytes = device.lock().unwrap().read(&mut buf).unwrap_or(0);
         println!("after read");
         // send the packet to the socket
