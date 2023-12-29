@@ -8,7 +8,7 @@ use crate::send::send;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::{env, io, process, thread};
+use std::{env, io, process};
 use tokio::net::UdpSocket;
 
 const PORT: u16 = 9999;
@@ -44,12 +44,9 @@ async fn main() -> io::Result<()> {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    thread::Builder::new()
-        .name(String::from("receiver"))
-        .spawn(|| async move {
-            receive(device_in, socket_in).await.unwrap();
-        })
-        .unwrap();
+    tokio::spawn(async move {
+        receive(device_in, socket_in).await.unwrap();
+    });
 
     send(device_out, socket_out, dst_socket_address).await?;
 
