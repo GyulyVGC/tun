@@ -49,8 +49,9 @@ fn main() {
     let mut buf_out = [0; 4096];
     let mut buf_in = [0; 4096];
 
-    let socket_out = UdpSocket::bind(src_socket_address).unwrap();
-    socket_out.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
+    let socket = UdpSocket::bind(src_socket_address).unwrap();
+    socket.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
+    socket.set_write_timeout(Some(Duration::from_millis(1000))).unwrap();
     // socket_out.set_nonblocking(true).unwrap();
     // socket_out.connect(dst_socket_address).unwrap();
 
@@ -66,12 +67,12 @@ fn main() {
         let num_bytes_out = dev.read(&mut buf_out).unwrap_or(0);
         // send the packet to the socket
         if num_bytes_out > 0 {
-            socket_out.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
+            socket.send_to(&buf_out[0..num_bytes_out], &dst_socket_address).unwrap_or(0);
             println!("OUT to {}\n\t{:?}\n", dst_socket_address, &buf_out[0..num_bytes_out]);
         }
 
         // receive possible packet from the socket
-        let recv_result = socket_out.recv_from(&mut buf_in);
+        let recv_result = socket.recv_from(&mut buf_in);
         match recv_result {
             Ok((num_bytes_in, from)) => {
                 // write packet to the kernel
