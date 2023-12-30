@@ -41,7 +41,7 @@ async fn main() -> io::Result<()> {
 
     let (device_out, device_in) = tun::create(&config).unwrap().split();
 
-    configure_routing_macos(&src_eth_address);
+    configure_routing(&src_eth_address);
 
     let socket = UdpSocket::bind(src_socket_address).await?;
     let socket_in = Arc::new(socket);
@@ -68,7 +68,7 @@ fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
 }
 
 /// To work on macOS, the route must be setup manually (after TUN creation!)
-fn configure_routing_macos(_src_eth_address: &IpAddr) {
+fn configure_routing(_src_eth_address: &IpAddr) {
     #[cfg(target_os = "macos")]
     std::process::Command::new("route")
         .args([
