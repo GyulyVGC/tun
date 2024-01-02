@@ -23,6 +23,8 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
 
             let os_buf = socket_frame.to_os_buf();
 
+            #[allow(clippy::needless_borrow)]
+            // otherwise clippy complains because of type on Linux
             device.write_all(&os_buf).unwrap_or(());
         }
     }
