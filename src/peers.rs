@@ -30,10 +30,10 @@ pub static ETHERNET_TO_TUN: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
     map
 });
 
-// pub static TUN_TO_ETHERNET: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
-//     let mut map = HashMap::new();
-//     for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
-//         assert!(map.insert(*tun, *ethernet).is_none());
-//     }
-//     map
-// });
+pub static TUN_TO_ETHERNET: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+    for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
+        assert!(map.insert(*tun, *ethernet).is_none());
+    }
+    map
+});

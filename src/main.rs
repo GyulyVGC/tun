@@ -20,28 +20,18 @@ const PORT: u16 = 9999;
 
 #[tokio::main]
 async fn main() {
-    let mut args = env::args().skip(1);
-    let Some(src_eth_string) = args.next() else {
-        eprintln!("Expected CLI arguments: <src_eth_address> <dst_eth_address>");
-        process::exit(1);
-    };
-    let Some(dst_eth_string) = args.next() else {
-        eprintln!("Expected CLI arguments: <src_eth_address> <dst_eth_address>");
-        process::exit(1);
-    };
-    let src_eth_address =
-        IpAddr::from_str(&src_eth_string).expect("CLI argument is not a valid IP");
-    let dst_eth_address =
-        IpAddr::from_str(&dst_eth_string).expect("CLI argument is not a valid IP");
-    let src_socket_address = SocketAddr::new(src_eth_address, PORT);
-    let dst_socket_address = SocketAddr::new(dst_eth_address, PORT);
+    let src_socket_ip_string = parse_cli_args();
+
+    let src_socket_ip =
+        IpAddr::from_str(&src_socket_ip_string).expect("CLI argument is not a valid IP");
+    let src_socket = SocketAddr::new(src_socket_ip, PORT);
 
     let mut config = tun::Configuration::default();
-    set_tun_name(&src_eth_address, &mut config);
+    set_tun_name(&src_socket_ip, &mut config);
     config
         .address(
             ETHERNET_TO_TUN
-                .get(&src_eth_address)
+                .get(&src_socket_ip)
                 .expect("Address is not in the list of peers"),
         )
         .netmask((255, 255, 255, 0))
@@ -51,9 +41,9 @@ async fn main() {
         .expect("Failed to create TUN device")
         .split();
 
-    configure_routing(&src_eth_address);
+    configure_routing(&src_socket_ip);
 
-    let socket = UdpSocket::bind(src_socket_address)
+    let socket = UdpSocket::bind(src_socket)
         .await
         .expect("Failed to bind socket");
     let socket_in = Arc::new(socket);
@@ -63,16 +53,31 @@ async fn main() {
         receive(device_in, socket_in).await;
     });
 
-    send(device_out, socket_out, dst_socket_address).await;
+    send(device_out, socket_out).await;
+}
+
+fn parse_cli_args() -> String {
+    let mut args = env::args().skip(1);
+
+    let Some(src_socket_ip_string) = args.next() else {
+        eprintln!("Expected CLI arguments: <src_socket_ip>");
+        process::exit(1);
+    };
+    if args.next().is_some() {
+        eprintln!("Expected CLI arguments: <src_socket_ip>");
+        process::exit(1);
+    }
+
+    src_socket_ip_string
 }
 
 /// Returns a name in the form 'nullnetX' where X is the host part of the TUN's ip (doesn't work on macOS)
 /// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24)
-fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
+fn set_tun_name(_src_socket_ip: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     {
         let tun_ip = ETHERNET_TO_TUN
-            .get(_src_eth_address)
+            .get(_src_socket_ip)
             .expect("Address is not in the list of peers")
             .to_string();
         let num = tun_ip.split('.').last().unwrap();
@@ -81,7 +86,7 @@ fn set_tun_name(_src_eth_address: &IpAddr, _config: &mut Configuration) {
 }
 
 /// To work on macOS, the route must be setup manually (after TUN creation!)
-fn configure_routing(_src_eth_address: &IpAddr) {
+fn configure_routing(_src_socket_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
     std::process::Command::new("route")
         .args([
@@ -90,7 +95,7 @@ fn configure_routing(_src_eth_address: &IpAddr) {
             "-net",
             "10.0.0.0/24",
             &ETHERNET_TO_TUN
-                .get(_src_eth_address)
+                .get(_src_socket_ip)
                 .expect("Address is not in the list of peers")
                 .to_string(),
         ])
