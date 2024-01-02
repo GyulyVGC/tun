@@ -1,24 +1,22 @@
-use std::io;
+use crate::socket_frame::SocketFrame;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tun::platform::posix::Writer;
 
-pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) -> io::Result<()> {
-    let mut buf_socket = [0; 4096];
+pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
+    let mut socket_frame = SocketFrame::new();
     loop {
-        // wait until there is an incoming packet on the socket
-        if let Ok((num_bytes, from)) = socket.recv_from(&mut buf_socket).await {
+        // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
+        if let Ok((num_bytes, from)) = socket.recv_from(&mut socket_frame.frame).await {
+            socket_frame.actual_bytes = num_bytes;
             // write packet to the kernel
-            if num_bytes > 0 {
-                println!("IN from {from}:\n{:?}\n", &buf_socket[..num_bytes]);
+            if socket_frame.actual_bytes > 0 {
+                println!("IN from {from}:\n{:?}\n", socket_frame.actual_frame());
 
-                #[cfg(not(target_os = "macos"))]
-                let buf_os = &buf_socket[..num_bytes];
-                #[cfg(target_os = "macos")]
-                let buf_os: &[u8] = &[&[0, 0, 0, 2], &buf_socket[..num_bytes]].concat()[..];
+                let os_buf = socket_frame.to_os_buf();
 
-                device.write_all(buf_os).unwrap_or(());
+                device.write_all(&os_buf).unwrap_or(());
             }
         }
     }

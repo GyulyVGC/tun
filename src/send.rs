@@ -1,30 +1,24 @@
-use std::io;
+use crate::os_frame::OsFrame;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tun::platform::posix::Reader;
 
-pub async fn send(
-    mut device: Reader,
-    socket: Arc<UdpSocket>,
-    dst_socket_address: SocketAddr,
-) -> io::Result<()> {
-    let mut buf_os = [0; 4096];
+pub async fn send(mut device: Reader, socket: Arc<UdpSocket>, dst_socket_address: SocketAddr) {
+    let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        let num_bytes = device.read(&mut buf_os).unwrap_or(0);
+        let num_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
+        os_frame.actual_bytes = num_bytes;
         // send the packet to the socket
-        if num_bytes > 0 {
-            #[cfg(not(target_os = "macos"))]
-            let buf_socket = &buf_os[..num_bytes];
-            #[cfg(target_os = "macos")]
-            let buf_socket = &buf_os[4..num_bytes];
+        if os_frame.actual_bytes > 0 {
+            let socket_buf = os_frame.to_socket_buf();
 
-            println!("OUT to {dst_socket_address}:\n{buf_socket:?}\n");
+            println!("OUT to {dst_socket_address}:\n{socket_buf:?}\n");
 
             socket
-                .send_to(buf_socket, dst_socket_address)
+                .send_to(socket_buf, dst_socket_address)
                 .await
                 .unwrap_or(0);
         }
