@@ -26,7 +26,7 @@ async fn main() {
         IpAddr::from_str(&src_socket_ip_string).expect("CLI argument is not a valid IP");
     let src_socket = SocketAddr::new(src_socket_ip, PORT);
 
-    let mut config = tun::Configuration::default();
+    let mut config = Configuration::default();
     set_tun_name(&src_socket_ip, &mut config);
     config
         .address(
@@ -88,7 +88,7 @@ fn set_tun_name(_src_socket_ip: &IpAddr, _config: &mut Configuration) {
 /// To work on macOS, the route must be setup manually (after TUN creation!)
 fn configure_routing(_src_socket_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
-    std::process::Command::new("route")
+    process::Command::new("route")
         .args([
             "-n",
             "add",

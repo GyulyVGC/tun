@@ -12,6 +12,7 @@ pub async fn send(mut device: Reader, socket: Arc<UdpSocket>) {
     loop {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
+
         // send the packet to the socket
         if os_frame.actual_bytes > 0 {
             let socket_buf = os_frame.to_socket_buf();
@@ -19,11 +20,12 @@ pub async fn send(mut device: Reader, socket: Arc<UdpSocket>) {
             let Some(dst_tun_ip) = get_dst_tun_ip(socket_buf) else {
                 continue;
             };
-            println!("OUT to {dst_tun_ip}:\n{socket_buf:?}\n");
 
             let Some(dst_socket) = get_dst_socket(dst_tun_ip) else {
                 continue;
             };
+
+            println!("OUT to {dst_tun_ip}:\n{socket_buf:?}\n");
 
             socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
         }
