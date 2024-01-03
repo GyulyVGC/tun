@@ -55,11 +55,16 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    tokio::spawn(async move {
+    let receive_handle = tokio::spawn(async move {
         receive(device_in, socket_in).await;
     });
 
-    send(device_out, socket_out).await;
+    let send_handle = tokio::spawn(async move {
+        send(device_out, socket_out).await;
+    });
+
+    receive_handle.await.unwrap();
+    send_handle.await.unwrap();
 }
 
 fn parse_cli_args() -> String {
