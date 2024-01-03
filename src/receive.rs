@@ -17,10 +17,9 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
 
         // write packet to the kernel
         if socket_frame.actual_bytes > 0 {
-            let Some(src_tun_ip) = get_src_tun_ip(socket_frame.actual_frame()) else {
-                continue;
-            };
-
+            // let Some(src_tun_ip) = get_src_tun_ip(socket_frame.actual_frame()) else {
+            //     continue;
+            // };
             // println!("IN from {src_tun_ip}:\n{:?}\n", socket_frame.actual_frame());
 
             let os_buf = socket_frame.to_os_buf();
