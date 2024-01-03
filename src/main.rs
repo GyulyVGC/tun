@@ -20,6 +20,11 @@ const PORT: u16 = 9999;
 
 #[tokio::main]
 async fn main() {
+    ///////////////////////////////////////////////////////
+    ctrlc::set_handler(move || {})
+        .expect("Error setting Ctrl-C handler");
+    ///////////////////////////////////////////////////////
+
     let src_socket_ip_string = parse_cli_args();
 
     let src_socket_ip =

@@ -1,6 +1,6 @@
 use crate::socket_frame::SocketFrame;
 use std::io::Write;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -30,12 +30,12 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
     }
 }
 
-fn get_src_tun_ip(socket_buf: &[u8]) -> Option<IpAddr> {
-    if socket_buf.len() < 20 {
-        None
-    } else {
-        let mut src_tun_ip_octects = [0; 4];
-        src_tun_ip_octects.clone_from_slice(&socket_buf[12..16]);
-        Some(IpAddr::from(src_tun_ip_octects))
-    }
-}
+// fn get_src_tun_ip(socket_buf: &[u8]) -> Option<IpAddr> {
+//     if socket_buf.len() < 20 {
+//         None
+//     } else {
+//         let mut src_tun_ip_octects = [0; 4];
+//         src_tun_ip_octects.clone_from_slice(&socket_buf[12..16]);
+//         Some(IpAddr::from(src_tun_ip_octects))
+//     }
+// }
