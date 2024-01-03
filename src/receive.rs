@@ -21,7 +21,7 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
                 continue;
             };
 
-            println!("IN from {src_tun_ip}:\n{:?}\n", socket_frame.actual_frame());
+            // println!("IN from {src_tun_ip}:\n{:?}\n", socket_frame.actual_frame());
 
             let os_buf = socket_frame.to_os_buf();
 
