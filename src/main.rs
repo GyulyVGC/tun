@@ -21,7 +21,9 @@ const PORT: u16 = 9999;
 #[tokio::main]
 async fn main() {
     ///////////////////////////////////////////////////////
-    ctrlc::set_handler(move || {})
+    ctrlc::set_handler(move || {
+        process::exit(0);
+    })
         .expect("Error setting Ctrl-C handler");
     ///////////////////////////////////////////////////////
 
