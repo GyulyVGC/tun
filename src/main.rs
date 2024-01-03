@@ -24,7 +24,7 @@ async fn main() {
     ctrlc::set_handler(move || {
         process::exit(0);
     })
-        .expect("Error setting Ctrl-C handler");
+    .expect("Error setting Ctrl-C handler");
     ///////////////////////////////////////////////////////
 
     let src_socket_ip_string = parse_cli_args();
