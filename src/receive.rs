@@ -1,6 +1,6 @@
 use crate::socket_frame::SocketFrame;
 use std::io::Write;
-use std::net::{SocketAddr};
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -13,7 +13,7 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
         (socket_frame.actual_bytes, _) = socket
             .recv_from(&mut socket_frame.frame)
             .await
-            .unwrap_or((0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+            .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
 
         // write packet to the kernel
         if socket_frame.actual_bytes > 0 {
