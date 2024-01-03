@@ -25,7 +25,7 @@ pub async fn send(mut device: Reader, socket: Arc<UdpSocket>) {
                 continue;
             };
 
-            println!("OUT to {dst_tun_ip}:\n{socket_buf:?}\n");
+            // println!("OUT to {dst_tun_ip}:\n{socket_buf:?}\n");
 
             socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
         }
