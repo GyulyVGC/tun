@@ -14,9 +14,12 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, process};
 use tokio::net::UdpSocket;
+use tokio::sync::Mutex;
 use tun::Configuration;
 
 const PORT: u16 = 9999;
+
+const NUM_TASKS: u16 = 100;
 
 #[tokio::main]
 async fn main() {
@@ -44,8 +47,10 @@ async fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let (device_out, device_in) =
+    let (read_half, write_half) =
         tokio::io::split(tun::create_as_async(&config).expect("Failed to create TUN device"));
+    let device_out = Arc::new(Mutex::new(read_half));
+    let device_in = Arc::new(Mutex::new(write_half));
 
     configure_routing(&src_socket_ip);
 
@@ -55,16 +60,24 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    let receive_handle = tokio::spawn(async move {
-        receive(device_in, socket_in).await;
-    });
+    for _ in 0..NUM_TASKS / 2 - 1 {
+        let device_in_task = device_in.clone();
+        let device_out_task = device_out.clone();
+        let socket_in_task = socket_in.clone();
+        let socket_out_task = socket_out.clone();
 
-    let send_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
+            receive(device_in_task, socket_in_task).await;
+        });
+
+        tokio::spawn(async move {
+            send(device_out_task, socket_out_task).await;
+        });
+    }
+    tokio::spawn(async move {
         send(device_out, socket_out).await;
     });
-
-    receive_handle.await.unwrap();
-    send_handle.await.unwrap();
+    receive(device_in, socket_in).await;
 }
 
 fn parse_cli_args() -> String {
