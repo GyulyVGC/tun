@@ -13,15 +13,11 @@ pub async fn send(mut device: Reader, socket: Arc<UdpSocket>) {
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
 
         // send the packet to the socket
-        if os_frame.actual_bytes > 0 {
-            let socket_buf = os_frame.to_socket_buf();
-
-            let Some(dst_socket) = get_dst_socket(socket_buf) else {
-                continue;
-            };
-
-            socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
-        }
+        let socket_buf = os_frame.to_socket_buf();
+        let Some(dst_socket) = get_dst_socket(socket_buf) else {
+            continue;
+        };
+        socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
     }
 }
 

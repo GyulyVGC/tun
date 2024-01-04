@@ -16,11 +16,8 @@ pub async fn receive(mut device: Writer, socket: Arc<UdpSocket>) {
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
 
         // write packet to the kernel
-        if socket_frame.actual_bytes > 0 {
-            let os_buf = socket_frame.to_os_buf();
-
-            #[allow(clippy::needless_borrow)]
-            device.write_all(&os_buf).unwrap_or(());
-        }
+        let os_buf = socket_frame.to_os_buf();
+        #[allow(clippy::needless_borrow)]
+        device.write_all(&os_buf).unwrap_or(());
     }
 }
