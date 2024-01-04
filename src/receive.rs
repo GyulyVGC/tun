@@ -4,10 +4,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::UdpSocket;
-use tokio::sync::Mutex;
-use tun::AsyncDevice;
+use tun::AsyncQueue;
 
-pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<UdpSocket>) {
+pub async fn receive(mut queue: WriteHalf<AsyncQueue>, socket: Arc<UdpSocket>) {
     let mut socket_frame = SocketFrame::new();
     loop {
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
@@ -26,7 +25,7 @@ pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<Udp
             let os_buf = socket_frame.to_os_buf();
 
             #[allow(clippy::needless_borrow)]
-            device.lock().await.write_all(&os_buf).await.unwrap_or(());
+            queue.write_all(&os_buf).await.unwrap_or(());
         }
     }
 }
