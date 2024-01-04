@@ -18,6 +18,8 @@ use tun::Configuration;
 
 const PORT: u16 = 9999;
 
+const MTU: usize = 1500;
+
 #[tokio::main]
 async fn main() {
     ///////////////////////////////////////////////////////
@@ -27,15 +29,14 @@ async fn main() {
     .expect("Error setting Ctrl-C handler");
     ///////////////////////////////////////////////////////
 
-    let src_socket_ip_string = parse_cli_args();
+    let src_socket_ip = parse_cli_args();
 
-    let src_socket_ip =
-        IpAddr::from_str(&src_socket_ip_string).expect("CLI argument is not a valid IP");
     let src_socket = SocketAddr::new(src_socket_ip, PORT);
 
     let mut config = Configuration::default();
     set_tun_name(&src_socket_ip, &mut config);
     config
+        .mtu(i32::try_from(MTU).unwrap())
         .address(
             ETHERNET_TO_TUN
                 .get(&src_socket_ip)
@@ -63,7 +64,7 @@ async fn main() {
     send(device_out, socket_out).await;
 }
 
-fn parse_cli_args() -> String {
+fn parse_cli_args() -> IpAddr {
     let mut args = env::args().skip(1);
 
     let Some(src_socket_ip_string) = args.next() else {
@@ -75,7 +76,7 @@ fn parse_cli_args() -> String {
         process::exit(1);
     }
 
-    src_socket_ip_string
+    IpAddr::from_str(&src_socket_ip_string).expect("Invalid CLI argument: <src_socket_ip>")
 }
 
 /// Returns a name in the form 'nullnetX' where X is the host part of the TUN's ip (doesn't work on macOS)
