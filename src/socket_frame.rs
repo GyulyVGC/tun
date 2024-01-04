@@ -5,14 +5,14 @@ use crate::MTU;
 /// Representation of a network packet transiting on sockets
 /// All packets of this kind must be in raw IP form
 pub struct SocketFrame {
-    pub frame: [u8; MTU as usize],
+    pub frame: [u8; MTU],
     pub actual_bytes: usize,
 }
 
 impl SocketFrame {
     pub fn new() -> Self {
         Self {
-            frame: [0; MTU as usize],
+            frame: [0; MTU],
             actual_bytes: 0,
         }
     }

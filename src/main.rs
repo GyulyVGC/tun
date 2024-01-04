@@ -21,7 +21,7 @@ const PORT: u16 = 9999;
 
 const NUM_TASKS: u16 = 100;
 
-const MTU: i32 = 65535;
+const MTU: usize = 1500;
 
 #[tokio::main]
 async fn main() {
@@ -42,7 +42,7 @@ async fn main() {
     set_tun_name(&src_socket_ip, &mut config);
     config
         // .queues() ?
-        .mtu(MTU)
+        .mtu(i32::try_from(MTU).unwrap())
         .address(
             ETHERNET_TO_TUN
                 .get(&src_socket_ip)
@@ -71,17 +71,17 @@ async fn main() {
         let socket_out_task = socket_out.clone();
 
         tokio::spawn(async move {
-            Box::pin(receive(device_in_task, socket_in_task)).await;
+            receive(device_in_task, socket_in_task).await;
         });
 
         tokio::spawn(async move {
-            Box::pin(send(device_out_task, socket_out_task)).await;
+            send(device_out_task, socket_out_task).await;
         });
     }
     tokio::spawn(async move {
-        Box::pin(send(device_out, socket_out)).await;
+        send(device_out, socket_out).await;
     });
-    Box::pin(receive(device_in, socket_in)).await;
+    receive(device_in, socket_in).await;
 }
 
 fn parse_cli_args() -> String {
