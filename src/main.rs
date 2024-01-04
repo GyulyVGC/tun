@@ -36,7 +36,7 @@ async fn main() {
     let mut config = Configuration::default();
     set_tun_name(&src_socket_ip, &mut config);
     config
-        .queues(num_queues)
+        .queues(num_queues * 2)
         .mtu(i32::try_from(MTU).unwrap())
         .address(
             ETHERNET_TO_TUN
