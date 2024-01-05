@@ -14,7 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, process};
 use tokio::net::UdpSocket;
-use tun::{Configuration, Layer};
+use tun::Configuration;
 
 const PORT: u16 = 9999;
 
