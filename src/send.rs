@@ -13,7 +13,7 @@ pub async fn send(mut queue: ReadHalf<AsyncQueue>, socket: Arc<UdpSocket>, i: us
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = queue.read(&mut os_frame.frame).await.unwrap_or(0);
 
-        println!("TX {i}");
+        // println!("TX {i}");
 
         // send the packet to the socket
         if os_frame.actual_bytes > 0 {
@@ -31,7 +31,7 @@ pub async fn send(mut queue: ReadHalf<AsyncQueue>, socket: Arc<UdpSocket>, i: us
 
             socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
 
-            println!("--- TX {i}");
+            // println!("--- TX {i}");
         }
     }
 }

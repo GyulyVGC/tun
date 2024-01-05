@@ -15,7 +15,7 @@ pub async fn receive(mut queue: WriteHalf<AsyncQueue>, socket: Arc<UdpSocket>, i
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
 
-        println!("RX {i}");
+        // println!("RX {i}");
 
         // write packet to the kernel
         if socket_frame.actual_bytes > 0 {
@@ -29,7 +29,7 @@ pub async fn receive(mut queue: WriteHalf<AsyncQueue>, socket: Arc<UdpSocket>, i
             #[allow(clippy::needless_borrow)]
             queue.write_all(&os_buf).await.unwrap_or(());
 
-            println!("--- RX {i}");
+            // println!("--- RX {i}");
         }
     }
 }
