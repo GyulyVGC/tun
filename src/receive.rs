@@ -22,7 +22,12 @@ pub async fn receive(mut device: WriteHalf<AsyncDevice>, socket: Arc<UdpSocket>)
             // write packet to the kernel
             let os_buf = socket_frame.to_os_buf();
             #[allow(clippy::needless_borrow)]
-            device.write_all(&os_buf).await.unwrap_or(());
+            let x = device.write(&os_buf).await.unwrap_or(0);
+            if x == 0 {
+                println!("cow cow");
+            }
+        } else {
+            println!("rx hoy hoy");
         }
     }
 }
