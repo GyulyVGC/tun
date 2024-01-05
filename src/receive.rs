@@ -7,7 +7,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
 use tun::AsyncDevice;
 
-pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<UdpSocket>) {
+pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<UdpSocket>, i: usize) {
     let mut socket_frame = SocketFrame::new();
     loop {
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
@@ -15,6 +15,8 @@ pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<Udp
             .recv_from(&mut socket_frame.frame)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+
+        println!("RX {i}");
 
         // write packet to the kernel
         if socket_frame.actual_bytes > 0 {
@@ -27,6 +29,8 @@ pub async fn receive(device: Arc<Mutex<WriteHalf<AsyncDevice>>>, socket: Arc<Udp
 
             #[allow(clippy::needless_borrow)]
             device.lock().await.write_all(&os_buf).await.unwrap_or(());
+
+            println!("--- RX {i}");
         }
     }
 }
