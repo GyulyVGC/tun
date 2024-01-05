@@ -7,11 +7,13 @@ use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
 use tun::AsyncQueue;
 
-pub async fn send(mut queue: ReadHalf<AsyncQueue>, socket: Arc<UdpSocket>) {
+pub async fn send(mut queue: ReadHalf<AsyncQueue>, socket: Arc<UdpSocket>, i: usize) {
     let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = queue.read(&mut os_frame.frame).await.unwrap_or(0);
+
+        println!("TX {i}");
 
         // send the packet to the socket
         if os_frame.actual_bytes > 0 {
@@ -28,6 +30,8 @@ pub async fn send(mut queue: ReadHalf<AsyncQueue>, socket: Arc<UdpSocket>) {
             // println!("OUT to {dst_tun_ip}:\n{socket_buf:?}\n");
 
             socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
+
+            println!("--- TX {i}");
         }
     }
 }

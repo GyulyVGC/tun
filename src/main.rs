@@ -57,24 +57,24 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    for i in 0..num_queues - 1 {
+    for i in 0..num_queues / 2 - 1 {
         let (queue_out, queue_in) = tokio::io::split(queues.remove(i));
         let socket_in_task = socket_in.clone();
         let socket_out_task = socket_out.clone();
 
         tokio::spawn(async move {
-            receive(queue_in, socket_in_task).await;
+            receive(queue_in, socket_in_task, i).await;
         });
 
         tokio::spawn(async move {
-            send(queue_out, socket_out_task).await;
+            send(queue_out, socket_out_task, i).await;
         });
     }
-    let (queue_out, queue_in) = tokio::io::split(queues.remove(num_queues - 1));
+    let (queue_out, queue_in) = tokio::io::split(queues.remove(num_queues / 2 - 1));
     tokio::spawn(async move {
-        send(queue_out, socket_out).await;
+        send(queue_out, socket_out, num_queues / 2 - 1).await;
     });
-    receive(queue_in, socket_in).await;
+    receive(queue_in, socket_in, num_queues / 2 - 1).await;
 }
 
 fn parse_cli_args() -> (IpAddr, usize) {
