@@ -24,10 +24,10 @@ impl OsFrame {
 
     pub fn to_socket_buf(&self) -> &[u8] {
         #[cfg(not(target_os = "macos"))]
-        let socket_buf = &self.actual_frame_from_byte(0);
+        let socket_buf = self.actual_frame_from_byte(0);
 
         #[cfg(target_os = "macos")]
-        let socket_buf = &self.actual_frame_from_byte(4);
+        let socket_buf = self.actual_frame_from_byte(4);
 
         socket_buf
     }

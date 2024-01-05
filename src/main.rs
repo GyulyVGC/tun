@@ -18,7 +18,7 @@ use tun::{Configuration, Layer};
 
 const PORT: u16 = 9999;
 
-const MTU: usize = 1500;
+const MTU: usize = 1500 - 20 - 8;
 
 #[tokio::main]
 async fn main() {
