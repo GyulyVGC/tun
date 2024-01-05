@@ -14,11 +14,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, process};
 use tokio::net::UdpSocket;
-use tun::Configuration;
+use tun::{Configuration, Layer};
 
 const PORT: u16 = 9999;
 
-const MTU: usize = 60000;
+const MTU: usize = 1500;
 
 #[tokio::main]
 async fn main() {
@@ -36,6 +36,7 @@ async fn main() {
     let mut config = Configuration::default();
     set_tun_name(&src_socket_ip, &mut config);
     config
+        .layer(Layer::L2)
         .mtu(i32::try_from(MTU).unwrap())
         .address(
             ETHERNET_TO_TUN
