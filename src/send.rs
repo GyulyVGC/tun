@@ -1,16 +1,16 @@
 use crate::os_frame::OsFrame;
 use crate::peers::TUN_TO_SOCKET;
-use std::io::Read;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
-use tun::platform::posix::Reader;
+use tun::AsyncDevice;
 
-pub async fn send(mut device: Reader, socket: Arc<UdpSocket>) {
+pub async fn send(mut device: ReadHalf<AsyncDevice>, socket: Arc<UdpSocket>) {
     let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
+        os_frame.actual_bytes = device.read(&mut os_frame.frame).await.unwrap_or(0);
 
         // send the packet to the socket
         let socket_buf = os_frame.to_socket_buf();

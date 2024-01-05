@@ -45,9 +45,8 @@ async fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let (device_out, device_in) = tun::create(&config)
-        .expect("Failed to create TUN device")
-        .split();
+    let (device_out, device_in) =
+        tokio::io::split(tun::create_as_async(&config).expect("Failed to create TUN device"));
 
     configure_routing(&src_socket_ip);
 
