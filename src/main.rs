@@ -18,7 +18,7 @@ use tun::Configuration;
 
 const PORT: u16 = 9999;
 
-const MTU: usize = 65535;
+const MTU: usize = 8192;
 
 #[tokio::main]
 async fn main() {
