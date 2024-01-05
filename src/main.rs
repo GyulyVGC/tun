@@ -60,24 +60,24 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    for i in 0..num_tasks / 2 - 1 {
+    for _ in 0..num_tasks / 2 - 1 {
         let device_in_task = device_in.clone();
         let device_out_task = device_out.clone();
         let socket_in_task = socket_in.clone();
         let socket_out_task = socket_out.clone();
 
         tokio::spawn(async move {
-            receive(device_in_task, socket_in_task, i).await;
+            receive(device_in_task, socket_in_task).await;
         });
 
         tokio::spawn(async move {
-            send(device_out_task, socket_out_task, i).await;
+            send(device_out_task, socket_out_task).await;
         });
     }
     tokio::spawn(async move {
-        send(device_out, socket_out, num_tasks / 2).await;
+        send(device_out, socket_out).await;
     });
-    receive(device_in, socket_in, num_tasks / 2).await;
+    receive(device_in, socket_in).await;
 }
 
 fn parse_cli_args() -> (IpAddr, usize) {
