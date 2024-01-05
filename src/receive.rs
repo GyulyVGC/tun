@@ -10,12 +10,15 @@ use tun::AsyncDevice;
 pub async fn receive(mut device: WriteHalf<AsyncDevice>, socket: Arc<UdpSocket>) {
     let mut socket_frame = SocketFrame::new();
     loop {
-        let inst = Instant::now();
+        let mut inst = Instant::now();
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
         (socket_frame.actual_bytes, _) = socket
             .recv_from(&mut socket_frame.frame)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+
+        println!("RXA {}", inst.elapsed().as_micros());
+        let mut inst = Instant::now();
 
         if socket_frame.actual_bytes > 0 {
             // write packet to the kernel
@@ -23,6 +26,6 @@ pub async fn receive(mut device: WriteHalf<AsyncDevice>, socket: Arc<UdpSocket>)
             #[allow(clippy::needless_borrow)]
             device.write_all(&os_buf).await.unwrap_or(());
         }
-        println!("RX {}", inst.elapsed().as_micros());
+        println!("RXB {}", inst.elapsed().as_micros());
     }
 }

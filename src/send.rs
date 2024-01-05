@@ -14,13 +14,16 @@ pub async fn send(mut device: ReadHalf<AsyncDevice>, socket: Arc<UdpSocket>) {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).await.unwrap_or(0);
 
+        println!("TXA {}", inst.elapsed().as_micros());
+        let mut inst = Instant::now();
+
         // send the packet to the socket
         let socket_buf = os_frame.to_socket_buf();
         let Some(dst_socket) = get_dst_socket(socket_buf) else {
             continue;
         };
         socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
-        println!("TX {}", inst.elapsed().as_micros());
+        println!("TXB {}", inst.elapsed().as_micros());
     }
 }
 
