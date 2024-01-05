@@ -14,6 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, process};
 use tokio::net::UdpSocket;
+use tokio::try_join;
 use tun::Configuration;
 
 const PORT: u16 = 9999;
@@ -56,11 +57,15 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    tokio::spawn(async move {
+    let receiver = tokio::spawn(async move {
         receive(device_in, socket_in).await;
     });
 
-    send(device_out, socket_out).await;
+    let sender = tokio::spawn(async move {
+        send(device_out, socket_out).await;
+    });
+
+    try_join!(receiver, sender).unwrap();
 }
 
 fn parse_cli_args() -> IpAddr {
