@@ -14,6 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::{env, process};
 use tokio::net::UdpSocket;
+use tokio::sync::Mutex;
 use tun::Configuration;
 
 const PORT: u16 = 9999;
@@ -29,14 +30,14 @@ async fn main() {
     .expect("Error setting Ctrl-C handler");
     ///////////////////////////////////////////////////////
 
-    let (src_socket_ip, num_queues) = parse_cli_args();
+    let (src_socket_ip, num_tasks) = parse_cli_args();
 
     let src_socket = SocketAddr::new(src_socket_ip, PORT);
 
     let mut config = Configuration::default();
     set_tun_name(&src_socket_ip, &mut config);
     config
-        .queues(num_queues)
+        // .queues() ?
         .mtu(i32::try_from(MTU).unwrap())
         .address(
             ETHERNET_TO_TUN
@@ -46,8 +47,10 @@ async fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let device = tun::create_as_async(&config).expect("Failed to create TUN device");
-    let mut queues = device.queues().unwrap();
+    let (read_half, write_half) =
+        tokio::io::split(tun::create_as_async(&config).expect("Failed to create TUN device"));
+    let device_out = Arc::new(Mutex::new(read_half));
+    let device_in = Arc::new(Mutex::new(write_half));
 
     configure_routing(&src_socket_ip);
 
@@ -57,45 +60,45 @@ async fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    for i in 0..num_queues - 1 {
-        let (queue_out, queue_in) = tokio::io::split(queues.remove(i));
+    for _ in 0..num_tasks / 2 - 1 {
+        let device_in_task = device_in.clone();
+        let device_out_task = device_out.clone();
         let socket_in_task = socket_in.clone();
         let socket_out_task = socket_out.clone();
 
         tokio::spawn(async move {
-            receive(queue_in, socket_in_task).await;
+            receive(device_in_task, socket_in_task).await;
         });
 
         tokio::spawn(async move {
-            send(queue_out, socket_out_task).await;
+            send(device_out_task, socket_out_task).await;
         });
     }
-    let (queue_out, queue_in) = tokio::io::split(queues.remove(num_queues - 1));
     tokio::spawn(async move {
-        send(queue_out, socket_out).await;
+        send(device_out, socket_out).await;
     });
-    receive(queue_in, socket_in).await;
+    receive(device_in, socket_in).await;
 }
 
 fn parse_cli_args() -> (IpAddr, usize) {
     let mut args = env::args().skip(1);
 
     let Some(src_socket_ip_string) = args.next() else {
-        eprintln!("Expected CLI arguments: <src_socket_ip> <num_queues>");
+        eprintln!("Expected CLI arguments: <src_socket_ip> <num_tasks>");
         process::exit(1);
     };
-    let Some(num_queues_string) = args.next() else {
-        eprintln!("Expected CLI arguments: <src_socket_ip> <num_queues>");
+    let Some(num_tasks_string) = args.next() else {
+        eprintln!("Expected CLI arguments: <src_socket_ip> <num_tasks>");
         process::exit(1);
     };
     if args.next().is_some() {
-        eprintln!("Expected CLI arguments: <src_socket_ip> <num_queues>");
+        eprintln!("Expected CLI arguments: <src_socket_ip> <num_tasks>");
         process::exit(1);
     }
 
     (
         IpAddr::from_str(&src_socket_ip_string).expect("Invalid CLI argument: <src_socket_ip>"),
-        usize::from_str(&num_queues_string).expect("Invalid CLI argument: <num_queues>"),
+        usize::from_str(&num_tasks_string).expect("Invalid CLI argument: <num_tasks>"),
     )
 }
 
