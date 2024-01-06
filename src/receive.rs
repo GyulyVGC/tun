@@ -18,7 +18,7 @@ pub async fn receive(mut device: WriteHalf<AsyncDevice>, socket: Arc<UdpSocket>)
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
 
         println!("RXA {}", inst.elapsed().as_micros());
-        let mut inst = Instant::now();
+        inst = Instant::now();
 
         if socket_frame.actual_bytes > 0 {
             // write packet to the kernel

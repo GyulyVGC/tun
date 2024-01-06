@@ -21,7 +21,7 @@ const PORT: u16 = 9999;
 
 const MTU: usize = 1500 - 20 - 8;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
     ///////////////////////////////////////////////////////
     ctrlc::set_handler(move || {
