@@ -14,7 +14,7 @@ pub fn send(mut device: Reader, socket: &Arc<UdpSocket>) {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
 
-        println!("TXA {}", inst.elapsed().as_micros());
+        // println!("TXA {}", inst.elapsed().as_micros());
         inst = Instant::now();
 
         // send the packet to the socket
@@ -23,7 +23,7 @@ pub fn send(mut device: Reader, socket: &Arc<UdpSocket>) {
             continue;
         };
         socket.send_to(socket_buf, dst_socket).unwrap_or(0);
-        println!("TXB {}", inst.elapsed().as_micros());
+        // println!("TXB {}", inst.elapsed().as_micros());
     }
 }
 

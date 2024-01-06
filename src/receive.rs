@@ -16,7 +16,7 @@ pub fn receive(mut device: Writer, socket: &Arc<UdpSocket>) {
             .recv_from(&mut socket_frame.frame)
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
 
-        println!("RXA {}", inst.elapsed().as_micros());
+        // println!("RXA {}", inst.elapsed().as_micros());
         inst = Instant::now();
 
         if socket_frame.actual_bytes > 0 {
@@ -25,6 +25,6 @@ pub fn receive(mut device: Writer, socket: &Arc<UdpSocket>) {
             #[allow(clippy::needless_borrow)]
             device.write_all(&os_buf).unwrap_or(());
         }
-        println!("RXB {}", inst.elapsed().as_micros());
+        // println!("RXB {}", inst.elapsed().as_micros());
     }
 }
