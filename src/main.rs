@@ -9,20 +9,18 @@ mod socket_frame;
 use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::{env, process};
-use tokio::net::UdpSocket;
-use tokio::try_join;
+use std::{env, process, thread};
 use tun::Configuration;
 
 const PORT: u16 = 9999;
 
 const MTU: usize = 1500 - 20 - 8;
 
-#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
-async fn main() {
+// #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
+fn main() {
     ///////////////////////////////////////////////////////
     ctrlc::set_handler(move || {
         process::exit(0);
@@ -46,26 +44,26 @@ async fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let (device_out, device_in) =
-        tokio::io::split(tun::create_as_async(&config).expect("Failed to create TUN device"));
+    let (device_out, device_in) = tun::create(&config)
+        .expect("Failed to create TUN device")
+        .split();
 
     configure_routing(&src_socket_ip);
 
-    let socket = UdpSocket::bind(src_socket)
-        .await
-        .expect("Failed to bind socket");
+    let socket = UdpSocket::bind(src_socket).expect("Failed to bind socket");
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    let receiver = tokio::spawn(async move {
-        receive(device_in, socket_in).await;
+    let receiver = thread::spawn(move || {
+        receive(device_in, &socket_in);
     });
 
-    let sender = tokio::spawn(async move {
-        send(device_out, socket_out).await;
+    let sender = thread::spawn(move || {
+        send(device_out, &socket_out);
     });
 
-    try_join!(receiver, sender).unwrap();
+    receiver.join().unwrap();
+    sender.join().unwrap();
 }
 
 fn parse_cli_args() -> IpAddr {
