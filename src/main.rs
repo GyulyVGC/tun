@@ -9,6 +9,7 @@ mod socket_frame;
 use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
+use aes_gcm::{Aes256Gcm, Key, KeyInit};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use nullnet_firewall::{DataLink, Firewall};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
@@ -63,12 +64,19 @@ fn main() {
     let firewall_r2 = firewall_r1.clone();
     let firewall_w = firewall_r1.clone();
 
+    let key = Key::<Aes256Gcm>::from_slice(&[
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+        25, 26, 27, 28, 29, 30, 31,
+    ]);
+    let cipher1 = Arc::new(Aes256Gcm::new(key));
+    let cipher2 = cipher1.clone();
+
     thread::spawn(move || {
-        receive(device_in, &socket_in, &firewall_r1);
+        receive(device_in, &socket_in, &firewall_r1, &cipher1);
     });
 
     thread::spawn(move || {
-        send(device_out, &socket_out, &firewall_r2);
+        send(device_out, &socket_out, &firewall_r2, &cipher2);
     });
 
     update_firewall_on_press(&firewall_w);

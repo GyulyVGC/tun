@@ -18,7 +18,7 @@ impl OsFrame {
         }
     }
 
-    fn actual_frame_from_byte(&self, byte: usize) -> &[u8] {
+    pub fn actual_frame_from_byte(&self, byte: usize) -> &[u8] {
         &self.frame[byte..self.actual_bytes]
     }
 
