@@ -136,6 +136,7 @@ fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>) {
                     .unwrap()
                     .update_rules(FIREWALL_PATH)
                     .unwrap();
+                println!("Firewall has been updated!");
             }
         }
     }
