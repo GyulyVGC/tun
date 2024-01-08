@@ -1,0 +1,4 @@
+# Firewall rules
+# Rules preceded by '+' have higher priority (quick rules)
+
+IN DENY --dport 22

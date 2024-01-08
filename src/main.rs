@@ -9,24 +9,26 @@ mod socket_frame;
 use crate::peers::ETHERNET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use nullnet_firewall::{DataLink, Firewall};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::str::FromStr;
-use std::sync::Arc;
-use std::{env, process, thread};
+use std::sync::{Arc, RwLock};
+use std::{env, panic, process, thread};
 use tun::Configuration;
 
 const PORT: u16 = 9999;
-
 const MTU: usize = 1500 - 20 - 8;
+const FIREWALL_PATH: &str = "./firewall.txt";
 
-// #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 fn main() {
-    ///////////////////////////////////////////////////////
-    ctrlc::set_handler(move || {
-        process::exit(0);
-    })
-    .expect("Error setting Ctrl-C handler");
-    ///////////////////////////////////////////////////////
+    // kill the main thread as soon as a secondary thread panics
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // invoke the default handler and exit the process
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
 
     let src_socket_ip = parse_cli_args();
 
@@ -54,16 +56,21 @@ fn main() {
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
 
-    let receiver = thread::spawn(move || {
-        receive(device_in, &socket_in);
+    let mut firewall = Firewall::new(FIREWALL_PATH).expect("Invalid firewall specification");
+    firewall.set_data_link(DataLink::RawIP);
+    let firewall_r1 = Arc::new(RwLock::new(firewall));
+    let firewall_r2 = firewall_r1.clone();
+    let firewall_w = firewall_r1.clone();
+
+    thread::spawn(move || {
+        receive(device_in, &socket_in, &firewall_r1);
     });
 
-    let sender = thread::spawn(move || {
-        send(device_out, &socket_out);
+    thread::spawn(move || {
+        send(device_out, &socket_out, &firewall_r2);
     });
 
-    receiver.join().unwrap();
-    sender.join().unwrap();
+    update_firewall_on_press(&firewall_w);
 }
 
 fn parse_cli_args() -> IpAddr {
@@ -111,4 +118,24 @@ fn configure_routing(_src_socket_ip: &IpAddr) {
         ])
         .spawn()
         .expect("Failed to configure routing");
+}
+
+fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>) {
+    loop {
+        if let Ok(Event::Key(KeyEvent {
+            code,
+            modifiers: _,
+            kind,
+            state: _,
+        })) = crossterm::event::read()
+        {
+            if code.eq(&KeyCode::Enter) && kind.eq(&KeyEventKind::Press) {
+                firewall
+                    .write()
+                    .unwrap()
+                    .update_rules(FIREWALL_PATH)
+                    .unwrap();
+            }
+        }
+    }
 }
