@@ -44,5 +44,5 @@ pub fn receive(
 
 fn decrypt_packet(packet: &[u8], cipher: &Arc<Aes256Gcm>) -> Vec<u8> {
     let nonce = GenericArray::from_slice(&[0; 12]);
-    cipher.decrypt(nonce, packet).unwrap()
+    cipher.decrypt(nonce, packet).unwrap_or(vec![])
 }
