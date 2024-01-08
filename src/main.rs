@@ -57,7 +57,8 @@ fn main() {
     let socket_out = socket_in.clone();
 
     let mut firewall = Firewall::new(FIREWALL_PATH).expect("Invalid firewall specification");
-    firewall.set_data_link(DataLink::RawIP);
+    firewall.data_link(DataLink::RawIP);
+    firewall.log(false);
     let firewall_r1 = Arc::new(RwLock::new(firewall));
     let firewall_r2 = firewall_r1.clone();
     let firewall_w = firewall_r1.clone();
