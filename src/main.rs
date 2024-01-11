@@ -121,8 +121,12 @@ fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
         })) = crossterm::event::read()
         {
             if code.eq(&KeyCode::Enter) && kind.eq(&KeyEventKind::Press) {
-                firewall.write().unwrap().update_rules(path).unwrap();
-                println!("Firewall has been updated!");
+                if let Err(err) = firewall.write().unwrap().update_rules(path) {
+                    println!("{err}");
+                    println!("Firewall was not updated!");
+                } else {
+                    println!("Firewall has been updated!");
+                }
             }
         }
     }
