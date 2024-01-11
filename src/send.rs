@@ -18,7 +18,9 @@ pub fn send(
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
 
+        println!("ho");
         if os_frame.actual_bytes > 0 {
+            println!("ho ho");
             // send the packet to the socket
             let socket_buf = os_frame.to_socket_buf();
             let Some(dst_socket) = get_dst_socket(socket_buf) else {
