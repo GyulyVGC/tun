@@ -4,14 +4,14 @@ use crate::os_frame::OsFrame;
 /// Representation of a network packet transiting on sockets
 /// All packets of this kind must be in raw IP form
 pub struct SocketFrame {
-    pub frame: Vec<u8>,
+    pub frame: Box<[u8]>,
     pub actual_bytes: usize,
 }
 
 impl SocketFrame {
     pub fn new(mtu: usize) -> Self {
         Self {
-            frame: Vec::with_capacity(mtu),
+            frame: Box::new([]),
             actual_bytes: 0,
         }
     }

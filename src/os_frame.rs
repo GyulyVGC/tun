@@ -1,7 +1,7 @@
 /// Representation of a network packet that can be interpreted by specific OSs
 /// Packets of this kind can either be in raw IP or null/loopback form
 pub struct OsFrame {
-    pub frame: Vec<u8>,
+    pub frame: Box<[u8]>,
     pub actual_bytes: usize,
 }
 
@@ -11,7 +11,7 @@ impl OsFrame {
 
     pub fn new(mtu: usize) -> Self {
         Self {
-            frame: Vec::with_capacity(mtu),
+            frame: Box::new([]),
             actual_bytes: 0,
         }
     }
