@@ -1,7 +1,7 @@
 /// Representation of a network packet that can be interpreted by specific OSs
 /// Packets of this kind can either be in raw IP or null/loopback form
 pub struct OsFrame {
-    pub frame: [u8; 8192],
+    pub frame: [u8; 65536],
     pub actual_bytes: usize,
 }
 
@@ -9,9 +9,9 @@ impl OsFrame {
     #[cfg(target_os = "macos")]
     pub const AF_INET_HEADER: &'static [u8] = &[0, 0, 0, 2];
 
-    pub fn new(mtu: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            frame: [0; 8192],
+            frame: [0; 65536],
             actual_bytes: 0,
         }
     }

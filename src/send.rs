@@ -7,13 +7,8 @@ use std::net::UdpSocket;
 use std::sync::{Arc, RwLock};
 use tun::platform::posix::Reader;
 
-pub fn send(
-    mut device: Reader,
-    socket: &Arc<UdpSocket>,
-    firewall: &Arc<RwLock<Firewall>>,
-    mtu: usize,
-) {
-    let mut os_frame = OsFrame::new(mtu);
+pub fn send(mut device: Reader, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<Firewall>>) {
+    let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap();

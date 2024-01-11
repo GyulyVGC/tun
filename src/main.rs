@@ -69,11 +69,11 @@ fn main() {
     let firewall_w = firewall_r1.clone();
 
     thread::spawn(move || {
-        receive(device_in, &socket_in, &firewall_r1, mtu);
+        receive(device_in, &socket_in, &firewall_r1);
     });
 
     thread::spawn(move || {
-        send(device_out, &socket_out, &firewall_r2, mtu);
+        send(device_out, &socket_out, &firewall_r2);
     });
 
     update_firewall_on_press(&firewall_w, &firewall_path);
