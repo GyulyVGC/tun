@@ -7,8 +7,13 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use tun::platform::posix::Writer;
 
-pub fn receive(mut device: Writer, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<Firewall>>) {
-    let mut socket_frame = SocketFrame::new();
+pub fn receive(
+    mut device: Writer,
+    socket: &Arc<UdpSocket>,
+    firewall: &Arc<RwLock<Firewall>>,
+    mtu: usize,
+) {
+    let mut socket_frame = SocketFrame::new(mtu);
     loop {
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
         (socket_frame.actual_bytes, _) = socket

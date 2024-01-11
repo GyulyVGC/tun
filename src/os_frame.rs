@@ -1,9 +1,7 @@
-use crate::MTU;
-
 /// Representation of a network packet that can be interpreted by specific OSs
 /// Packets of this kind can either be in raw IP or null/loopback form
 pub struct OsFrame {
-    pub frame: [u8; MTU],
+    pub frame: Vec<u8>,
     pub actual_bytes: usize,
 }
 
@@ -11,9 +9,9 @@ impl OsFrame {
     #[cfg(target_os = "macos")]
     pub const AF_INET_HEADER: &'static [u8] = &[0, 0, 0, 2];
 
-    pub fn new() -> Self {
+    pub fn new(mtu: usize) -> Self {
         Self {
-            frame: [0; MTU],
+            frame: Vec::with_capacity(mtu),
             actual_bytes: 0,
         }
     }

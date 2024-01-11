@@ -1,18 +1,17 @@
 #[cfg(target_os = "macos")]
 use crate::os_frame::OsFrame;
-use crate::MTU;
 
 /// Representation of a network packet transiting on sockets
 /// All packets of this kind must be in raw IP form
 pub struct SocketFrame {
-    pub frame: [u8; MTU],
+    pub frame: Vec<u8>,
     pub actual_bytes: usize,
 }
 
 impl SocketFrame {
-    pub fn new() -> Self {
+    pub fn new(mtu: usize) -> Self {
         Self {
-            frame: [0; MTU],
+            frame: Vec::with_capacity(mtu),
             actual_bytes: 0,
         }
     }

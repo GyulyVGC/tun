@@ -1,4 +1,5 @@
 # Firewall rules
 # Rules preceded by '+' have higher priority (quick rules)
 
-IN DENY --dport 22
+IN ACCEPT --dport 22
+IN ACCEPT --proto 1 --icmp-type 8

@@ -7,25 +7,32 @@ use std::net::UdpSocket;
 use std::sync::{Arc, RwLock};
 use tun::platform::posix::Reader;
 
-pub fn send(mut device: Reader, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<Firewall>>) {
-    let mut os_frame = OsFrame::new();
+pub fn send(
+    mut device: Reader,
+    socket: &Arc<UdpSocket>,
+    firewall: &Arc<RwLock<Firewall>>,
+    mtu: usize,
+) {
+    let mut os_frame = OsFrame::new(mtu);
     loop {
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap_or(0);
 
-        // send the packet to the socket
-        let socket_buf = os_frame.to_socket_buf();
-        let Some(dst_socket) = get_dst_socket(socket_buf) else {
-            continue;
-        };
-        match firewall
-            .read()
-            .unwrap()
-            .resolve_packet(socket_buf, FirewallDirection::OUT)
-        {
-            FirewallAction::ACCEPT => socket.send_to(socket_buf, dst_socket).unwrap_or(0),
-            FirewallAction::DENY | FirewallAction::REJECT => 0,
-        };
+        if os_frame.actual_bytes > 0 {
+            // send the packet to the socket
+            let socket_buf = os_frame.to_socket_buf();
+            let Some(dst_socket) = get_dst_socket(socket_buf) else {
+                continue;
+            };
+            match firewall
+                .read()
+                .unwrap()
+                .resolve_packet(socket_buf, FirewallDirection::OUT)
+            {
+                FirewallAction::ACCEPT => socket.send_to(socket_buf, dst_socket).unwrap_or(0),
+                FirewallAction::DENY | FirewallAction::REJECT => 0,
+            };
+        }
     }
 }
 
