@@ -34,7 +34,7 @@ pub fn receive(
                     device.write_all(&os_buf).unwrap_or(());
                 }
                 FirewallAction::REJECT => {
-                    send_destination_unreachable(socket_frame.actual_frame(), tun_ip, socket)
+                    send_destination_unreachable(socket_frame.actual_frame(), tun_ip, socket);
                 }
                 FirewallAction::DENY => {}
             }

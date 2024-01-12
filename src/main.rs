@@ -83,10 +83,10 @@ fn main() {
 /// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24)
 fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
-    {
-        let num = _tun_ip.to_string().split('.').last().unwrap();
-        _config.name(format!("nullnet{num}"));
-    }
+    _config.name(format!(
+        "nullnet{}",
+        _tun_ip.to_string().split('.').last().unwrap()
+    ));
 }
 
 /// To work on macOS, the route must be setup manually (after TUN creation!)
