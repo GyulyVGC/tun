@@ -84,7 +84,7 @@ fn main() {
 fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     {
-        let num = tun_ip.to_string().split('.').last().unwrap();
+        let num = _tun_ip.to_string().split('.').last().unwrap();
         _config.name(format!("nullnet{num}"));
     }
 }
