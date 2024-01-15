@@ -15,11 +15,14 @@ static ETHERNET_TUN_TUPLES: Lazy<Vec<([u8; 4], [u8; 4])>> = Lazy::new(|| {
     ]
 });
 
-pub static ETHERNET_TO_TUN: Lazy<HashMap<IpAddr, IpAddr>> = Lazy::new(|| {
+pub static SOCKET_TO_TUN: Lazy<HashMap<SocketAddr, IpAddr>> = Lazy::new(|| {
     let mut map = HashMap::new();
     for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
         assert!(map
-            .insert(IpAddr::from(*ethernet), IpAddr::from(*tun))
+            .insert(
+                SocketAddr::new(IpAddr::from(*ethernet), PORT),
+                IpAddr::from(*tun)
+            )
             .is_none());
     }
     map
