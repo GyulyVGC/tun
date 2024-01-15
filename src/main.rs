@@ -15,7 +15,6 @@ use clap::Parser;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use nullnet_firewall::{DataLink, Firewall};
 use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::process::Stdio;
 use std::sync::{Arc, RwLock};
 use std::{panic, process, thread};
 use tun::{Configuration, Device};
@@ -117,7 +116,7 @@ fn configure_routing(_tun_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
     process::Command::new("route")
         .args(["-n", "add", "-net", "10.0.0.0/24", &_tun_ip.to_string()])
-        .stdout(Stdio::null())
+        .stdout(process::Stdio::null())
         .spawn()
         .expect("Failed to configure routing");
 }
