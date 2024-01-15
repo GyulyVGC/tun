@@ -377,8 +377,9 @@ dependencies = [
 
 [[package]]
 name = "nullnet-firewall"
-version = "0.2.0"
-source = "git+https://github.com/GyulyVGC/nullnet-firewall.git#f4be8bd83edf0bba95ae62b88efecb9a679d4fb2"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71626e22966a8f030bff6b91741605008717d8ef1aff1a6231ea99e160361ba7"
 dependencies = [
  "chrono",
  "etherparse",
