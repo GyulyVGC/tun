@@ -168,8 +168,14 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
         + ((packet[25] as u32) << 16)
         + ((packet[26] as u32) << 8)
         + ((packet[27] as u32) << 0);
-    let rejected_payload_len = packet.len() as u32 - 20 - (packet[32] as u32 >> 4) * 4;
-    seq = seq.wrapping_add(rejected_payload_len);
+    if packet[33] & 0b00000010 == 0b00000010 {
+        // SYN was set in the rejected packet
+        seq = seq.wrapping_add(1);
+    } else {
+        // SYN wasn't set in the rejected packet
+        let rejected_payload_len = packet.len() as u32 - 20 - (packet[32] as u32 >> 4) * 4;
+        seq = seq.wrapping_add(rejected_payload_len);
+    }
     pkt_response[24..28].clone_from_slice(&seq.to_be_bytes());
 
     // window size
