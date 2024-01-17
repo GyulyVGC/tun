@@ -140,8 +140,8 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     ];
 
     // length
-    pkt_response[2] = 0x00; // 56 bytes (0x0038) TODO!!!
-    pkt_response[3] = 0x38;
+    pkt_response[2] = 0x00; // 40 bytes (0x0028)
+    pkt_response[3] = 0x28;
 
     // source
     let IpAddr::V4(tun_ip_v4) = tun_ip else {
