@@ -187,7 +187,7 @@ fn calc_ipv4_checksum(ipv4_header: &[u8]) -> u16 {
     assert_eq!(ipv4_header.len() % 2, 0);
     let mut checksum = 0;
     for i in 0..ipv4_header.len() / 2 {
-        if i == 18 {
+        if i == 5 {
             // Assume checksum field is set to 0
             continue;
         }
@@ -220,7 +220,7 @@ fn calc_tcp_checksum(ip_tcp_headers: &[u8]) -> u16 {
     let mut checksum = 0;
     checksum += 26; // protocol and TCP segment len (6 + 20)
     for i in 6..ip_tcp_headers.len() / 2 {
-        if i == 5 {
+        if i == 18 {
             // Assume checksum field is set to 0
             continue;
         }
