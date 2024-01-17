@@ -168,7 +168,7 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
         + ((packet[25] as u32) << 16)
         + ((packet[26] as u32) << 8)
         + ((packet[27] as u32) << 0);
-    let rejected_payload_len = packet.len() as u32 - 40;
+    let rejected_payload_len = packet.len() as u32 - 20 - (packet[32] as u32 >> 4) * 4;
     seq = seq.wrapping_add(rejected_payload_len);
     pkt_response[24..28].clone_from_slice(&seq.to_be_bytes());
 
