@@ -177,6 +177,7 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     } else {
         // SYN wasn't set in the rejected packet
         let rejected_payload_len = packet.len() as u32 - 20 - (packet[32] as u32 >> 4) * 4;
+        println!("{}", rejected_payload_len);
         ack = ack.wrapping_add(rejected_payload_len);
     }
     pkt_response[28..32].clone_from_slice(&ack.to_be_bytes());
