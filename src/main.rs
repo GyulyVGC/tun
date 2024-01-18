@@ -1,9 +1,11 @@
 #![allow(clippy::used_underscore_binding)]
 
+mod checksums;
 mod cli;
 mod os_frame;
 mod peers;
 mod receive;
+mod reject_payloads;
 mod send;
 mod socket_frame;
 

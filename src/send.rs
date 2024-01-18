@@ -23,8 +23,10 @@ pub fn send(mut device: Reader, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<F
             .unwrap()
             .resolve_packet(socket_buf, FirewallDirection::OUT)
         {
-            FirewallAction::ACCEPT => socket.send_to(socket_buf, dst_socket).unwrap_or(0),
-            FirewallAction::DENY | FirewallAction::REJECT => 0,
+            FirewallAction::ACCEPT => {
+                socket.send_to(socket_buf, dst_socket).unwrap_or(0);
+            }
+            FirewallAction::DENY | FirewallAction::REJECT => {}
         };
     }
 }
