@@ -12,7 +12,7 @@ pub struct Args {
     #[arg(long, default_value_t = false)]
     pub log: bool,
     /// Maximum Transmission Unit (bytes)
-    #[arg(long, default_value_t = 1500 - 20 - 8)]
+    #[arg(long, default_value_t = 42500)]
     pub mtu: usize,
     /// Path of the file defining firewall rules
     #[arg(long, default_value_t = String::from("./firewall.txt"))]
