@@ -106,7 +106,7 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
         0x00, 0x00, 0x00, 0x00,     // sequence number (will be set later)
         0x00, 0x00, 0x00, 0x00,     // ACK number (will be set later)
         0x50,                       // data offset & reserved bits
-        0b00010100,                 // flags: ACK, RST
+        0b_0001_0100,                 // flags: ACK, RST
         0x00, 0x00,                 // window size (will be set later)
         0x00, 0x00,                 // checksum (will be set later)
         0x00, 0x00,                 // urgent pointer
@@ -140,16 +140,17 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     pkt_response[24..28].clone_from_slice(&packet[28..32]);
 
     // ACK number
-    let mut ack = ((packet[24] as u32) << 24)
-        + ((packet[25] as u32) << 16)
-        + ((packet[26] as u32) << 8)
-        + ((packet[27] as u32) << 0);
-    if packet[33] & 0b00000010 == 0b00000010 {
+    let mut ack = (u32::from(packet[24]) << 24)
+        + (u32::from(packet[25]) << 16)
+        + (u32::from(packet[26]) << 8)
+        + u32::from(packet[27]);
+    if packet[33] & 0b_0000_0010 == 0b_0000_0010 {
         // SYN was set in the rejected packet
         ack = ack.wrapping_add(1);
     } else {
         // SYN wasn't set in the rejected packet
-        let rejected_payload_len = packet.len() as u32 - 20 - (packet[32] as u32 >> 4) * 4;
+        let rejected_payload_len =
+            u32::try_from(packet.len()).unwrap() - 20 - (u32::from(packet[32]) >> 4) * 4;
         ack = ack.wrapping_add(rejected_payload_len);
     }
     pkt_response[28..32].clone_from_slice(&ack.to_be_bytes());
