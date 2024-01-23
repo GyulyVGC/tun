@@ -15,6 +15,7 @@ pub async fn send(
 ) {
     let mut os_frame = OsFrame::new();
     loop {
+        println!("send");
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device
             .lock()
