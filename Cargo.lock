@@ -409,6 +409,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf4e226dcd58b4be396f7bd3c20da8fdee2911400705297ba7d2d7cc2c30f716"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]
@@ -459,8 +460,7 @@ dependencies = [
 [[package]]
 name = "nullnet-firewall"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcc8048774a78a8a832b233725d4ed4d9c7f8c42065fe2010cce3e211a3583e4"
+source = "git+https://github.com/GyulyVGC/nullnet-firewall.git#164292f83f5dbdcb946f61009de466a1aac04ceb"
 dependencies = [
  "chrono",
  "etherparse",
