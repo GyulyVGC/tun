@@ -16,14 +16,17 @@ use crate::send::send;
 use clap::Parser;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use nullnet_firewall::{DataLink, Firewall};
-use std::net::{IpAddr, SocketAddr, UdpSocket};
-use std::sync::{Arc, RwLock};
-use std::{panic, process, thread};
+use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
+use std::{panic, process};
+use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
 use tun::{Configuration, Device};
 
 const PORT: u16 = 9999;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // kill the main thread as soon as a secondary thread panics
     let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
@@ -39,7 +42,7 @@ fn main() {
         firewall_path,
     } = Args::parse();
 
-    let (src_socket, socket) = bind_socket(source);
+    let (src_socket, socket) = bind_socket(source).await;
 
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
@@ -56,9 +59,9 @@ fn main() {
         .netmask((255, 255, 255, 0))
         .up();
 
-    let device = tun::create(&config).expect("Failed to create TUN device");
-    let device_name = device.name().unwrap();
-    let (device_out, device_in) = device.split();
+    let device = tun::create_as_async(&config).expect("Failed to create TUN device");
+    let device_name = device.get_ref().name().unwrap();
+    let (device_out, device_in) = tokio::io::split(device);
 
     configure_routing(tun_ip);
 
@@ -69,32 +72,34 @@ fn main() {
     let firewall_r2 = firewall_r1.clone();
     let firewall_w = firewall_r1.clone();
 
-    thread::spawn(move || {
-        receive(device_in, &socket_in, &firewall_r1, tun_ip);
+    tokio::spawn(async move {
+        Box::pin(receive(device_in, &socket_in, &firewall_r1, tun_ip)).await;
     });
 
-    thread::spawn(move || {
-        send(device_out, &socket_out, &firewall_r2);
+    tokio::spawn(async move {
+        Box::pin(send(device_out, &socket_out, &firewall_r2)).await;
     });
 
     print_info(&src_socket, &device_name, tun_ip, mtu);
 
-    update_firewall_on_press(&firewall_w, &firewall_path);
+    update_firewall_on_press(&firewall_w, &firewall_path).await;
 }
 
 /// Tries to bind a UDP socket.
 ///
 /// If `source` is `None`, this function will iterate over all the known peers until a valid socket can be opened.
-fn bind_socket(source: Option<IpAddr>) -> (SocketAddr, UdpSocket) {
+async fn bind_socket(source: Option<IpAddr>) -> (SocketAddr, UdpSocket) {
     if let Some(address) = source {
         let socket_addr = SocketAddr::new(address, PORT);
         (
             socket_addr,
-            UdpSocket::bind(socket_addr).expect("Failed to bind socket"),
+            UdpSocket::bind(socket_addr)
+                .await
+                .expect("Failed to bind socket"),
         )
     } else {
         for socket_addr in SOCKET_TO_TUN.keys() {
-            if let Ok(socket) = UdpSocket::bind(socket_addr) {
+            if let Ok(socket) = UdpSocket::bind(socket_addr).await {
                 return (*socket_addr, socket);
             }
         }
@@ -137,7 +142,7 @@ fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, 
 }
 
 /// Allows to refresh the firewall rules definition when the `enter` key is pressed.
-fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
+async fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
     loop {
         if let Ok(Event::Key(KeyEvent {
             code,
@@ -147,7 +152,7 @@ fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
         })) = crossterm::event::read()
         {
             if code.eq(&KeyCode::Enter) && kind.eq(&KeyEventKind::Press) {
-                if let Err(err) = firewall.write().unwrap().update_rules(path) {
+                if let Err(err) = firewall.write().await.update_rules(path) {
                     println!("{err}");
                     println!("Firewall was not updated!");
                 } else {

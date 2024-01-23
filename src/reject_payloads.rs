@@ -1,24 +1,31 @@
 use crate::checksums::{icmp_checksum, ipv4_checksum, tcp_checksum};
 use crate::peers::TUN_TO_SOCKET;
-use std::net::{IpAddr, UdpSocket};
+use std::net::IpAddr;
 use std::sync::Arc;
+use tokio::net::UdpSocket;
 
-pub fn send_termination_message(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
+pub async fn send_termination_message(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     let Some(proto) = packet.get(9) else {
         return;
     };
     match proto {
-        6 => send_tcp_rst(packet, tun_ip, socket),
-        17 => send_destination_unreachable(
-            packet, tun_ip, socket, 3, // port unreachable
-        ),
-        _ => send_destination_unreachable(
-            packet, tun_ip, socket, 1, // host unreachable
-        ),
+        6 => send_tcp_rst(packet, tun_ip, socket).await,
+        17 => {
+            send_destination_unreachable(
+                packet, tun_ip, socket, 3, // port unreachable
+            )
+            .await;
+        }
+        _ => {
+            send_destination_unreachable(
+                packet, tun_ip, socket, 1, // host unreachable
+            )
+            .await;
+        }
     };
 }
 
-fn send_destination_unreachable(
+async fn send_destination_unreachable(
     packet: &[u8],
     tun_ip: &IpAddr,
     socket: &Arc<UdpSocket>,
@@ -77,10 +84,13 @@ fn send_destination_unreachable(
     pkt_response_final[22] = (icmp_checksum >> 8) as u8; // calculated checksum is little-endian; checksum field is big-endian
     pkt_response_final[23] = (icmp_checksum & 0xff) as u8; // calculated checksum is little-endian; checksum field is big-endian
 
-    socket.send_to(pkt_response_final, dest_socket).unwrap_or(0);
+    socket
+        .send_to(pkt_response_final, dest_socket)
+        .await
+        .unwrap_or(0);
 }
 
-fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
+async fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     if packet.len() < 40 {
         return;
     }
@@ -163,5 +173,8 @@ fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     pkt_response[36] = (tcp_checksum >> 8) as u8; // calculated checksum is little-endian; checksum field is big-endian
     pkt_response[37] = (tcp_checksum & 0xff) as u8; // calculated checksum is little-endian; checksum field is big-endian
 
-    socket.send_to(&pkt_response, dest_socket).unwrap_or(0);
+    socket
+        .send_to(&pkt_response, dest_socket)
+        .await
+        .unwrap_or(0);
 }

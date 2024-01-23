@@ -1,17 +1,22 @@
 use crate::os_frame::OsFrame;
 use crate::peers::TUN_TO_SOCKET;
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
-use std::io::Read;
 use std::net::SocketAddr;
-use std::net::UdpSocket;
-use std::sync::{Arc, RwLock};
-use tun::platform::posix::Reader;
+use std::sync::Arc;
+use tokio::io::{AsyncReadExt, ReadHalf};
+use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
+use tun::AsyncDevice;
 
-pub fn send(mut device: Reader, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<Firewall>>) {
+pub async fn send(
+    mut device: ReadHalf<AsyncDevice>,
+    socket: &Arc<UdpSocket>,
+    firewall: &Arc<RwLock<Firewall>>,
+) {
     let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        os_frame.actual_bytes = device.read(&mut os_frame.frame).unwrap();
+        os_frame.actual_bytes = device.read(&mut os_frame.frame).await.unwrap_or(0);
 
         // send the packet to the socket
         let socket_buf = os_frame.to_socket_buf();
@@ -20,11 +25,11 @@ pub fn send(mut device: Reader, socket: &Arc<UdpSocket>, firewall: &Arc<RwLock<F
         };
         match firewall
             .read()
-            .unwrap()
+            .await
             .resolve_packet(socket_buf, FirewallDirection::OUT)
         {
             FirewallAction::ACCEPT => {
-                socket.send_to(socket_buf, dst_socket).unwrap_or(0);
+                socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
             }
             FirewallAction::DENY | FirewallAction::REJECT => {}
         };
