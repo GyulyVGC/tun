@@ -166,6 +166,7 @@ fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, 
 /// Allows to refresh the firewall rules definition when the `enter` key is pressed.
 async fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
     loop {
+        println!("read char");
         if let Ok(Event::Key(KeyEvent {
             code,
             modifiers: _,

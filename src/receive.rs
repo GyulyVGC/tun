@@ -17,7 +17,7 @@ pub async fn receive(
 ) {
     let mut socket_frame = SocketFrame::new();
     loop {
-        println!("receive");
+        // println!("receive");
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
         (socket_frame.actual_bytes, _) = socket
             .recv_from(&mut socket_frame.frame)
