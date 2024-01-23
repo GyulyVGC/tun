@@ -5,18 +5,23 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
 
 pub async fn send(
-    mut device: ReadHalf<AsyncDevice>,
+    device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
 ) {
     let mut os_frame = OsFrame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        os_frame.actual_bytes = device.read(&mut os_frame.frame).await.unwrap_or(0);
+        os_frame.actual_bytes = device
+            .lock()
+            .await
+            .read(&mut os_frame.frame)
+            .await
+            .unwrap_or(0);
 
         // send the packet to the socket
         let socket_buf = os_frame.to_socket_buf();

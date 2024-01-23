@@ -6,11 +6,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
 
 pub async fn receive(
-    mut device: WriteHalf<AsyncDevice>,
+    device: &Arc<Mutex<WriteHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
     tun_ip: &IpAddr,
@@ -33,7 +33,7 @@ pub async fn receive(
                     // write packet to the kernel
                     let os_buf = socket_frame.to_os_buf();
                     #[allow(clippy::needless_borrow)]
-                    device.write_all(&os_buf).await.unwrap_or(());
+                    device.lock().await.write_all(&os_buf).await.unwrap_or(());
                 }
                 FirewallAction::REJECT => {
                     send_termination_message(socket_frame.actual_frame(), tun_ip, socket).await;

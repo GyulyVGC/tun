@@ -20,7 +20,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::{panic, process};
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
 
 const PORT: u16 = 9999;
@@ -40,6 +40,7 @@ async fn main() {
         log,
         mtu,
         firewall_path,
+        num_tasks,
     } = Args::parse();
 
     let (src_socket, socket) = bind_socket(source).await;
@@ -61,28 +62,49 @@ async fn main() {
 
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
     let device_name = device.get_ref().name().unwrap();
-    let (device_out, device_in) = tokio::io::split(device);
+    let (read_half, write_half) = tokio::io::split(device);
+    let device_out = Arc::new(Mutex::new(read_half));
+    let device_in = Arc::new(Mutex::new(write_half));
 
     configure_routing(tun_ip);
 
     let mut firewall = Firewall::new(&firewall_path).expect("Invalid firewall specification");
     firewall.data_link(DataLink::RawIP);
     firewall.log(log);
-    let firewall_r1 = Arc::new(RwLock::new(firewall));
-    let firewall_r2 = firewall_r1.clone();
-    let firewall_w = firewall_r1.clone();
+    let firewall_reader = Arc::new(RwLock::new(firewall));
+    let firewall_writer = firewall_reader.clone();
 
-    tokio::spawn(async move {
-        Box::pin(receive(device_in, &socket_in, &firewall_r1, tun_ip)).await;
-    });
+    for _ in 0..num_tasks / 2 {
+        let device_in_task = device_in.clone();
+        let device_out_task = device_out.clone();
+        let socket_in_task = socket_in.clone();
+        let socket_out_task = socket_out.clone();
+        let firewall_reader_task_1 = firewall_reader.clone();
+        let firewall_reader_task_2 = firewall_reader.clone();
 
-    tokio::spawn(async move {
-        Box::pin(send(device_out, &socket_out, &firewall_r2)).await;
-    });
+        tokio::spawn(async move {
+            Box::pin(receive(
+                &device_in_task,
+                &socket_in_task,
+                &firewall_reader_task_1,
+                tun_ip,
+            ))
+            .await;
+        });
+
+        tokio::spawn(async move {
+            Box::pin(send(
+                &device_out_task,
+                &socket_out_task,
+                &firewall_reader_task_2,
+            ))
+            .await;
+        });
+    }
 
     print_info(&src_socket, &device_name, tun_ip, mtu);
 
-    update_firewall_on_press(&firewall_w, &firewall_path).await;
+    update_firewall_on_press(&firewall_writer, &firewall_path).await;
 }
 
 /// Tries to bind a UDP socket.

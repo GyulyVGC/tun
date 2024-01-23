@@ -17,4 +17,7 @@ pub struct Args {
     /// Path of the file defining firewall rules
     #[arg(long, default_value_t = String::from("./firewall.txt"))]
     pub firewall_path: String,
+    /// Number of asynchronous tasks to use (AKA coroutines)
+    #[arg(long, default_value_t = 2)]
+    pub num_tasks: usize,
 }
