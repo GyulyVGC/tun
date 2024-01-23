@@ -14,9 +14,11 @@ use crate::peers::SOCKET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use clap::Parser;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use notify::event::ModifyKind;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall};
 use std::net::{IpAddr, SocketAddr};
+use std::path::Path;
 use std::sync::Arc;
 use std::{panic, process};
 use tokio::net::UdpSocket;
@@ -104,7 +106,7 @@ async fn main() {
 
     print_info(&src_socket, &device_name, tun_ip, mtu);
 
-    update_firewall_on_press(&firewall_writer, &firewall_path).await;
+    update_firewall_on_rules_change(&firewall_writer, &firewall_path).await;
 }
 
 /// Tries to bind a UDP socket.
@@ -163,24 +165,26 @@ fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, 
     println!();
 }
 
-/// Allows to refresh the firewall rules definition when the `enter` key is pressed.
-async fn update_firewall_on_press(firewall: &Arc<RwLock<Firewall>>, path: &str) {
+/// Allows to refresh the firewall rules whenever the corresponding file is updated.
+async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path: &str) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
+    watcher
+        .watch(Path::new(path), RecursiveMode::NonRecursive)
+        .unwrap();
+
     loop {
-        println!("read char");
-        if let Ok(Event::Key(KeyEvent {
-            code,
-            modifiers: _,
-            kind,
-            state: _,
-        })) = crossterm::event::read()
+        // only update rules if the event is related to a file content change
+        if let Ok(Ok(Event {
+            kind: EventKind::Modify(ModifyKind::Data(_)),
+            ..
+        })) = rx.recv()
         {
-            if code.eq(&KeyCode::Enter) && kind.eq(&KeyEventKind::Press) {
-                if let Err(err) = firewall.write().await.update_rules(path) {
-                    println!("{err}");
-                    println!("Firewall was not updated!");
-                } else {
-                    println!("Firewall has been updated!");
-                }
+            if let Err(err) = firewall.write().await.update_rules(path) {
+                println!("{err}");
+                println!("Firewall was not updated!");
+            } else {
+                println!("Firewall has been updated!");
             }
         }
     }
