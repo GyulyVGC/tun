@@ -1,4 +1,7 @@
-# to launch at boot, it's needed to run 'sudo systemctl enable nullnet'
+# copy this file in /etc/systemd/system:
+#   sudo cp nullnet.service /etc/systemd/system/
+# enable the service to start at boot:
+#   sudo systemctl enable nullnet
 
 [Unit]
 Description=TUN-based networking in Rust
