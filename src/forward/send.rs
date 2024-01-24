@@ -1,4 +1,4 @@
-use crate::os_frame::OsFrame;
+use crate::frames::os_frame::OsFrame;
 use crate::peers::TUN_TO_SOCKET;
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use std::net::SocketAddr;
@@ -15,7 +15,6 @@ pub async fn send(
 ) {
     let mut os_frame = OsFrame::new();
     loop {
-        // println!("send");
         // wait until there is a packet outgoing from kernel
         os_frame.actual_bytes = device
             .lock()

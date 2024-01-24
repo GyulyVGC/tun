@@ -1,18 +1,15 @@
 #![allow(clippy::used_underscore_binding)]
 
-mod checksums;
 mod cli;
-mod os_frame;
+mod craft;
+mod forward;
+mod frames;
 mod peers;
-mod receive;
-mod reject_payloads;
-mod send;
-mod socket_frame;
 
 use crate::cli::Args;
+use crate::forward::receive::receive;
+use crate::forward::send::send;
 use crate::peers::SOCKET_TO_TUN;
-use crate::receive::receive;
-use crate::send::send;
 use clap::Parser;
 use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -153,7 +150,6 @@ fn configure_routing(_tun_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
     process::Command::new("route")
         .args(["-n", "add", "-net", "10.0.0.0/24", &_tun_ip.to_string()])
-        .stdout(process::Stdio::null())
         .spawn()
         .expect("Failed to configure routing");
 }

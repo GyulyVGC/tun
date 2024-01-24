@@ -1,5 +1,5 @@
 #[cfg(target_os = "macos")]
-use crate::os_frame::OsFrame;
+use crate::frames::os_frame::OsFrame;
 
 /// Representation of a network packet transiting on sockets
 /// All packets of this kind must be in raw IP form
