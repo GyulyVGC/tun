@@ -9,8 +9,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/tun
-ExecStart=/home/tun/target/release/tun --log
+WorkingDirectory=/home/%H/tun
+ExecStart=/home/%H/tun/target/release/tun --log
 Restart=always
 
 [Install]
