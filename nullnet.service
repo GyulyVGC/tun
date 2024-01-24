@@ -1,0 +1,14 @@
+# to launch at boot, it's needed to run 'sudo systemctl enable nullnet'
+
+[Unit]
+Description=TUN-based networking in Rust
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/debian/Desktop/tun
+ExecStart=/home/debian/Desktop/tun/target/release/tun --log
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
