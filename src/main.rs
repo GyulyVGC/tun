@@ -22,7 +22,7 @@ use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{panic, process};
+use std::{panic, process, thread};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
@@ -191,14 +191,17 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, firew
             ..
         })) = rx.recv()
         {
+            // debounce duplicated events
             if last_update_time.elapsed().as_millis() > 100 {
-                last_update_time = Instant::now();
+                // ensure file changes are propagated
+                tokio::time::sleep(Duration::from_millis(100)).await;
                 if let Err(err) = firewall.write().await.update_rules(firewall_path) {
                     println!("{err}");
                     println!("Firewall was not updated!");
                 } else {
                     println!("Firewall has been updated!");
                 }
+                last_update_time = Instant::now();
             }
         }
     }
@@ -240,13 +243,16 @@ fn try_new_firewall_until_success(firewall_path: &str) -> Firewall {
             ..
         })) = rx.recv()
         {
+            // debounce duplicated events
             if last_update_time.elapsed().as_millis() > 100 {
-                last_update_time = Instant::now();
+                // ensure file changes are propagated
+                thread::sleep(Duration::from_millis(100));
                 let result = Firewall::new(firewall_path);
                 print_new_firewall_info(&result);
                 if let Ok(firewall) = result {
                     return firewall;
                 }
+                last_update_time = Instant::now();
             }
         }
     }
