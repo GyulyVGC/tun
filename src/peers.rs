@@ -1,8 +1,10 @@
-use crate::PORT;
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::net::SocketAddr;
+
+use once_cell::sync::Lazy;
+
+use crate::PORT;
 
 static ETHERNET_TUN_TUPLES: Lazy<Vec<([u8; 4], [u8; 4])>> = Lazy::new(|| {
     vec![

@@ -1,13 +1,15 @@
-use crate::craft::reject_payloads::send_termination_message;
-use crate::frames::socket_frame::SocketFrame;
-use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+
+use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
+
+use crate::craft::reject_payloads::send_termination_message;
+use crate::frames::socket_frame::SocketFrame;
 
 pub async fn receive(
     device: &Arc<Mutex<WriteHalf<AsyncDevice>>>,

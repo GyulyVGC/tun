@@ -1,8 +1,10 @@
-use crate::craft::checksums::{icmp_checksum, ipv4_checksum, tcp_checksum};
-use crate::peers::TUN_TO_SOCKET;
 use std::net::IpAddr;
 use std::sync::Arc;
+
 use tokio::net::UdpSocket;
+
+use crate::craft::checksums::{icmp_checksum, ipv4_checksum, tcp_checksum};
+use crate::peers::TUN_TO_SOCKET;
 
 pub async fn send_termination_message(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     let Some(proto) = packet.get(9) else {

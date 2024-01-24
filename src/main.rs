@@ -1,28 +1,30 @@
 #![allow(clippy::used_underscore_binding)]
 
-mod cli;
-mod craft;
-mod forward;
-mod frames;
-mod peers;
-
-use crate::cli::Args;
-use crate::forward::receive::receive;
-use crate::forward::send::send;
-use crate::peers::SOCKET_TO_TUN;
-use clap::Parser;
-use notify::event::ModifyKind;
-use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use std::net::{IpAddr, SocketAddr};
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{panic, process, thread};
+
+use clap::Parser;
+use notify::event::ModifyKind;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
+
+use crate::cli::Args;
+use crate::forward::receive::receive;
+use crate::forward::send::send;
+use crate::peers::SOCKET_TO_TUN;
+
+mod cli;
+mod craft;
+mod forward;
+mod frames;
+mod peers;
 
 const PORT: u16 = 9999;
 

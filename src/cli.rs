@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::net::IpAddr;
+
+use clap::Parser;
 
 /// TUN-based networking in Rust
 #[derive(Parser, Debug)]
