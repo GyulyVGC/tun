@@ -14,6 +14,7 @@ use crate::peers::SOCKET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use clap::Parser;
+use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use std::net::{IpAddr, SocketAddr};
@@ -184,9 +185,9 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, firew
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
 
     loop {
-        // only update rules if the event is related to a file change
+        // only update rules if the event is related to a file content change
         if let Ok(Ok(Event {
-            kind: EventKind::Modify(_),
+            kind: EventKind::Modify(ModifyKind::Data(_)),
             ..
         })) = rx.recv()
         {
@@ -233,9 +234,9 @@ fn try_new_firewall_until_success(firewall_path: &str) -> Firewall {
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
 
     loop {
-        // only try to instantiate a new firewall if the event is related to a file change
+        // only try to instantiate a new firewall if the event is related to a file content change
         if let Ok(Ok(Event {
-            kind: EventKind::Modify(_),
+            kind: EventKind::Modify(ModifyKind::Data(_)),
             ..
         })) = rx.recv()
         {
