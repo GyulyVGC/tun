@@ -16,7 +16,7 @@ use crate::send::send;
 use clap::Parser;
 use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall};
+use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
@@ -71,7 +71,7 @@ async fn main() {
 
     configure_routing(tun_ip);
 
-    let mut firewall = Firewall::new(&firewall_path).expect("Invalid firewall specification");
+    let mut firewall = try_new_firewall_until_success(&firewall_path);
     firewall.data_link(DataLink::RawIP);
     firewall.log(log);
     let firewall_reader = Arc::new(RwLock::new(firewall));
@@ -190,6 +190,46 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path:
                 println!("Firewall was not updated!");
             } else {
                 println!("Firewall has been updated!");
+            }
+        }
+    }
+}
+
+/// Returns a new firewall from the rules in a file, waiting for valid rules in case of initial failure.
+fn try_new_firewall_until_success(path: &str) -> Firewall {
+    let print_new_firewall_info = |result: &Result<Firewall, FirewallError>| match result {
+        Err(err) => {
+            println!("{err}");
+            println!("Waiting for a valid firewall file...");
+        }
+        Ok(_) => {
+            println!("A valid firewall has been instantiated!");
+        }
+    };
+
+    let result = Firewall::new(path);
+    print_new_firewall_info(&result);
+    if let Ok(firewall) = result {
+        return firewall;
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
+    watcher
+        .watch(Path::new(path), RecursiveMode::NonRecursive)
+        .unwrap();
+
+    loop {
+        // only try to instantiate a new firewall if the event is related to a file content change
+        if let Ok(Ok(Event {
+            kind: EventKind::Modify(ModifyKind::Data(_)),
+            ..
+        })) = rx.recv()
+        {
+            let result = Firewall::new(path);
+            print_new_firewall_info(&result);
+            if let Ok(firewall) = result {
+                return firewall;
             }
         }
     }
