@@ -14,6 +14,8 @@ static ETHERNET_TUN_TUPLES: Lazy<Vec<([u8; 4], [u8; 4])>> = Lazy::new(|| {
         ([192, 168, 1, 113], [10, 0, 0, 3]),
         // Proxmox VM 993 (Windows)
         ([192, 168, 1, 12], [10, 0, 0, 4]),
+        // Proxmox VM 995 (Fedora)
+        ([192, 168, 1, 72], [10, 0, 0, 5]),
     ]
 });
 
