@@ -20,6 +20,7 @@ use nullnet_firewall::{DataLink, Firewall};
 use std::net::{IpAddr, SocketAddr};
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{panic, process};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
@@ -45,7 +46,7 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    let (src_socket, socket) = bind_socket(source).await;
+    let (src_socket, socket) = try_bind_socket_until_success(source).await;
 
     let socket_in = Arc::new(socket);
     let socket_out = socket_in.clone();
@@ -76,6 +77,10 @@ async fn main() {
     let firewall_reader = Arc::new(RwLock::new(firewall));
     let firewall_writer = firewall_reader.clone();
 
+    assert!(
+        num_tasks >= 2,
+        "The number of asynchronous tasks should be >= 2"
+    );
     for _ in 0..num_tasks / 2 {
         let device_in_task = device_in.clone();
         let device_out_task = device_out.clone();
@@ -111,23 +116,23 @@ async fn main() {
 
 /// Tries to bind a UDP socket.
 ///
-/// If `source` is `None`, this function will iterate over all the known peers until a valid socket can be opened.
-async fn bind_socket(source: Option<IpAddr>) -> (SocketAddr, UdpSocket) {
-    if let Some(address) = source {
-        let socket_addr = SocketAddr::new(address, PORT);
-        (
-            socket_addr,
-            UdpSocket::bind(socket_addr)
-                .await
-                .expect("Failed to bind socket"),
-        )
-    } else {
-        for socket_addr in SOCKET_TO_TUN.keys() {
+/// This function will iterate over all the known peers until a valid socket can be opened.
+async fn try_bind_socket_until_success(source: Option<IpAddr>) -> (SocketAddr, UdpSocket) {
+    loop {
+        if let Some(address) = source {
+            let socket_addr = SocketAddr::new(address, PORT);
             if let Ok(socket) = UdpSocket::bind(socket_addr).await {
-                return (*socket_addr, socket);
+                return (socket_addr, socket);
+            }
+        } else {
+            for socket_addr in SOCKET_TO_TUN.keys() {
+                if let Ok(socket) = UdpSocket::bind(socket_addr).await {
+                    return (*socket_addr, socket);
+                }
             }
         }
-        panic!("None of the available IP addresses is in the list of known peers");
+        println!("None of the available IP addresses is in the list of known peers (will retry in 10 seconds...)");
+        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
 
