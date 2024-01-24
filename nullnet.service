@@ -2,8 +2,8 @@
 #   sudo cp nullnet.service /etc/systemd/system/
 # enable the service to start at boot:
 #   sudo systemctl enable nullnet
-# on Fedora, it was required the following command to make it work:
-#   sudo setenforce 0
+
+# on Fedora, it was required to edit /etc/selinux/config to run the executable
 
 [Unit]
 Description=TUN-based networking in Rust

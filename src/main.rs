@@ -14,13 +14,13 @@ use crate::peers::SOCKET_TO_TUN;
 use crate::receive::receive;
 use crate::send::send;
 use clap::Parser;
-use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use std::net::{IpAddr, SocketAddr};
+use std::ops::Sub;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{panic, process};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
@@ -178,18 +178,23 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path:
         .watch(Path::new(path), RecursiveMode::NonRecursive)
         .unwrap();
 
+    let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
+
     loop {
-        // only update rules if the event is related to a file content change
+        // only update rules if the event is related to a file change
         if let Ok(Ok(Event {
-            kind: EventKind::Modify(ModifyKind::Data(_)),
+            kind: EventKind::Modify(_),
             ..
         })) = rx.recv()
         {
-            if let Err(err) = firewall.write().await.update_rules(path) {
-                println!("{err}");
-                println!("Firewall was not updated!");
-            } else {
-                println!("Firewall has been updated!");
+            if last_update_time.elapsed().as_millis() > 100 {
+                last_update_time = Instant::now();
+                if let Err(err) = firewall.write().await.update_rules(path) {
+                    println!("{err}");
+                    println!("Firewall was not updated!");
+                } else {
+                    println!("Firewall has been updated!");
+                }
             }
         }
     }
@@ -219,17 +224,22 @@ fn try_new_firewall_until_success(path: &str) -> Firewall {
         .watch(Path::new(path), RecursiveMode::NonRecursive)
         .unwrap();
 
+    let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
+
     loop {
-        // only try to instantiate a new firewall if the event is related to a file content change
+        // only try to instantiate a new firewall if the event is related to a file change
         if let Ok(Ok(Event {
-            kind: EventKind::Modify(ModifyKind::Data(_)),
+            kind: EventKind::Modify(_),
             ..
         })) = rx.recv()
         {
-            let result = Firewall::new(path);
-            print_new_firewall_info(&result);
-            if let Ok(firewall) = result {
-                return firewall;
+            if last_update_time.elapsed().as_millis() > 100 {
+                last_update_time = Instant::now();
+                let result = Firewall::new(path);
+                print_new_firewall_info(&result);
+                if let Ok(firewall) = result {
+                    return firewall;
+                }
             }
         }
     }
