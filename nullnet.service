@@ -9,8 +9,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/debian/Desktop/tun
-ExecStart=/home/debian/Desktop/tun/target/release/tun --log
+WorkingDirectory=/root/tun
+ExecStart=/root/tun/target/release/tun --log
 Restart=always
 
 [Install]
