@@ -18,7 +18,7 @@ use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watche
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use std::net::{IpAddr, SocketAddr};
 use std::ops::Sub;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{panic, process};
@@ -171,11 +171,14 @@ fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, 
 }
 
 /// Allows to refresh the firewall rules whenever the corresponding file is updated.
-async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path: &str) {
+async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, firewall_path: &str) {
+    let mut firewall_directory = PathBuf::from(firewall_path);
+    firewall_directory.pop();
+
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
     watcher
-        .watch(Path::new(path), RecursiveMode::NonRecursive)
+        .watch(&firewall_directory, RecursiveMode::NonRecursive)
         .unwrap();
 
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
@@ -189,7 +192,7 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path:
         {
             if last_update_time.elapsed().as_millis() > 100 {
                 last_update_time = Instant::now();
-                if let Err(err) = firewall.write().await.update_rules(path) {
+                if let Err(err) = firewall.write().await.update_rules(firewall_path) {
                     println!("{err}");
                     println!("Firewall was not updated!");
                 } else {
@@ -201,7 +204,7 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, path:
 }
 
 /// Returns a new firewall from the rules in a file, waiting for valid rules in case of initial failure.
-fn try_new_firewall_until_success(path: &str) -> Firewall {
+fn try_new_firewall_until_success(firewall_path: &str) -> Firewall {
     let print_new_firewall_info = |result: &Result<Firewall, FirewallError>| match result {
         Err(err) => {
             println!("{err}");
@@ -212,16 +215,19 @@ fn try_new_firewall_until_success(path: &str) -> Firewall {
         }
     };
 
-    let result = Firewall::new(path);
+    let result = Firewall::new(firewall_path);
     print_new_firewall_info(&result);
     if let Ok(firewall) = result {
         return firewall;
     }
 
+    let mut firewall_directory = PathBuf::from(firewall_path);
+    firewall_directory.pop();
+
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
     watcher
-        .watch(Path::new(path), RecursiveMode::NonRecursive)
+        .watch(&firewall_directory, RecursiveMode::NonRecursive)
         .unwrap();
 
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
@@ -235,7 +241,7 @@ fn try_new_firewall_until_success(path: &str) -> Firewall {
         {
             if last_update_time.elapsed().as_millis() > 100 {
                 last_update_time = Instant::now();
-                let result = Firewall::new(path);
+                let result = Firewall::new(firewall_path);
                 print_new_firewall_info(&result);
                 if let Ok(firewall) = result {
                     return firewall;
