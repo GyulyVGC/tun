@@ -5,8 +5,10 @@ IN ACCEPT --dport 22
 IN ACCEPT --proto 1 --icmp-type 8
 IN ACCEPT --dport 3000,3001
 
-# ------------------------------
-# I should add a rule to ACCEPT iperf traffic while NOT logging it, something like:
-# IN ACCEPT --dport 5001 --no-log
-# ...so in practice a new option '--no-log' is needed for nullnet-firewall rules
-# ------------------------------
+
+# Accept iperf traffic but don't log it!!!
+
+IN ACCEPT --dport 5001,5201 --log-level off
+OUT ACCEPT --dport 5001,5201 --log-level off
+IN ACCEPT --sport 5001,5201 --log-level off
+OUT ACCEPT --sport 5001,5201 --log-level off
