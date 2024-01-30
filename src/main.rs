@@ -10,7 +10,7 @@ use std::{panic, process, thread};
 use clap::Parser;
 use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall, FirewallError};
+use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
@@ -40,7 +40,6 @@ async fn main() {
 
     let Args {
         source,
-        log,
         mtu,
         firewall_path,
         num_tasks,
@@ -73,7 +72,7 @@ async fn main() {
 
     let mut firewall = try_new_firewall_until_success(&firewall_path);
     firewall.data_link(DataLink::RawIP);
-    firewall.log(log);
+    firewall.log_level(LogLevel::All);
     let firewall_reader = Arc::new(RwLock::new(firewall));
     let firewall_writer = firewall_reader.clone();
 

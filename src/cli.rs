@@ -9,9 +9,6 @@ pub struct Args {
     /// IP address used as source of the socket
     #[arg(long)]
     pub source: Option<IpAddr>,
-    /// Whether to produce logs (console and SQLite)
-    #[arg(long, default_value_t = false)]
-    pub log: bool,
     /// Maximum Transmission Unit (bytes)
     #[arg(long, default_value_t = 42500)]
     pub mtu: usize,
