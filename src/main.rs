@@ -76,10 +76,6 @@ async fn main() {
     let firewall_reader = Arc::new(RwLock::new(firewall));
     let firewall_writer = firewall_reader.clone();
 
-    assert!(
-        num_tasks >= 2,
-        "The number of asynchronous tasks should be >= 2"
-    );
     for _ in 0..num_tasks / 2 {
         let device_in_task = device_in.clone();
         let device_out_task = device_out.clone();
@@ -135,7 +131,7 @@ async fn try_bind_socket_until_success(source: Option<IpAddr>) -> (SocketAddr, U
     }
 }
 
-/// Returns a name in the form 'nullnetX' where X is the host part of the TUN's ip (doesn't work on macOS)
+/// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS)
 ///
 /// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24)
 fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
