@@ -5,12 +5,12 @@ use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{panic, process, thread};
+use std::{panic, process};
 
 use clap::Parser;
 use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
+use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
@@ -70,25 +70,24 @@ async fn main() {
 
     configure_routing(tun_ip);
 
-    let mut firewall = try_new_firewall_until_success(&firewall_path);
+    let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
-    firewall.log_level(LogLevel::All);
-    let firewall_reader = Arc::new(RwLock::new(firewall));
-    let firewall_writer = firewall_reader.clone();
+    let firewall_rw = Arc::new(RwLock::new(firewall));
+    set_firewall_rules(&firewall_rw, &firewall_path, true).await;
 
     for _ in 0..num_tasks / 2 {
         let device_in_task = device_in.clone();
         let device_out_task = device_out.clone();
         let socket_in_task = socket_in.clone();
         let socket_out_task = socket_out.clone();
-        let firewall_reader_task_1 = firewall_reader.clone();
-        let firewall_reader_task_2 = firewall_reader.clone();
+        let firewall_in_task = firewall_rw.clone();
+        let firewall_out_task = firewall_rw.clone();
 
         tokio::spawn(async move {
             Box::pin(receive(
                 &device_in_task,
                 &socket_in_task,
-                &firewall_reader_task_1,
+                &firewall_in_task,
                 tun_ip,
             ))
             .await;
@@ -98,7 +97,7 @@ async fn main() {
             Box::pin(send(
                 &device_out_task,
                 &socket_out_task,
-                &firewall_reader_task_2,
+                &firewall_out_task,
             ))
             .await;
         });
@@ -106,7 +105,7 @@ async fn main() {
 
     print_info(&src_socket, &device_name, tun_ip, mtu);
 
-    update_firewall_on_rules_change(&firewall_writer, &firewall_path).await;
+    set_firewall_rules(&firewall_rw, &firewall_path, false).await;
 }
 
 /// Tries to bind a UDP socket.
@@ -164,8 +163,34 @@ fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, 
     println!();
 }
 
-/// Allows to refresh the firewall rules whenever the corresponding file is updated.
-async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, firewall_path: &str) {
+/// Refreshes the firewall rules whenever the corresponding file is updated.
+async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &str, is_init: bool) {
+    let print_info = |result: &Result<(), FirewallError>, is_init: bool| match result {
+        Err(err) => {
+            println!("{err}");
+            if is_init {
+                println!("Waiting for a valid firewall file...");
+            } else {
+                println!("Firewall was not updated!");
+            }
+        }
+        Ok(()) => {
+            if is_init {
+                println!("A valid firewall has been instantiated!");
+            } else {
+                println!("Firewall has been updated!");
+            }
+        }
+    };
+
+    if is_init {
+        let result = firewall.write().await.set_rules(firewall_path);
+        print_info(&result, is_init);
+        if result.is_ok() {
+            return;
+        }
+    }
+
     let mut firewall_directory = PathBuf::from(firewall_path);
     firewall_directory.pop();
 
@@ -188,62 +213,10 @@ async fn update_firewall_on_rules_change(firewall: &Arc<RwLock<Firewall>>, firew
             if last_update_time.elapsed().as_millis() > 100 {
                 // ensure file changes are propagated
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                if let Err(err) = firewall.write().await.update_rules(firewall_path) {
-                    println!("{err}");
-                    println!("Firewall was not updated!");
-                } else {
-                    println!("Firewall has been updated!");
-                }
-                last_update_time = Instant::now();
-            }
-        }
-    }
-}
-
-/// Returns a new firewall from the rules in a file, waiting for valid rules in case of initial failure.
-fn try_new_firewall_until_success(firewall_path: &str) -> Firewall {
-    let print_new_firewall_info = |result: &Result<Firewall, FirewallError>| match result {
-        Err(err) => {
-            println!("{err}");
-            println!("Waiting for a valid firewall file...");
-        }
-        Ok(_) => {
-            println!("A valid firewall has been instantiated!");
-        }
-    };
-
-    let result = Firewall::new(firewall_path);
-    print_new_firewall_info(&result);
-    if let Ok(firewall) = result {
-        return firewall;
-    }
-
-    let mut firewall_directory = PathBuf::from(firewall_path);
-    firewall_directory.pop();
-
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
-    watcher
-        .watch(&firewall_directory, RecursiveMode::NonRecursive)
-        .unwrap();
-
-    let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
-
-    loop {
-        // only try to instantiate a new firewall if the event is related to a file content change
-        if let Ok(Ok(Event {
-            kind: EventKind::Modify(ModifyKind::Data(_)),
-            ..
-        })) = rx.recv()
-        {
-            // debounce duplicated events
-            if last_update_time.elapsed().as_millis() > 100 {
-                // ensure file changes are propagated
-                thread::sleep(Duration::from_millis(100));
-                let result = Firewall::new(firewall_path);
-                print_new_firewall_info(&result);
-                if let Ok(firewall) = result {
-                    return firewall;
+                let result = firewall.write().await.set_rules(firewall_path);
+                print_info(&result, is_init);
+                if result.is_ok() && is_init {
+                    return;
                 }
                 last_update_time = Instant::now();
             }
