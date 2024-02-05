@@ -20,7 +20,7 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::peers_discovery::peers_discovery;
+use crate::peers_discovery::discover_peers::discover_peers;
 
 mod cli;
 mod craft;
@@ -53,7 +53,7 @@ async fn main() {
     let tun_ip = get_tun_ip(&local_eth_ip);
 
     tokio::spawn(async move {
-        peers_discovery(local_eth_ip).await;
+        discover_peers(local_eth_ip, &tun_ip).await;
     });
 
     let mut config = Configuration::default();

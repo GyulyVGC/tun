@@ -563,7 +563,7 @@ dependencies = [
 [[package]]
 name = "nullnet-firewall"
 version = "0.2.2"
-source = "git+https://github.com/GyulyVGC/nullnet-firewall.git#e7355e02b2e4698bbdc11f122904d0f413d47b0c"
+source = "git+https://github.com/GyulyVGC/nullnet-firewall.git#fb21f579da03426998b2c25c32a5102208e9841c"
 dependencies = [
  "chrono",
  "etherparse",
