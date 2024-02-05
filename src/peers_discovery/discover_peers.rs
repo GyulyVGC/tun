@@ -8,7 +8,7 @@ use tokio::net::UdpSocket;
 const UNICAST_PORT: u16 = PORT - 1;
 const BROADCAST_PORT: u16 = PORT - 2;
 
-const RETRIES: u8 = 3;
+const RETRIES: u8 = 4;
 
 // values in seconds
 const TTL: u64 = 60 * 60;
@@ -22,11 +22,9 @@ pub async fn discover_peers(local_eth_ip: IpAddr, tun_ip: &IpAddr) {
     let socket_shared = Arc::new(socket);
 
     tokio::spawn(async move {
-        listen_broadcast().await;
+        listen_broadcast().await; // this will also call hello_unicast...
     });
-
-    // make sure to listen before sending out
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    // also listen_unicast will be spawned here...
 
     hello_broadcast(socket_shared, tun_ip).await;
 }
@@ -34,14 +32,14 @@ pub async fn discover_peers(local_eth_ip: IpAddr, tun_ip: &IpAddr) {
 /// Listens to broadcast messages. TODO!
 async fn listen_broadcast() {
     let mut msg = [0; 1024];
-    let socket = UdpSocket::bind(listen_broadcast_socket()).await.unwrap();
+    let socket = UdpSocket::bind(socket_broadcast_listen()).await.unwrap();
     loop {
         let (msg_len, from) = socket
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
         println!(
-            "Received:\n\t{}\nFrom:\n\t{from}",
+            "Received: {}\tFrom: {from}",
             std::str::from_utf8(&msg[..msg_len]).unwrap()
         );
     }
@@ -49,7 +47,7 @@ async fn listen_broadcast() {
 
 /// Periodically sends out messages to let other peers know that this device is up.
 async fn hello_broadcast(socket: Arc<UdpSocket>, tun_ip: &IpAddr) {
-    let dest = broadcast_socket();
+    let dest = socket_broadcast_hello();
     let tun_ip_string = tun_ip.to_string();
     let msg = tun_ip_string.as_bytes();
     loop {
@@ -61,12 +59,12 @@ async fn hello_broadcast(socket: Arc<UdpSocket>, tun_ip: &IpAddr) {
     }
 }
 
-/// Returns the broadcast destination socket.
-fn broadcast_socket() -> SocketAddr {
+/// Returns the broadcast socket destination of greeting messages.
+fn socket_broadcast_hello() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), BROADCAST_PORT)
 }
 
-/// Returns the socket used to listen to broadcast messages.
-fn listen_broadcast_socket() -> SocketAddr {
+/// Returns the socket used to listen to greeting messages.
+fn socket_broadcast_listen() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), BROADCAST_PORT)
 }
