@@ -10,6 +10,7 @@ const PORT_FOR_DISCOVERY: u16 = PORT - 1;
 pub async fn discover_peers(local_eth_ip: IpAddr, tun_ip: &IpAddr) {
     let socket_addr = SocketAddr::new(local_eth_ip, PORT_FOR_DISCOVERY);
     let socket = UdpSocket::bind(socket_addr).await.unwrap(); // should not panic...
+    socket.set_broadcast(true).unwrap();
     let socket_shared = Arc::new(socket);
 
     let socket_shared_2 = socket_shared.clone();
