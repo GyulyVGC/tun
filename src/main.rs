@@ -47,8 +47,7 @@ async fn main() {
 
     let (src_socket, socket) = try_bind_socket_until_success(source).await;
 
-    let socket_in = Arc::new(socket);
-    let socket_out = socket_in.clone();
+    let socket_shared = Arc::new(socket);
 
     let tun_ip = SOCKET_TO_TUN
         .get(&src_socket)
@@ -65,47 +64,36 @@ async fn main() {
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
     let device_name = device.get_ref().name().unwrap();
     let (read_half, write_half) = tokio::io::split(device);
-    let device_out = Arc::new(Mutex::new(read_half));
-    let device_in = Arc::new(Mutex::new(write_half));
+    let reader_shared = Arc::new(Mutex::new(read_half));
+    let writer_shared = Arc::new(Mutex::new(write_half));
 
     configure_routing(tun_ip);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
-    let firewall_rw = Arc::new(RwLock::new(firewall));
-    set_firewall_rules(&firewall_rw, &firewall_path, true).await;
+    let firewall_shared = Arc::new(RwLock::new(firewall));
+    set_firewall_rules(&firewall_shared, &firewall_path, true).await;
 
     for _ in 0..num_tasks / 2 {
-        let device_in_task = device_in.clone();
-        let device_out_task = device_out.clone();
-        let socket_in_task = socket_in.clone();
-        let socket_out_task = socket_out.clone();
-        let firewall_in_task = firewall_rw.clone();
-        let firewall_out_task = firewall_rw.clone();
+        let writer = writer_shared.clone();
+        let reader = reader_shared.clone();
+        let socket_1 = socket_shared.clone();
+        let socket_2 = socket_shared.clone();
+        let firewall_1 = firewall_shared.clone();
+        let firewall_2 = firewall_shared.clone();
 
         tokio::spawn(async move {
-            Box::pin(receive(
-                &device_in_task,
-                &socket_in_task,
-                &firewall_in_task,
-                tun_ip,
-            ))
-            .await;
+            Box::pin(receive(&writer, &socket_1, &firewall_1, tun_ip)).await;
         });
 
         tokio::spawn(async move {
-            Box::pin(send(
-                &device_out_task,
-                &socket_out_task,
-                &firewall_out_task,
-            ))
-            .await;
+            Box::pin(send(&reader, &socket_2, &firewall_2)).await;
         });
     }
 
     print_info(&src_socket, &device_name, tun_ip, mtu);
 
-    set_firewall_rules(&firewall_rw, &firewall_path, false).await;
+    set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
 
 /// Tries to bind a UDP socket.
@@ -153,14 +141,12 @@ fn configure_routing(_tun_ip: &IpAddr) {
 fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, mtu: usize) {
     println!("{}", "=".repeat(40));
     println!("UDP socket bound successfully:");
-    println!("\t- address: {src_socket}");
-    println!();
+    println!("\t- address: {src_socket}\n");
     println!("TUN device created successfully:");
     println!("\t- address: {device_addr}");
     println!("\t- name:    {device_name}");
     println!("\t- MTU:     {mtu} B");
-    println!("{}", "=".repeat(40));
-    println!();
+    println!("{}\n", "=".repeat(40));
 }
 
 /// Refreshes the firewall rules whenever the corresponding file is updated.

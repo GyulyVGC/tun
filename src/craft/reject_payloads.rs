@@ -53,7 +53,7 @@ async fn send_destination_unreachable(
         0x00, 0x00, 0x00, 0x00,     // source (will be set later)
         0x00, 0x00, 0x00, 0x00,     // dest (will be set later)
         // icmp header
-        0x03, unreachable_code,     // destination host unreachable
+        0x03, unreachable_code,     // destination unreachable
         0x00, 0x00,                 // checksum (will be set later)
         0x00, 0x00, 0x00, 0x00,     // unused
         // the original ip header and the first 64 bits

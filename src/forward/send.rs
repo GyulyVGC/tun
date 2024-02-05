@@ -25,21 +25,23 @@ pub async fn send(
             .await
             .unwrap_or(0);
 
-        // send the packet to the socket
-        let socket_buf = os_frame.to_socket_buf();
-        let Some(dst_socket) = get_dst_socket(socket_buf) else {
-            continue;
-        };
-        match firewall
-            .read()
-            .await
-            .resolve_packet(socket_buf, FirewallDirection::OUT)
-        {
-            FirewallAction::ACCEPT => {
-                socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
-            }
-            FirewallAction::DENY | FirewallAction::REJECT => {}
-        };
+        if os_frame.actual_bytes > 0 {
+            // send the packet to the socket
+            let socket_buf = os_frame.to_socket_buf();
+            let Some(dst_socket) = get_dst_socket(socket_buf) else {
+                continue;
+            };
+            match firewall
+                .read()
+                .await
+                .resolve_packet(socket_buf, FirewallDirection::OUT)
+            {
+                FirewallAction::ACCEPT => {
+                    socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
+                }
+                FirewallAction::DENY | FirewallAction::REJECT => {}
+            };
+        }
     }
 }
 
