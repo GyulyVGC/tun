@@ -4,6 +4,7 @@ use local_ip_address::local_ip;
 use std::net::{IpAddr, SocketAddr};
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{panic, process};
@@ -19,13 +20,14 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::peers::SOCKET_TO_TUN;
+use crate::peers_discovery::peers_discovery;
 
 mod cli;
 mod craft;
 mod forward;
 mod frames;
 mod peers;
+mod peers_discovery;
 
 const PORT: u16 = 9999;
 
@@ -45,16 +47,17 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    let (src_socket, socket) = try_bind_socket_until_success().await;
-
+    let (local_eth_ip, socket) = try_bind_socket_until_success().await;
     let socket_shared = Arc::new(socket);
 
-    let tun_ip = SOCKET_TO_TUN
-        .get(&src_socket)
-        .expect("Address is not in the list of known peers");
+    let tun_ip = get_tun_ip(&local_eth_ip);
+
+    tokio::spawn(async move {
+        peers_discovery(local_eth_ip).await;
+    });
 
     let mut config = Configuration::default();
-    set_tun_name(tun_ip, &mut config);
+    set_tun_name(&tun_ip, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
         .address(tun_ip)
@@ -67,7 +70,7 @@ async fn main() {
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
-    configure_routing(tun_ip);
+    configure_routing(&tun_ip);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
@@ -83,7 +86,7 @@ async fn main() {
         let firewall_2 = firewall_shared.clone();
 
         tokio::spawn(async move {
-            Box::pin(receive(&writer, &socket_1, &firewall_1, tun_ip)).await;
+            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
         });
 
         tokio::spawn(async move {
@@ -91,21 +94,19 @@ async fn main() {
         });
     }
 
-    print_info(&src_socket, &device_name, tun_ip, mtu);
+    print_info(&local_eth_ip, &device_name, &tun_ip, mtu);
 
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
 
-/// Tries to bind a UDP socket.
-///
-/// This function will iterate over all the known peers until a valid socket can be opened.
-async fn try_bind_socket_until_success() -> (SocketAddr, UdpSocket) {
+/// Tries to bind a UDP socket until success, retrying every 10 seconds.
+async fn try_bind_socket_until_success() -> (IpAddr, UdpSocket) {
     loop {
         if let Ok(address) = local_ip() {
             println!("Local IP address found: {address}");
             let socket_addr = SocketAddr::new(address, PORT);
             if let Ok(socket) = UdpSocket::bind(socket_addr).await {
-                return (socket_addr, socket);
+                return (address, socket);
             }
         }
         println!("Could not correctly bind a socket; will retry in 10 seconds...");
@@ -113,9 +114,17 @@ async fn try_bind_socket_until_success() -> (SocketAddr, UdpSocket) {
     }
 }
 
-/// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS)
+/// Returns an IP address for the TUN device (based on the local Ethernet IP and supposing /24 netmask).
+fn get_tun_ip(local_eth_ip: &IpAddr) -> IpAddr {
+    let local_eth_ip_string = local_eth_ip.to_string();
+    let host_part = local_eth_ip_string.split('.').last().unwrap();
+    let tun_ip_string = ["10.0.0.", host_part].concat();
+    IpAddr::from_str(&tun_ip_string).unwrap()
+}
+
+/// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
 ///
-/// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24)
+/// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24).
 fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     _config.name(format!(
@@ -124,7 +133,7 @@ fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
     ));
 }
 
-/// To work on macOS, the route must be setup manually (after TUN creation!)
+/// Manually setup routing on macOS (to be done after TUN creation).
 fn configure_routing(_tun_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
     process::Command::new("route")
@@ -133,10 +142,11 @@ fn configure_routing(_tun_ip: &IpAddr) {
         .expect("Failed to configure routing");
 }
 
-fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, mtu: usize) {
+/// Prints useful info about the created device.
+fn print_info(local_eth_ip: &IpAddr, device_name: &str, device_addr: &IpAddr, mtu: usize) {
     println!("\n{}", "=".repeat(40));
     println!("UDP socket bound successfully:");
-    println!("\t- address: {src_socket}\n");
+    println!("\t- address: {local_eth_ip}:{PORT}\n");
     println!("TUN device created successfully:");
     println!("\t- address: {device_addr}");
     println!("\t- name:    {device_name}");

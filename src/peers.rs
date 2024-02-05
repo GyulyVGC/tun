@@ -21,20 +21,7 @@ static ETHERNET_TUN_TUPLES: Lazy<Vec<([u8; 4], [u8; 4])>> = Lazy::new(|| {
     ]
 });
 
-// The following static maps are automatically generated from the peers list
-
-pub static SOCKET_TO_TUN: Lazy<HashMap<SocketAddr, IpAddr>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    for (ethernet, tun) in ETHERNET_TUN_TUPLES.iter() {
-        assert!(map
-            .insert(
-                SocketAddr::new(IpAddr::from(*ethernet), PORT),
-                IpAddr::from(*tun)
-            )
-            .is_none());
-    }
-    map
-});
+// The following static map is automatically generated from the peers list
 
 pub static TUN_TO_SOCKET: Lazy<HashMap<[u8; 4], SocketAddr>> = Lazy::new(|| {
     let mut map = HashMap::new();
