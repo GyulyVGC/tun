@@ -1,14 +1,9 @@
-use std::net::IpAddr;
-
 use clap::Parser;
 
 /// TUN-based networking in Rust
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// IP address used as source of the socket
-    #[arg(long)]
-    pub source: Option<IpAddr>,
     /// Maximum Transmission Unit (bytes)
     #[arg(long, default_value_t = 42500)]
     pub mtu: usize,

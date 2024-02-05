@@ -1,5 +1,6 @@
 #![allow(clippy::used_underscore_binding)]
 
+use local_ip_address::local_ip;
 use std::net::{IpAddr, SocketAddr};
 use std::ops::Sub;
 use std::path::PathBuf;
@@ -39,13 +40,12 @@ async fn main() {
     }));
 
     let Args {
-        source,
         mtu,
         firewall_path,
         num_tasks,
     } = Args::parse();
 
-    let (src_socket, socket) = try_bind_socket_until_success(source).await;
+    let (src_socket, socket) = try_bind_socket_until_success().await;
 
     let socket_shared = Arc::new(socket);
 
@@ -99,21 +99,16 @@ async fn main() {
 /// Tries to bind a UDP socket.
 ///
 /// This function will iterate over all the known peers until a valid socket can be opened.
-async fn try_bind_socket_until_success(source: Option<IpAddr>) -> (SocketAddr, UdpSocket) {
+async fn try_bind_socket_until_success() -> (SocketAddr, UdpSocket) {
     loop {
-        if let Some(address) = source {
+        if let Ok(address) = local_ip() {
+            println!("Local IP address found: {address}");
             let socket_addr = SocketAddr::new(address, PORT);
             if let Ok(socket) = UdpSocket::bind(socket_addr).await {
                 return (socket_addr, socket);
             }
-        } else {
-            for socket_addr in SOCKET_TO_TUN.keys() {
-                if let Ok(socket) = UdpSocket::bind(socket_addr).await {
-                    return (*socket_addr, socket);
-                }
-            }
         }
-        println!("None of the available IP addresses is in the list of known peers (will retry in 10 seconds...)");
+        println!("Could not correctly bind a socket; will retry in 10 seconds...");
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
@@ -139,7 +134,7 @@ fn configure_routing(_tun_ip: &IpAddr) {
 }
 
 fn print_info(src_socket: &SocketAddr, device_name: &str, device_addr: &IpAddr, mtu: usize) {
-    println!("{}", "=".repeat(40));
+    println!("\n{}", "=".repeat(40));
     println!("UDP socket bound successfully:");
     println!("\t- address: {src_socket}\n");
     println!("TUN device created successfully:");
