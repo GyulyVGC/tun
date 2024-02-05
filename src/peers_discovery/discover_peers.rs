@@ -5,50 +5,68 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 
-const PORT_FOR_DISCOVERY: u16 = PORT - 1;
+const UNICAST_PORT: u16 = PORT - 1;
+const BROADCAST_PORT: u16 = PORT - 2;
+
+const RETRIES: u8 = 3;
+
+// values in seconds
+const TTL: u64 = 60 * 60;
+const RETRANSMISSION_PERIOD: u64 = TTL / 4;
+const RETRIES_DELTA: u64 = 1;
 
 pub async fn discover_peers(local_eth_ip: IpAddr, tun_ip: &IpAddr) {
-    let socket_addr = SocketAddr::new(local_eth_ip, PORT_FOR_DISCOVERY);
+    let socket_addr = SocketAddr::new(local_eth_ip, UNICAST_PORT);
     let socket = UdpSocket::bind(socket_addr).await.unwrap(); // should not panic...
     socket.set_broadcast(true).unwrap();
     let socket_shared = Arc::new(socket);
 
-    let socket_shared_2 = socket_shared.clone();
     tokio::spawn(async move {
-        listen(socket_shared_2).await;
+        listen_broadcast().await;
     });
 
+    // make sure to listen before sending out
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    send_broadcast(socket_shared, tun_ip).await;
+    hello_broadcast(socket_shared, tun_ip).await;
 }
 
-async fn listen(socket: Arc<UdpSocket>) {
+/// Listens to broadcast messages. TODO!
+async fn listen_broadcast() {
     let mut msg = [0; 1024];
+    let socket = UdpSocket::bind(listen_broadcast_socket()).await.unwrap();
     loop {
-        let (msg_len, socket_src) = socket
+        let (msg_len, from) = socket
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
         println!(
-            "Received:\n\t{:?}\nFrom:\n\t{socket_src}",
-            msg[..msg_len].to_ascii_lowercase()
+            "Received:\n\t{}\nFrom:\n\t{from}",
+            std::str::from_utf8(&msg[..msg_len]).unwrap()
         );
     }
 }
 
-async fn send_broadcast(socket: Arc<UdpSocket>, tun_ip: &IpAddr) {
+/// Periodically sends out messages to let other peers know that this device is up.
+async fn hello_broadcast(socket: Arc<UdpSocket>, tun_ip: &IpAddr) {
+    let dest = broadcast_socket();
     let tun_ip_string = tun_ip.to_string();
     let msg = tun_ip_string.as_bytes();
     loop {
-        let _msg_len = socket
-            .send_to(msg, get_broadcast_socket())
-            .await
-            .unwrap_or(0);
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        for _ in 0..RETRIES {
+            let _msg_len = socket.send_to(msg, dest).await.unwrap_or(0);
+            tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
+        }
+        tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
 }
 
-fn get_broadcast_socket() -> SocketAddr {
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), PORT_FOR_DISCOVERY)
+/// Returns the broadcast destination socket.
+fn broadcast_socket() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), BROADCAST_PORT)
+}
+
+/// Returns the socket used to listen to broadcast messages.
+fn listen_broadcast_socket() -> SocketAddr {
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), BROADCAST_PORT)
 }
