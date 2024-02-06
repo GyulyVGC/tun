@@ -20,14 +20,14 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::peers_discovery::discover_peers::discover_peers;
+use crate::peers::discovery::discover_peers;
 
 mod cli;
 mod craft;
 mod forward;
 mod frames;
 mod peers;
-mod peers_discovery;
+mod peers_deprecated;
 
 const PORT: u16 = 9999;
 
