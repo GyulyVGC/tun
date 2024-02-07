@@ -1,8 +1,8 @@
 use std::net::IpAddr;
 
-pub struct LocalInfo {
+pub struct LocalIps {
     /// Ethernet IP address of the peer.
-    pub eth_ip: IpAddr,
+    pub eth: IpAddr,
     /// TUN IP address of the peer.
-    pub tun_ip: IpAddr,
+    pub tun: IpAddr,
 }

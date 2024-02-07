@@ -17,14 +17,14 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::network::{Network, PORT};
+use crate::local_endpoints::{LocalEndpoints, PORT};
 use crate::peers::discovery::discover_peers;
 
 mod cli;
 mod craft;
 mod forward;
 mod frames;
-mod network;
+mod local_endpoints;
 mod peers;
 mod peers_deprecated;
 
@@ -44,21 +44,19 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    let Network {
-        local_info,
-        local_sockets,
-        peers,
-    } = Network::new().await;
+    let endpoints = LocalEndpoints::new().await;
 
     tokio::spawn(async move {
-        discover_peers(local_eth_ip, &tun_ip).await;
+        discover_peers(&endpoints).await;
     });
 
+    let tun_ip= endpoints.ips.tun;
+
     let mut config = Configuration::default();
-    set_tun_name(&local_info.tun_ip, &mut config);
+    set_tun_name(&tun_ip, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
-        .address(local_info.tun_ip)
+        .address(&tun_ip)
         .netmask((255, 255, 255, 0))
         .up();
 
@@ -68,7 +66,7 @@ async fn main() {
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
-    configure_routing(&local_info.tun_ip);
+    configure_routing(&tun_ip);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
@@ -78,7 +76,7 @@ async fn main() {
     for _ in 0..num_tasks / 2 {
         let writer = writer_shared.clone();
         let reader = reader_shared.clone();
-        let socket_1 = local_sockets.forward.clone();
+        let socket_1 = endpoints.sockets.forward.clone();
         let socket_2 = socket_1.clone();
         let firewall_1 = firewall_shared.clone();
         let firewall_2 = firewall_shared.clone();
@@ -88,7 +86,7 @@ async fn main() {
                 &writer,
                 &socket_1,
                 &firewall_1,
-                &network.local_info.tun_ip,
+                &tun_ip,
             ))
             .await;
         });
@@ -98,7 +96,7 @@ async fn main() {
         });
     }
 
-    print_info(&local_eth_ip, &device_name, &tun_ip, mtu);
+    print_info(&endpoints.ips.eth, &device_name, &tun_ip, mtu);
 
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
@@ -124,13 +122,13 @@ fn configure_routing(_tun_ip: &IpAddr) {
 }
 
 /// Prints useful info about the created device.
-fn print_info(local_eth_ip: &IpAddr, device_name: &str, device_addr: &IpAddr, mtu: usize) {
+fn print_info(eth_ip: &IpAddr, tun_name: &str, tun_ip: &IpAddr, mtu: usize) {
     println!("\n{}", "=".repeat(40));
     println!("UDP socket bound successfully:");
-    println!("\t- address: {local_eth_ip}:{PORT}\n");
+    println!("\t- address: {eth_ip}:{PORT}\n");
     println!("TUN device created successfully:");
-    println!("\t- address: {device_addr}");
-    println!("\t- name:    {device_name}");
+    println!("\t- address: {tun_ip}");
+    println!("\t- name:    {tun_name}");
     println!("\t- MTU:     {mtu} B");
     println!("{}\n", "=".repeat(40));
 }

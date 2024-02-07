@@ -1,10 +1,8 @@
-use crate::peers::local_info::LocalInfo;
-use crate::peers::peer::Peer;
+use crate::peers::local_info::LocalIps;
 use local_ip_address::local_ip;
-use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
 use std::time::Duration;
 use tokio::net::UdpSocket;
 
@@ -12,17 +10,15 @@ pub const PORT: u16 = 9999;
 pub const PORT_DISCOVERY_UNICAST: u16 = PORT - 1;
 pub const PORT_DISCOVERY_BROADCAST: u16 = PORT - 2;
 
-/// Struct including data used to correctly communicate with peers in the same network.
-pub struct Network {
-    pub local_info: LocalInfo,
-    pub local_sockets: LocalSockets,
-    pub peers: RwLock<HashSet<Peer>>,
+/// Struct including local IP addresses and sockets, used to set configurations
+/// and to correctly communicate with peers in the same network.
+pub struct LocalEndpoints {
+    pub ips: LocalIps,
+    pub sockets: LocalSockets,
 }
 
-impl Network {
+impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of errors.
-    ///
-    /// The list of peers is returned empty, and will be filled during the discovery process.
     pub async fn new() -> Self {
         loop {
             if let Ok(eth_ip) = local_ip() {
@@ -35,12 +31,11 @@ impl Network {
                         discovery.set_broadcast(true).unwrap();
                         let tun_ip = get_tun_ip(&eth_ip);
                         return Self {
-                            local_info: LocalInfo { eth_ip, tun_ip },
-                            local_sockets: LocalSockets {
+                            ips: LocalIps { eth: eth_ip, tun: tun_ip },
+                            sockets: LocalSockets {
                                 forward: Arc::new(forward),
                                 discovery: Arc::new(discovery),
                             },
-                            peers: Default::default(),
                         };
                     }
                 }

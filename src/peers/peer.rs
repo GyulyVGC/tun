@@ -1,9 +1,9 @@
-use crate::peers::local_info::LocalInfo;
+use crate::peers::local_info::LocalIps;
 
 /// Struct representing a peer.
 pub struct Peer {
     /// Information about this peer.
-    local_info: LocalInfo,
+    local_info: LocalIps,
     /// Number of times a hello message was received from this peer (broadcast + unicast).
     num_seen: u64,
     /// Cumulative delays of all hello messages received from this peer (microseconds).
