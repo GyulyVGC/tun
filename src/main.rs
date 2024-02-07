@@ -1,6 +1,7 @@
 #![allow(clippy::used_underscore_binding)]
 
-use std::net::{IpAddr};
+use std::collections::HashMap;
+use std::net::IpAddr;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -45,12 +46,14 @@ async fn main() {
     } = Args::parse();
 
     let endpoints = LocalEndpoints::new().await;
+    // tun ip to socket address map of all the discovered peers
+    let peers = Arc::new(RwLock::new(HashMap::new()));
 
     tokio::spawn(async move {
-        discover_peers(&endpoints).await;
+        discover_peers(&endpoints, peers).await;
     });
 
-    let tun_ip= endpoints.ips.tun;
+    let tun_ip = endpoints.ips.tun;
 
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &mut config);
@@ -82,17 +85,11 @@ async fn main() {
         let firewall_2 = firewall_shared.clone();
 
         tokio::spawn(async move {
-            Box::pin(receive(
-                &writer,
-                &socket_1,
-                &firewall_1,
-                &tun_ip,
-            ))
-            .await;
+            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
         });
 
         tokio::spawn(async move {
-            Box::pin(send(&reader, &socket_2, &firewall_2)).await;
+            Box::pin(send(&reader, &socket_2, &firewall_2, peers.clone())).await;
         });
     }
 

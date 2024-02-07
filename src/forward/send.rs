@@ -1,4 +1,5 @@
-use std::net::SocketAddr;
+use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
@@ -8,12 +9,12 @@ use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
 
 use crate::frames::os_frame::OsFrame;
-use crate::peers::TUN_TO_SOCKET;
 
 pub async fn send(
     device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
+    peers: Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
 ) {
     let mut os_frame = OsFrame::new();
     loop {
@@ -28,7 +29,7 @@ pub async fn send(
         if os_frame.actual_bytes > 0 {
             // send the packet to the socket
             let socket_buf = os_frame.to_socket_buf();
-            let Some(dst_socket) = get_dst_socket(socket_buf) else {
+            let Some(dst_socket) = get_dst_socket(socket_buf, &peers).await else {
                 continue;
             };
             match firewall
@@ -45,10 +46,18 @@ pub async fn send(
     }
 }
 
-fn get_dst_socket(socket_buf: &[u8]) -> Option<&SocketAddr> {
+async fn get_dst_socket(
+    socket_buf: &[u8],
+    peers: &Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
+) -> Option<SocketAddr> {
     if socket_buf.len() < 20 {
         None
     } else {
-        TUN_TO_SOCKET.get(&socket_buf[16..20])
+        let dest_ip_slice: [u8; 4] = socket_buf[16..20].try_into().unwrap();
+        peers
+            .read()
+            .await
+            .get(&IpAddr::from(dest_ip_slice))
+            .cloned()
     }
 }

@@ -1,28 +1,28 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use tokio::net::UdpSocket;
 
 use crate::craft::checksums::{icmp_checksum, ipv4_checksum, tcp_checksum};
-use crate::peers::TUN_TO_SOCKET;
 
-pub async fn send_termination_message(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
+pub async fn send_termination_message(
+    packet: &[u8],
+    tun_ip: &IpAddr,
+    socket: &Arc<UdpSocket>,
+    remote_socket: SocketAddr,
+) {
     let Some(proto) = packet.get(9) else {
         return;
     };
     match proto {
-        6 => send_tcp_rst(packet, tun_ip, socket).await,
+        6 => send_tcp_rst(packet, tun_ip, socket, remote_socket).await,
         17 => {
-            send_destination_unreachable(
-                packet, tun_ip, socket, 3, // port unreachable
-            )
-            .await;
+            // port unreachable
+            send_destination_unreachable(packet, tun_ip, socket, 3, remote_socket).await;
         }
         _ => {
-            send_destination_unreachable(
-                packet, tun_ip, socket, 1, // host unreachable
-            )
-            .await;
+            // host unreachable
+            send_destination_unreachable(packet, tun_ip, socket, 1, remote_socket).await;
         }
     };
 }
@@ -32,15 +32,11 @@ async fn send_destination_unreachable(
     tun_ip: &IpAddr,
     socket: &Arc<UdpSocket>,
     unreachable_code: u8,
+    remote_socket: SocketAddr,
 ) {
     if packet.len() < 28 {
         return;
     }
-
-    let rejected_sender_ip = &packet[12..16];
-    let Some(dest_socket) = TUN_TO_SOCKET.get(rejected_sender_ip) else {
-        return;
-    };
 
     #[rustfmt::skip]
     let mut pkt_response = [
@@ -87,20 +83,20 @@ async fn send_destination_unreachable(
     pkt_response_final[23] = (icmp_checksum & 0xff) as u8; // calculated checksum is little-endian; checksum field is big-endian
 
     socket
-        .send_to(pkt_response_final, dest_socket)
+        .send_to(pkt_response_final, remote_socket)
         .await
         .unwrap_or(0);
 }
 
-async fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
+async fn send_tcp_rst(
+    packet: &[u8],
+    tun_ip: &IpAddr,
+    socket: &Arc<UdpSocket>,
+    remote_socket: SocketAddr,
+) {
     if packet.len() < 40 {
         return;
     }
-
-    let rejected_sender_ip = &packet[12..16];
-    let Some(dest_socket) = TUN_TO_SOCKET.get(rejected_sender_ip) else {
-        return;
-    };
 
     #[rustfmt::skip]
         let mut pkt_response = [
@@ -176,7 +172,7 @@ async fn send_tcp_rst(packet: &[u8], tun_ip: &IpAddr, socket: &Arc<UdpSocket>) {
     pkt_response[37] = (tcp_checksum & 0xff) as u8; // calculated checksum is little-endian; checksum field is big-endian
 
     socket
-        .send_to(&pkt_response, dest_socket)
+        .send_to(&pkt_response, remote_socket)
         .await
         .unwrap_or(0);
 }

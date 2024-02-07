@@ -1,9 +1,11 @@
 use crate::local_endpoints::{LocalEndpoints, PORT_DISCOVERY_BROADCAST, PORT_DISCOVERY_UNICAST};
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
 
 const RETRIES: u8 = 4;
 
@@ -12,7 +14,10 @@ const TTL: u64 = 60 * 60;
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
 
-pub async fn discover_peers(endpoints: &LocalEndpoints) {
+pub async fn discover_peers(
+    endpoints: &LocalEndpoints,
+    peers: Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
+) {
     let local_socket_shared = endpoints.sockets.discovery.clone();
     let local_socket_shared_2 = local_socket_shared.clone();
 

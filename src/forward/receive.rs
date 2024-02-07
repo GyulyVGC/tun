@@ -18,9 +18,10 @@ pub async fn receive(
     tun_ip: &IpAddr,
 ) {
     let mut socket_frame = SocketFrame::new();
+    let mut remote_socket;
     loop {
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
-        (socket_frame.actual_bytes, _) = socket
+        (socket_frame.actual_bytes, remote_socket) = socket
             .recv_from(&mut socket_frame.frame)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
@@ -38,7 +39,13 @@ pub async fn receive(
                     device.lock().await.write_all(&os_buf).await.unwrap_or(());
                 }
                 FirewallAction::REJECT => {
-                    send_termination_message(socket_frame.actual_frame(), tun_ip, socket).await;
+                    send_termination_message(
+                        socket_frame.actual_frame(),
+                        tun_ip,
+                        socket,
+                        remote_socket,
+                    )
+                    .await;
                 }
                 FirewallAction::DENY => {}
             }
