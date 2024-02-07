@@ -1,12 +1,9 @@
-use crate::PORT;
+use crate::network::{PORT_DISCOVERY_BROADCAST, PORT_DISCOVERY_UNICAST};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-
-const UNICAST_PORT: u16 = PORT - 1;
-const BROADCAST_PORT: u16 = PORT - 2;
 
 const RETRIES: u8 = 4;
 
@@ -16,9 +13,6 @@ const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
 
 pub async fn discover_peers(local_eth_ip: IpAddr, tun_ip: &IpAddr) {
-    let local_socket_addr = SocketAddr::new(local_eth_ip, UNICAST_PORT);
-    let local_socket = UdpSocket::bind(local_socket_addr).await.unwrap();
-    local_socket.set_broadcast(true).unwrap();
     let local_socket_shared = Arc::new(local_socket);
     let local_socket_shared_2 = local_socket_shared.clone();
 
@@ -94,15 +88,15 @@ async fn hello_unicast(local_socket: Arc<UdpSocket>, destination_ip: IpAddr, tun
 
 /// Returns the broadcast socket destination of greeting messages.
 fn hello_broadcast_socket() -> SocketAddr {
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), BROADCAST_PORT)
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), PORT_DISCOVERY_BROADCAST)
 }
 
-/// Returns the broadcast socket destination of greeting messages.
+/// Returns the unicast socket destination of greeting messages.
 fn hello_unicast_socket(destination_ip: IpAddr) -> SocketAddr {
-    SocketAddr::new(destination_ip, UNICAST_PORT)
+    SocketAddr::new(destination_ip, PORT_DISCOVERY_UNICAST)
 }
 
 /// Returns the socket used to listen to greeting messages.
 fn listen_broadcast_socket() -> SocketAddr {
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), BROADCAST_PORT)
+    SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), PORT_DISCOVERY_BROADCAST)
 }

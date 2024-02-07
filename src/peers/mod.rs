@@ -1,3 +1,4 @@
 pub mod discovery;
 mod hello;
-mod peer;
+pub mod local_info;
+pub mod peer;

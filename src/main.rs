@@ -1,10 +1,8 @@
 #![allow(clippy::used_underscore_binding)]
 
-use local_ip_address::local_ip;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr};
 use std::ops::Sub;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{panic, process};
@@ -13,23 +11,22 @@ use clap::Parser;
 use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
-use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun::{Configuration, Device};
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
+use crate::network::{Network, PORT};
 use crate::peers::discovery::discover_peers;
 
 mod cli;
 mod craft;
 mod forward;
 mod frames;
+mod network;
 mod peers;
 mod peers_deprecated;
-
-const PORT: u16 = 9999;
 
 #[tokio::main]
 async fn main() {
@@ -47,20 +44,21 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    let (local_eth_ip, socket) = try_bind_socket_until_success().await;
-    let socket_shared = Arc::new(socket);
-
-    let tun_ip = get_tun_ip(&local_eth_ip);
+    let Network {
+        local_info,
+        local_sockets,
+        peers,
+    } = Network::new().await;
 
     tokio::spawn(async move {
         discover_peers(local_eth_ip, &tun_ip).await;
     });
 
     let mut config = Configuration::default();
-    set_tun_name(&tun_ip, &mut config);
+    set_tun_name(&local_info.tun_ip, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
-        .address(tun_ip)
+        .address(local_info.tun_ip)
         .netmask((255, 255, 255, 0))
         .up();
 
@@ -70,7 +68,7 @@ async fn main() {
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
-    configure_routing(&tun_ip);
+    configure_routing(&local_info.tun_ip);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
@@ -80,13 +78,19 @@ async fn main() {
     for _ in 0..num_tasks / 2 {
         let writer = writer_shared.clone();
         let reader = reader_shared.clone();
-        let socket_1 = socket_shared.clone();
-        let socket_2 = socket_shared.clone();
+        let socket_1 = local_sockets.forward.clone();
+        let socket_2 = socket_1.clone();
         let firewall_1 = firewall_shared.clone();
         let firewall_2 = firewall_shared.clone();
 
         tokio::spawn(async move {
-            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
+            Box::pin(receive(
+                &writer,
+                &socket_1,
+                &firewall_1,
+                &network.local_info.tun_ip,
+            ))
+            .await;
         });
 
         tokio::spawn(async move {
@@ -97,29 +101,6 @@ async fn main() {
     print_info(&local_eth_ip, &device_name, &tun_ip, mtu);
 
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
-}
-
-/// Tries to bind a UDP socket until success, retrying every 10 seconds.
-async fn try_bind_socket_until_success() -> (IpAddr, UdpSocket) {
-    loop {
-        if let Ok(address) = local_ip() {
-            println!("Local IP address found: {address}");
-            let socket_addr = SocketAddr::new(address, PORT);
-            if let Ok(socket) = UdpSocket::bind(socket_addr).await {
-                return (address, socket);
-            }
-        }
-        println!("Could not correctly bind a socket; will retry in 10 seconds...");
-        tokio::time::sleep(Duration::from_secs(10)).await;
-    }
-}
-
-/// Returns an IP address for the TUN device (based on the local Ethernet IP and supposing /24 netmask).
-fn get_tun_ip(local_eth_ip: &IpAddr) -> IpAddr {
-    let local_eth_ip_string = local_eth_ip.to_string();
-    let host_part = local_eth_ip_string.split('.').last().unwrap();
-    let tun_ip_string = ["10.0.0.", host_part].concat();
-    IpAddr::from_str(&tun_ip_string).unwrap()
 }
 
 /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
