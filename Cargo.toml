@@ -18,6 +18,7 @@ notify = "6.1.1"
 local-ip-address = "0.5.7"
 chrono = { version = "0.4.33", default-features = false }
 serde = { version = "1.0.196", default_features = false, features = ["derive", "alloc"] }
+toml = "0.8.10"
 
 [dev-dependencies]
 serde_test = "1.0.176"

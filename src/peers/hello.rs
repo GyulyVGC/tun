@@ -22,12 +22,20 @@ pub struct Hello {
 }
 
 impl Hello {
-    pub fn new(eth_ip: IpAddr, tun_ip: IpAddr) -> Self {
+    pub fn new(eth_ip: &IpAddr, tun_ip: &IpAddr) -> Self {
         Self {
-            eth_ip,
-            tun_ip,
+            eth_ip: eth_ip.to_owned(),
+            tun_ip: tun_ip.to_owned(),
             timestamp: Utc::now(),
         }
+    }
+
+    pub fn to_toml_string(&self) -> String {
+        toml::to_string(self).unwrap()
+    }
+
+    pub fn from_toml_bytes(msg: &[u8]) -> Self {
+        toml::from_str(std::str::from_utf8(msg).unwrap()).unwrap()
     }
 }
 

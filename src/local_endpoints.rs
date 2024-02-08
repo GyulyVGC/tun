@@ -1,4 +1,4 @@
-use crate::peers::local_info::LocalIps;
+use crate::peers::local_ips::LocalIps;
 use local_ip_address::local_ip;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;

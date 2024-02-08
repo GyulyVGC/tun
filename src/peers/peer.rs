@@ -1,4 +1,4 @@
-use crate::peers::local_info::LocalIps;
+use crate::peers::local_ips::LocalIps;
 
 /// Struct representing a peer.
 pub struct Peer {

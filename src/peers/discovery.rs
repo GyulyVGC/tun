@@ -1,4 +1,5 @@
 use crate::local_endpoints::{LocalEndpoints, PORT_DISCOVERY_BROADCAST, PORT_DISCOVERY_UNICAST};
+use crate::peers::hello::Hello;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
@@ -32,7 +33,12 @@ pub async fn discover_peers(
     });
 
     // periodically send out broadcast hello messages
-    hello_broadcast(local_socket_shared_2, &endpoints.ips.tun).await;
+    hello_broadcast(
+        local_socket_shared_2,
+        &endpoints.ips.eth,
+        &endpoints.ips.tun,
+    )
+    .await;
 }
 
 /// Listens to broadcast messages. TODO!
@@ -59,6 +65,7 @@ async fn listen_unicast(local_socket: Arc<UdpSocket>) {
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
         println!(
             "Received: {}\tFrom: {from}",
             std::str::from_utf8(&msg[..msg_len]).unwrap()
@@ -66,27 +73,40 @@ async fn listen_unicast(local_socket: Arc<UdpSocket>) {
     }
 }
 
-/// Periodically sends out messages to let other peers know that this device is up. TODO!
-async fn hello_broadcast(local_socket: Arc<UdpSocket>, tun_ip: &IpAddr) {
+/// Periodically sends out messages to let all other peers know that this device is up.
+async fn hello_broadcast(local_socket: Arc<UdpSocket>, eth_ip: &IpAddr, tun_ip: &IpAddr) {
     let dest_socket = hello_broadcast_socket();
-    let tun_ip_string = tun_ip.to_string();
-    let msg = tun_ip_string.as_bytes();
     loop {
         for _ in 0..RETRIES {
-            let _msg_len = local_socket.send_to(msg, dest_socket).await.unwrap_or(0);
+            local_socket
+                .send_to(
+                    Hello::new(eth_ip, tun_ip).to_toml_string().as_bytes(),
+                    dest_socket,
+                )
+                .await
+                .unwrap_or(0);
             tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
         }
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
 }
 
-/// Sends out messages to acknowledge a specific peer that this device is up. TODO!
-async fn hello_unicast(local_socket: Arc<UdpSocket>, destination_ip: IpAddr, tun_ip: &IpAddr) {
+/// Sends out messages to acknowledge a specific peer that this device is up.
+async fn hello_unicast(
+    local_socket: Arc<UdpSocket>,
+    destination_ip: IpAddr,
+    eth_ip: &IpAddr,
+    tun_ip: &IpAddr,
+) {
     let dest_socket = hello_unicast_socket(destination_ip);
-    let tun_ip_string = tun_ip.to_string();
-    let msg = tun_ip_string.as_bytes();
     for _ in 0..RETRIES {
-        let _msg_len = local_socket.send_to(msg, dest_socket).await.unwrap_or(0);
+        local_socket
+            .send_to(
+                Hello::new(eth_ip, tun_ip).to_toml_string().as_bytes(),
+                dest_socket,
+            )
+            .await
+            .unwrap_or(0);
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
 }
