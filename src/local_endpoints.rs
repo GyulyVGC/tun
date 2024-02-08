@@ -22,12 +22,10 @@ impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of errors.
     pub async fn new() -> Self {
         loop {
-            // for the moment let pcap choose the "default" device...
-            // ...in the future we could select the Ethernet device given its name as input?
             if let Some(address) = get_eth_address() {
                 let eth_ip = address.addr;
-                let broadcast_ip = address.broadcast_addr.unwrap();
                 let netmask = address.netmask.unwrap();
+                let broadcast_ip = address.broadcast_addr.unwrap();
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
@@ -62,15 +60,17 @@ pub struct LocalSockets {
 }
 
 fn get_eth_address() -> Option<Address> {
-    if let Ok(Some(device)) = Device::lookup() {
-        let flags = device.flags;
-        if flags.is_up() && flags.is_running() && !flags.is_loopback() {
-            for address in device.addresses {
-                if matches!(address.addr, IpAddr::V4(_))
-                    && address.netmask.is_some()
-                    && address.broadcast_addr.is_some()
-                {
-                    return Some(address);
+    if let Ok(devices) = Device::list() {
+        for device in devices {
+            let flags = device.flags;
+            if flags.is_up() && flags.is_running() && !flags.is_loopback() {
+                for address in device.addresses {
+                    if matches!(address.addr, IpAddr::V4(_))
+                        && address.netmask.is_some()
+                        && address.broadcast_addr.is_some()
+                    {
+                        return Some(address);
+                    }
                 }
             }
         }
