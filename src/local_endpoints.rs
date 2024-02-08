@@ -95,7 +95,8 @@ fn get_eth_address() -> Option<Address> {
     None
 }
 
-/// Returns an IP address for the TUN device (based on the local Ethernet IP and supposing /24 netmask).
+/// Returns an IP address for the TUN device.
+/// TODO: support every kind of netmask.
 fn get_tun_ip(eth_ip: &IpAddr) -> IpAddr {
     let local_eth_ip_string = eth_ip.to_string();
     let host_part = local_eth_ip_string.split('.').last().unwrap();

@@ -18,7 +18,7 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::local_endpoints::{LocalEndpoints, FORWARD_PORT};
+use crate::local_endpoints::LocalEndpoints;
 use crate::peers::discovery::discover_peers;
 
 mod cli;
@@ -61,12 +61,13 @@ async fn main() {
     set_tun_name(&tun_ip, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
-        .address(&tun_ip)
+        .address(tun_ip)
+        // TODO: support every kind of netmask.
         .netmask((255, 255, 255, 0))
         .up();
 
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
-    let device_name = device.get_ref().name().unwrap();
+    let tun_name = device.get_ref().name().unwrap();
     let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
@@ -96,14 +97,15 @@ async fn main() {
         });
     }
 
-    print_info(&endpoints.ips.eth, &device_name, &tun_ip, mtu);
+    print_info(&endpoints, &tun_name, mtu);
 
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
 
 /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
 ///
-/// Example: the TUN with address 10.0.0.1 will be called nullnet1 (this supposes netmask /24).
+/// Example: the TUN with address 10.0.0.1 will be called nullnet1.
+/// TODO: support every kind of netmask.
 fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     _config.name(format!(
@@ -116,20 +118,32 @@ fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
 fn configure_routing(_tun_ip: &IpAddr) {
     #[cfg(target_os = "macos")]
     process::Command::new("route")
+        // TODO: support every kind of netmask.
         .args(["-n", "add", "-net", "10.0.0.0/24", &_tun_ip.to_string()])
         .spawn()
         .expect("Failed to configure routing");
 }
 
+// this could be a Display impl of LocalEndpoints... TODO!
 /// Prints useful info about the created device.
-fn print_info(eth_ip: &IpAddr, tun_name: &str, tun_ip: &IpAddr, mtu: usize) {
+fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
+    let tun_ip = &local_endpoints.ips.tun;
+    let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
+    let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
+    let discovery_broadcast_socket = &local_endpoints
+        .sockets
+        .discovery_broadcast
+        .local_addr()
+        .unwrap();
     println!("\n{}", "=".repeat(40));
-    println!("UDP socket bound successfully:");
-    println!("\t- address: {eth_ip}:{FORWARD_PORT}\n");
+    println!("UDP sockets bound successfully:");
+    println!("    - forward:   {forward_socket}");
+    println!("    - discovery: {discovery_socket}");
+    println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TUN device created successfully:");
-    println!("\t- address: {tun_ip}");
-    println!("\t- name:    {tun_name}");
-    println!("\t- MTU:     {mtu} B");
+    println!("    - address:   {tun_ip}");
+    println!("    - name:      {tun_name}");
+    println!("    - MTU:       {mtu} B");
     println!("{}\n", "=".repeat(40));
 }
 

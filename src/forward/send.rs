@@ -58,6 +58,6 @@ async fn get_dst_socket(
             .read()
             .await
             .get(&IpAddr::from(dest_ip_slice))
-            .cloned()
+            .copied()
     }
 }
