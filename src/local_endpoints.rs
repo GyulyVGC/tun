@@ -63,14 +63,16 @@ pub struct LocalSockets {
 
 fn get_eth_address() -> Option<Address> {
     if let Ok(Some(device)) = Device::lookup() {
-        for address in device.addresses {
-            if !matches!(address.addr, IpAddr::V4(_))
-                || address.netmask.is_none()
-                || address.broadcast_addr.is_none()
-            {
-                return None;
+        let flags = device.flags;
+        if flags.is_up() && flags.is_running() && !flags.is_loopback() {
+            for address in device.addresses {
+                if matches!(address.addr, IpAddr::V4(_))
+                    && address.netmask.is_some()
+                    && address.broadcast_addr.is_some()
+                {
+                    return Some(address);
+                }
             }
-            return Some(address);
         }
     }
     None
