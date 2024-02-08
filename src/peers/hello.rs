@@ -80,14 +80,16 @@ where
 #[cfg(test)]
 mod tests {
     use crate::peers::hello::Hello;
-    use chrono::Utc;
+    use chrono::{DateTime, Utc};
     use serde_test::{assert_tokens, Token};
     use std::net::IpAddr;
     use std::str::FromStr;
 
+    pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
+
     #[test]
-    fn test_serialize_hello() {
-        let timestamp = Utc::now();
+    fn test_serialize_and_deserialize_hello_message() {
+        let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
         let hello = Hello {
             eth_ip: IpAddr::from_str("8.8.8.8").unwrap(),
             tun_ip: IpAddr::from_str("10.11.12.134").unwrap(),
@@ -106,7 +108,7 @@ mod tests {
                 Token::Str("tun_ip"),
                 Token::Str("10.11.12.134"),
                 Token::Str("timestamp"),
-                Token::Str(&timestamp.to_string()),
+                Token::Str(TEST_TIMESTAMP),
                 Token::StructEnd,
             ],
         );
