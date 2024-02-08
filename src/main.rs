@@ -27,7 +27,6 @@ mod forward;
 mod frames;
 mod local_endpoints;
 mod peers;
-mod peers_deprecated;
 
 #[tokio::main]
 async fn main() {
