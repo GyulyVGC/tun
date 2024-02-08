@@ -9,16 +9,16 @@ use std::str::FromStr;
 pub struct Hello {
     /// Ethernet IP address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    eth_ip: IpAddr,
+    pub eth_ip: IpAddr,
     /// TUN IP address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    tun_ip: IpAddr,
+    pub tun_ip: IpAddr,
     /// Timestamp of the message.
     #[serde(
         deserialize_with = "deserialize_timestamp",
         serialize_with = "serialize_timestamp"
     )]
-    timestamp: DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
 }
 
 impl Hello {

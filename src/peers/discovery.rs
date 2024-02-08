@@ -1,5 +1,6 @@
 use crate::local_endpoints::{LocalEndpoints, DISCOVERY_PORT};
 use crate::peers::hello::Hello;
+use chrono::Utc;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
@@ -53,10 +54,17 @@ async fn listen_broadcast(broadcast_socket: Arc<UdpSocket>) {
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
+        let delay = (Utc::now() - hello.timestamp).num_microseconds().unwrap();
+        println!("\n{}", "-".repeat(40));
         println!(
-            "Received: {}\tFrom: {from}",
-            std::str::from_utf8(&msg[..msg_len]).unwrap()
+            "Broadcast Hello received\n\
+                    \t- from: {from}\n\
+                    \t- message: {hello:?}\n\
+                    \t- length: {msg_len}\n\
+                    \t- delay: {delay}μs",
         );
+        println!("{}\n", "-".repeat(40));
     }
 }
 
@@ -68,7 +76,6 @@ async fn listen_unicast(socket: Arc<UdpSocket>) {
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
-        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
         println!(
             "Received: {}\tFrom: {from}",
             std::str::from_utf8(&msg[..msg_len]).unwrap()
