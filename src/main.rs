@@ -18,7 +18,7 @@ use tun::{Configuration, Device};
 use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
-use crate::local_endpoints::{LocalEndpoints, PORT};
+use crate::local_endpoints::{LocalEndpoints, FORWARD_PORT};
 use crate::peers::discovery::discover_peers;
 
 mod cli;
@@ -125,7 +125,7 @@ fn configure_routing(_tun_ip: &IpAddr) {
 fn print_info(eth_ip: &IpAddr, tun_name: &str, tun_ip: &IpAddr, mtu: usize) {
     println!("\n{}", "=".repeat(40));
     println!("UDP socket bound successfully:");
-    println!("\t- address: {eth_ip}:{PORT}\n");
+    println!("\t- address: {eth_ip}:{FORWARD_PORT}\n");
     println!("TUN device created successfully:");
     println!("\t- address: {tun_ip}");
     println!("\t- name:    {tun_name}");

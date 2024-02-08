@@ -6,9 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 
-pub const PORT: u16 = 9999;
-pub const PORT_DISCOVERY_UNICAST: u16 = PORT - 1;
-pub const PORT_DISCOVERY_BROADCAST: u16 = PORT - 2;
+pub const FORWARD_PORT: u16 = 9999;
+pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -27,23 +26,30 @@ impl LocalEndpoints {
                 let netmask = address.netmask.unwrap();
                 let broadcast_ip = address.broadcast_addr.unwrap();
                 println!("Local IP address found: {eth_ip}");
-                let forward_socket_addr = SocketAddr::new(eth_ip, PORT);
+                let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
-                    let discovery_socket_addr = SocketAddr::new(eth_ip, PORT_DISCOVERY_UNICAST);
+                    let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
-                        forward.set_broadcast(true).unwrap();
-                        discovery.set_broadcast(true).unwrap();
-                        let tun_ip = get_tun_ip(&eth_ip);
-                        return Self {
-                            ips: LocalIps {
-                                eth: eth_ip,
-                                tun: tun_ip,
-                            },
-                            sockets: LocalSockets {
-                                forward: Arc::new(forward),
-                                discovery: Arc::new(discovery),
-                            },
-                        };
+                        let discovery_broadcast_socket_addr =
+                            SocketAddr::new(broadcast_ip, DISCOVERY_PORT);
+                        if let Ok(discovery_broadcast) =
+                            UdpSocket::bind(discovery_broadcast_socket_addr).await
+                        {
+                            forward.set_broadcast(true).unwrap();
+                            discovery.set_broadcast(true).unwrap();
+                            let tun_ip = get_tun_ip(&eth_ip);
+                            return Self {
+                                ips: LocalIps {
+                                    eth: eth_ip,
+                                    tun: tun_ip,
+                                },
+                                sockets: LocalSockets {
+                                    forward: Arc::new(forward),
+                                    discovery: Arc::new(discovery),
+                                    discovery_broadcast: Arc::new(discovery_broadcast),
+                                },
+                            };
+                        }
                     }
                 }
             }
@@ -57,8 +63,19 @@ impl LocalEndpoints {
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
+    pub discovery_broadcast: Arc<UdpSocket>,
 }
 
+/// Checks all the available network devices and returns IP address, netmask,
+/// and broadcast address of the "suitable" interface.
+///
+/// The "suitable" interface satisfies the following:
+/// - it's IPv4
+/// - it has a netmask
+/// - it has a broadcast address
+/// - it's up
+/// - it's running
+/// - it's not loopback
 fn get_eth_address() -> Option<Address> {
     if let Ok(devices) = Device::list() {
         for device in devices {
