@@ -12,6 +12,7 @@ pub const PORT_DISCOVERY_BROADCAST: u16 = PORT - 2;
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
+#[derive(Clone)]
 pub struct LocalEndpoints {
     pub ips: LocalIps,
     pub sockets: LocalSockets,
@@ -49,6 +50,7 @@ impl LocalEndpoints {
     }
 }
 
+#[derive(Clone)]
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,

@@ -15,7 +15,7 @@ const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
 
 pub async fn discover_peers(
-    endpoints: &LocalEndpoints,
+    endpoints: LocalEndpoints,
     peers: Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
 ) {
     let local_socket_shared = endpoints.sockets.discovery.clone();

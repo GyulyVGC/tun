@@ -46,11 +46,13 @@ async fn main() {
     } = Args::parse();
 
     let endpoints = LocalEndpoints::new().await;
+    let endpoints_2 = endpoints.clone();
     // tun ip to socket address map of all the discovered peers
     let peers = Arc::new(RwLock::new(HashMap::new()));
+    let peers_2 = peers.clone();
 
     tokio::spawn(async move {
-        discover_peers(&endpoints, peers).await;
+        discover_peers(endpoints_2, peers_2).await;
     });
 
     let tun_ip = endpoints.ips.tun;
@@ -83,13 +85,14 @@ async fn main() {
         let socket_2 = socket_1.clone();
         let firewall_1 = firewall_shared.clone();
         let firewall_2 = firewall_shared.clone();
+        let peers_2 = peers.clone();
 
         tokio::spawn(async move {
             Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
         });
 
         tokio::spawn(async move {
-            Box::pin(send(&reader, &socket_2, &firewall_2, peers.clone())).await;
+            Box::pin(send(&reader, &socket_2, &firewall_2, peers_2)).await;
         });
     }
 
