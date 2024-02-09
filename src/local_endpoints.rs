@@ -1,6 +1,6 @@
 use crate::peers::local_ips::LocalIps;
 use pcap::{Address, Device};
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,6 +8,8 @@ use tokio::net::UdpSocket;
 
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
+
+const MULTICAST_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -31,7 +33,7 @@ impl LocalEndpoints {
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
                         let discovery_broadcast_socket_addr =
-                            SocketAddr::new(broadcast_ip, DISCOVERY_PORT);
+                            SocketAddr::new(MULTICAST_IP, DISCOVERY_PORT);
                         if let Ok(discovery_broadcast) =
                             UdpSocket::bind(discovery_broadcast_socket_addr).await
                         {
