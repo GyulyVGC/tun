@@ -55,14 +55,15 @@ async fn listen_broadcast(broadcast_socket: Arc<UdpSocket>) {
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
-        let delay = (Utc::now() - hello.timestamp).num_microseconds().unwrap();
+        let now = Utc::now();
+        let delay = (now - hello.timestamp).num_microseconds().unwrap();
         println!("\n{}", "-".repeat(40));
         println!(
             "Broadcast Hello received\n\
                     \t- from: {from}\n\
                     \t- message: {hello:?}\n\
                     \t- length: {msg_len}\n\
-                    \t- delay: {delay}μs",
+                    \t- delay: {delay}μs = {now} - {}", hello.timestamp,
         );
         println!("{}\n", "-".repeat(40));
     }
