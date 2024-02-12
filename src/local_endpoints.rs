@@ -1,5 +1,5 @@
 use crate::peers::local_ips::LocalIps;
-use pcap::{Address, Device};
+use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,8 +24,8 @@ impl LocalEndpoints {
     pub async fn new() -> Self {
         loop {
             if let Some(address) = get_eth_address() {
-                let eth_ip = address.addr;
-                let netmask = address.netmask.unwrap();
+                let eth_ip = address.ip();
+                let netmask = address.netmask().unwrap();
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
@@ -68,23 +68,26 @@ pub struct LocalSockets {
     pub discovery_multicast: Arc<UdpSocket>,
 }
 
-/// Checks all the available network devices and returns IP address and netmask of the "suitable" interface.
+/// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.
 ///
-/// The "suitable" interface satisfies the following:
-/// - it's IPv4
+/// A "suitable" interface satisfies the following:
 /// - it has a netmask
-/// - it's up
-/// - it's running
-/// - it's not loopback
-fn get_eth_address() -> Option<Address> {
-    if let Ok(devices) = Device::list() {
+/// - it has an IP address that:
+///   - is IP version 4
+///   - is not loopback
+///   - is not 0.0.0.0
+///   - is not multicast
+fn get_eth_address() -> Option<Addr> {
+    if let Ok(devices) = NetworkInterface::show() {
         for device in devices {
-            let flags = device.flags;
-            if flags.is_up() && flags.is_running() && !flags.is_loopback() {
-                for address in device.addresses {
-                    if matches!(address.addr, IpAddr::V4(_)) && address.netmask.is_some() {
-                        return Some(address);
-                    }
+            for address in device.addr {
+                if address.netmask().is_some()
+                    && address.ip().is_ipv4()
+                    && !address.ip().is_loopback()
+                    && !address.ip().is_unspecified()
+                    && !address.ip().is_multicast()
+                {
+                    return Some(address);
                 }
             }
         }
