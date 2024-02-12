@@ -1,10 +1,10 @@
 use crate::peers::local_ips::LocalIps;
 use pcap::{Address, Device};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tun::IntoAddress;
 
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
@@ -38,7 +38,7 @@ impl LocalEndpoints {
                         {
                             forward.set_broadcast(true).unwrap();
                             discovery.set_broadcast(true).unwrap();
-                            let tun_ip = get_tun_ip(&eth_ip);
+                            let tun_ip = get_tun_ip(&eth_ip, &netmask);
                             return Self {
                                 ips: LocalIps {
                                     eth: eth_ip,
@@ -81,9 +81,7 @@ fn get_eth_address() -> Option<Address> {
             let flags = device.flags;
             if flags.is_up() && flags.is_running() && !flags.is_loopback() {
                 for address in device.addresses {
-                    if matches!(address.addr, IpAddr::V4(_))
-                        && address.netmask.is_some()
-                    {
+                    if matches!(address.addr, IpAddr::V4(_)) && address.netmask.is_some() {
                         return Some(address);
                     }
                 }
@@ -94,10 +92,60 @@ fn get_eth_address() -> Option<Address> {
 }
 
 /// Returns an IP address for the TUN device.
-/// TODO: support every kind of netmask.
-fn get_tun_ip(eth_ip: &IpAddr) -> IpAddr {
-    let local_eth_ip_string = eth_ip.to_string();
-    let host_part = local_eth_ip_string.split('.').last().unwrap();
-    let tun_ip_string = ["10.0.0.", host_part].concat();
-    IpAddr::from_str(&tun_ip_string).unwrap()
+fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
+    let eth_ip_octets = eth_ip.into_address().unwrap().octets();
+    let netmask_octets = netmask.into_address().unwrap().octets();
+
+    let tun_net_octets = [10, 0, 0, 0];
+    let mut tun_ip_octets = [0; 4];
+
+    for i in 0..4 {
+        tun_ip_octets[i] = tun_net_octets[i] | (eth_ip_octets[i] & !netmask_octets[i]);
+    }
+
+    IpAddr::from(tun_ip_octets)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::IpAddr;
+
+    #[test]
+    fn test_get_tun_ip_netmask_28() {
+        let netmask = IpAddr::from([255, 255, 255, 240]);
+        let eth_ip = IpAddr::from([192, 168, 1, 109]);
+        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 0, 13]));
+    }
+
+    #[test]
+    fn test_get_tun_ip_netmask_24() {
+        let netmask = IpAddr::from([255, 255, 255, 0]);
+        let eth_ip = IpAddr::from([192, 168, 1, 109]);
+        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 0, 109]));
+    }
+
+    #[test]
+    fn test_get_tun_ip_netmask_20() {
+        let netmask = IpAddr::from([255, 255, 240, 0]);
+        let eth_ip = IpAddr::from([192, 168, 1, 109]);
+        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 1, 109]));
+    }
+
+    #[test]
+    fn test_get_tun_ip_netmask_16() {
+        let netmask = IpAddr::from([255, 255, 0, 0]);
+        let eth_ip = IpAddr::from([192, 168, 1, 109]);
+        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 1, 109]));
+    }
+
+    #[test]
+    fn test_get_tun_ip_netmask_8() {
+        let netmask = IpAddr::from([255, 0, 0, 0]);
+        let eth_ip = IpAddr::from([192, 168, 1, 109]);
+        assert_eq!(
+            get_tun_ip(&eth_ip, &netmask),
+            IpAddr::from([10, 168, 1, 109])
+        );
+    }
 }

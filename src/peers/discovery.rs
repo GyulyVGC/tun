@@ -63,7 +63,7 @@ async fn listen_multicast(multicast_socket: Arc<UdpSocket>) {
                     \t- from: {from}\n\
                     \t- message: {hello:?}\n\
                     \t- length: {msg_len}\n\
-                    \t- delay: {delay}μs = {now} - {}", hello.timestamp,
+                    \t- delay: {delay}μs",
         );
         println!("{}\n", "-".repeat(40));
     }
