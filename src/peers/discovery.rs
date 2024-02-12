@@ -72,6 +72,7 @@ async fn listen_multicast(
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
 
         if !hello.is_valid(&from, &local_ips, &now) {
+            println!("Invalid multicast hello!");
             continue;
         };
 
@@ -133,6 +134,7 @@ async fn listen_unicast(
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
 
         if !hello.is_valid(&from, &local_ips, &now) {
+            println!("Invalid unicast hello!");
             continue;
         };
 
@@ -156,7 +158,7 @@ async fn listen_unicast(
         buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
-                .write_all(format!("{peer}").as_bytes())
+                .write_all(format!("{peer}\n").as_bytes())
                 .await
                 .unwrap();
         }
