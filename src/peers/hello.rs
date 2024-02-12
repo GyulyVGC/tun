@@ -38,7 +38,7 @@ impl Hello {
             && remote_ips.tun != local_ips.tun
             && remote_ips.netmask == local_ips.netmask
             && remote_ips.tun == get_tun_ip(&remote_ips.eth, &remote_ips.netmask)
-            && received_at >= &self.timestamp
+            // && received_at >= &self.timestamp
     }
 
     pub fn to_toml_string(&self) -> String {
