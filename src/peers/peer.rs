@@ -1,5 +1,6 @@
 use crate::local_endpoints::{DISCOVERY_PORT, FORWARD_PORT};
 use chrono::{DateTime, Utc};
+use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 
 /// Struct representing a peer.
@@ -44,5 +45,23 @@ impl Peer {
         self.num_seen_multicast += 1;
         self.sum_delays += delay as u64;
         self.last_seen = last_seen;
+    }
+}
+
+impl Display for Peer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}\n\
+            \t - num_seen_unicast:   {}\n\
+            \t - num_seen_multicast: {}\n\
+            \t - last_seen:          {}\n\
+            \t - avg_delay:          {}",
+            self.eth_ip,
+            self.num_seen_unicast,
+            self.num_seen_multicast,
+            self.last_seen,
+            self.avg_delay()
+        )
     }
 }

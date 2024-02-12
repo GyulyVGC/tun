@@ -8,8 +8,10 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 const RETRIES: u8 = 4;
 
@@ -31,14 +33,19 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
 
     let peers_2 = peers.clone();
 
+    let writer = Arc::new(Mutex::new(BufWriter::new(
+        File::create("./peers.txt").await.unwrap(),
+    )));
+    let writer_2 = writer.clone();
+
     // listen for multicast hello messages
     tokio::spawn(async move {
-        listen_multicast(socket_3, multicast_socket, local_ips, peers).await;
+        listen_multicast(socket_3, multicast_socket, local_ips, peers, writer).await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen_unicast(socket, local_ips_2, peers_2).await;
+        listen_unicast(socket, local_ips_2, peers_2, writer_2).await;
     });
 
     // periodically send out multicast hello messages
@@ -51,6 +58,7 @@ async fn listen_multicast(
     multicast_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    writer: Arc<Mutex<BufWriter<File>>>,
 ) {
     let mut msg = [0; 256];
     loop {
@@ -93,15 +101,14 @@ async fn listen_multicast(
                 peer
             });
 
-        println!("\n{}", "-".repeat(40));
-        println!(
-            "Multicast Hello received\n\
-                    \t- from: {from}\n\
-                    \t- message: {hello:?}\n\
-                    \t- length: {msg_len}\n\
-                    \t- delay: {delay}μs",
-        );
-        println!("{}\n", "-".repeat(40));
+        let mut buffer = writer.lock().await;
+        for peer in peers.read().await.values() {
+            buffer
+                .write_all(format!("{peer}").as_bytes())
+                .await
+                .unwrap();
+        }
+        buffer.flush().await.unwrap();
     }
 }
 
@@ -110,6 +117,7 @@ async fn listen_unicast(
     socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    writer: Arc<Mutex<BufWriter<File>>>,
 ) {
     let mut msg = [0; 256];
     loop {
@@ -140,15 +148,14 @@ async fn listen_unicast(
                 last_seen: hello.timestamp,
             });
 
-        println!("\n{}", "-".repeat(40));
-        println!(
-            "Unicast Hello received\n\
-                    \t- from: {from}\n\
-                    \t- message: {hello:?}\n\
-                    \t- length: {msg_len}\n\
-                    \t- delay: {delay}μs",
-        );
-        println!("{}\n", "-".repeat(40));
+        let mut buffer = writer.lock().await;
+        for peer in peers.read().await.values() {
+            buffer
+                .write_all(format!("{peer}").as_bytes())
+                .await
+                .unwrap();
+        }
+        buffer.flush().await.unwrap();
     }
 }
 
