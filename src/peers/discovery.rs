@@ -4,12 +4,13 @@ use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::Peer;
 use chrono::Utc;
 use std::collections::HashMap;
+use std::io::SeekFrom;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncSeekExt, AsyncWriteExt, BufWriter};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 
@@ -103,6 +104,7 @@ async fn listen_multicast(
 
         let mut buffer = writer.lock().await;
         buffer.get_mut().set_len(0).await.unwrap();
+        buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
                 .write_all(format!("{peer}").as_bytes())
@@ -151,6 +153,7 @@ async fn listen_unicast(
 
         let mut buffer = writer.lock().await;
         buffer.get_mut().set_len(0).await.unwrap();
+        buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
                 .write_all(format!("{peer}").as_bytes())
