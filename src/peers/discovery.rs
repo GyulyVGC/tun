@@ -102,6 +102,7 @@ async fn listen_multicast(
             });
 
         let mut buffer = writer.lock().await;
+        buffer.get_mut().set_len(0).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
                 .write_all(format!("{peer}").as_bytes())
@@ -149,6 +150,7 @@ async fn listen_unicast(
             });
 
         let mut buffer = writer.lock().await;
+        buffer.get_mut().set_len(0).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
                 .write_all(format!("{peer}").as_bytes())
