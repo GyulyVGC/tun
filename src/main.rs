@@ -57,7 +57,7 @@ async fn main() {
     let tun_ip = endpoints.ips.tun;
 
     let mut config = Configuration::default();
-    set_tun_name(&tun_ip, &mut config);
+    set_tun_name(&tun_ip, &endpoints.netmask, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
         .address(tun_ip)
@@ -103,13 +103,21 @@ async fn main() {
 /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
 ///
 /// Example: the TUN with address 10.0.0.1 will be called nullnet1.
-/// TODO: support every kind of netmask.
-fn set_tun_name(_tun_ip: &IpAddr, _config: &mut Configuration) {
+fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
-    _config.name(format!(
-        "nullnet{}",
-        _tun_ip.to_string().split('.').last().unwrap()
-    ));
+    {
+        use tun::IntoAddress;
+        let tun_ip_octets = _tun_ip.into_address().unwrap().octets();
+        let netmask_octets = _netmask.into_address().unwrap().octets();
+
+        let mut host_octets = [0; 4];
+        for i in 0..4 {
+            host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
+        }
+
+        let host_num = u32::from_be_bytes(host_octets);
+        _config.name(format!("nullnet{host_num}"));
+    }
 }
 
 /// Manually setup routing on macOS (to be done after TUN creation).
