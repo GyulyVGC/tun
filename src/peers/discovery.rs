@@ -71,7 +71,7 @@ async fn listen_multicast(
         let now = Utc::now();
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
 
-        if !hello.is_valid(&from, &local_ips, &now) {
+        if !hello.is_valid(&from, &local_ips) {
             println!("Invalid multicast hello!");
             continue;
         };
@@ -88,7 +88,7 @@ async fn listen_multicast(
                     eth_ip: hello.ips.eth,
                     num_seen_unicast: 0,
                     num_seen_multicast: 1,
-                    sum_delays: delay as u64,
+                    sum_delays: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
                     last_seen: hello.timestamp,
                 };
 
@@ -133,7 +133,7 @@ async fn listen_unicast(
         let now = Utc::now();
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
 
-        if !hello.is_valid(&from, &local_ips, &now) {
+        if !hello.is_valid(&from, &local_ips) {
             println!("Invalid unicast hello!");
             continue;
         };
@@ -149,7 +149,7 @@ async fn listen_unicast(
                 eth_ip: hello.ips.eth,
                 num_seen_unicast: 1,
                 num_seen_multicast: 0,
-                sum_delays: delay as u64,
+                sum_delays: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
                 last_seen: hello.timestamp,
             });
 
@@ -158,7 +158,7 @@ async fn listen_unicast(
         buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
         for peer in peers.read().await.values() {
             buffer
-                .write_all(format!("{peer}\n").as_bytes())
+                .write_all(format!("{peer}").as_bytes())
                 .await
                 .unwrap();
         }

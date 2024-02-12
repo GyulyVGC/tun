@@ -31,14 +31,14 @@ impl Hello {
         &self,
         from: &SocketAddr,
         local_ips: &LocalIps,
-        received_at: &DateTime<Utc>,
+        // received_at: &DateTime<Utc>, TODO: timestamps must be monotonic!
     ) -> bool {
         let remote_ips = &self.ips;
         remote_ips.eth == from.ip()
             && remote_ips.tun != local_ips.tun
             && remote_ips.netmask == local_ips.netmask
             && remote_ips.tun == get_tun_ip(&remote_ips.eth, &remote_ips.netmask)
-            // && received_at >= &self.timestamp
+        // && received_at >= &self.timestamp
     }
 
     pub fn to_toml_string(&self) -> String {

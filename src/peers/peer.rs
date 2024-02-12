@@ -18,9 +18,11 @@ pub struct Peer {
 }
 
 impl Peer {
-    /// Average delay of hello messages received from this peer (microseconds).
-    pub fn avg_delay(&self) -> u64 {
-        self.sum_delays / (self.num_seen_unicast + self.num_seen_multicast)
+    /// Average delay of hello messages received from this peer (seconds).
+    pub fn avg_delay_as_seconds(&self) -> f64 {
+        #[allow(clippy::cast_precision_loss)]
+        let micros = (self.sum_delays / (self.num_seen_unicast + self.num_seen_multicast)) as f64;
+        micros / 1_000_000.0
     }
 
     /// Socket address for normal network operations.
@@ -36,32 +38,32 @@ impl Peer {
     /// Updates this peer after receiving a unicast hello.
     pub fn refresh_unicast(&mut self, delay: i64, last_seen: DateTime<Utc>) {
         self.num_seen_unicast += 1;
-        self.sum_delays += delay as u64;
+        self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
         self.last_seen = last_seen;
     }
 
     /// Updates this peer after receiving a multicast hello.
     pub fn refresh_multicast(&mut self, delay: i64, last_seen: DateTime<Utc>) {
         self.num_seen_multicast += 1;
-        self.sum_delays += delay as u64;
+        self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
         self.last_seen = last_seen;
     }
 }
 
 impl Display for Peer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
+        writeln!(
             f,
             "{}\n\
             \t - num_seen_unicast:   {}\n\
             \t - num_seen_multicast: {}\n\
             \t - last_seen:          {}\n\
-            \t - avg_delay:          {}",
+            \t - avg_delay:          {}s",
             self.eth_ip,
             self.num_seen_unicast,
             self.num_seen_multicast,
             self.last_seen,
-            self.avg_delay()
+            self.avg_delay_as_seconds()
         )
     }
 }
