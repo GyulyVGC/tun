@@ -31,6 +31,10 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu'
+        run: sudo apt-get update -y && sudo apt-get install -y libpcap-dev
+
       - name: fmt
         run: cargo fmt --all -- --check
       - name: build

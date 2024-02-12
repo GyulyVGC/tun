@@ -58,7 +58,7 @@ impl Display for Peer {
             \t - num_seen_unicast:   {}\n\
             \t - num_seen_multicast: {}\n\
             \t - last_seen:          {}\n\
-            \t - avg_delay:          {}s",
+            \t - avg_delay:          {} s",
             self.eth_ip,
             self.num_seen_unicast,
             self.num_seen_multicast,
