@@ -4,7 +4,7 @@ use crate::peers::local_ips::LocalIps;
 pub struct Peer {
     /// Information about this peer.
     local_info: LocalIps,
-    /// Number of times a hello message was received from this peer (broadcast + unicast).
+    /// Number of times a hello message was received from this peer (multicast + unicast).
     num_seen: u64,
     /// Cumulative delays of all hello messages received from this peer (microseconds).
     sum_delays: u64,

@@ -129,16 +129,16 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     let tun_ip = &local_endpoints.ips.tun;
     let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
     let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
-    let discovery_broadcast_socket = &local_endpoints
+    let discovery_multicast_socket = &local_endpoints
         .sockets
-        .discovery_broadcast
+        .discovery_multicast
         .local_addr()
         .unwrap();
     println!("\n{}", "=".repeat(40));
     println!("UDP sockets bound successfully:");
     println!("    - forward:   {forward_socket}");
     println!("    - discovery: {discovery_socket}");
-    println!("    - broadcast: {discovery_broadcast_socket}\n");
+    println!("    - multicast: {discovery_multicast_socket}\n");
     println!("TUN device created successfully:");
     println!("    - address:   {tun_ip}");
     println!("    - name:      {tun_name}");

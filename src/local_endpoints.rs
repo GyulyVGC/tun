@@ -26,16 +26,15 @@ impl LocalEndpoints {
             if let Some(address) = get_eth_address() {
                 let eth_ip = address.addr;
                 let netmask = address.netmask.unwrap();
-                let broadcast_ip = address.broadcast_addr.unwrap();
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
-                        let discovery_broadcast_socket_addr =
+                        let discovery_multicast_socket_addr =
                             SocketAddr::new(MULTICAST_IP, DISCOVERY_PORT);
-                        if let Ok(discovery_broadcast) =
-                            UdpSocket::bind(discovery_broadcast_socket_addr).await
+                        if let Ok(discovery_multicast) =
+                            UdpSocket::bind(discovery_multicast_socket_addr).await
                         {
                             forward.set_broadcast(true).unwrap();
                             discovery.set_broadcast(true).unwrap();
@@ -48,7 +47,7 @@ impl LocalEndpoints {
                                 sockets: LocalSockets {
                                     forward: Arc::new(forward),
                                     discovery: Arc::new(discovery),
-                                    discovery_broadcast: Arc::new(discovery_broadcast),
+                                    discovery_multicast: Arc::new(discovery_multicast),
                                 },
                             };
                         }
@@ -65,16 +64,14 @@ impl LocalEndpoints {
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
-    pub discovery_broadcast: Arc<UdpSocket>,
+    pub discovery_multicast: Arc<UdpSocket>,
 }
 
-/// Checks all the available network devices and returns IP address, netmask,
-/// and broadcast address of the "suitable" interface.
+/// Checks all the available network devices and returns IP address and netmask of the "suitable" interface.
 ///
 /// The "suitable" interface satisfies the following:
 /// - it's IPv4
 /// - it has a netmask
-/// - it has a broadcast address
 /// - it's up
 /// - it's running
 /// - it's not loopback
@@ -86,7 +83,6 @@ fn get_eth_address() -> Option<Address> {
                 for address in device.addresses {
                     if matches!(address.addr, IpAddr::V4(_))
                         && address.netmask.is_some()
-                        && address.broadcast_addr.is_some()
                     {
                         return Some(address);
                     }
