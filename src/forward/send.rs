@@ -9,12 +9,13 @@ use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
 
 use crate::frames::os_frame::OsFrame;
+use crate::peers::peer::Peer;
 
 pub async fn send(
     device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
-    peers: Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
+    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
 ) {
     let mut os_frame = OsFrame::new();
     loop {
@@ -48,7 +49,7 @@ pub async fn send(
 
 async fn get_dst_socket(
     socket_buf: &[u8],
-    peers: &Arc<RwLock<HashMap<IpAddr, SocketAddr>>>,
+    peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>,
 ) -> Option<SocketAddr> {
     if socket_buf.len() < 20 {
         None
@@ -58,6 +59,6 @@ async fn get_dst_socket(
             .read()
             .await
             .get(&IpAddr::from(dest_ip_slice))
-            .copied()
+            .map(Peer::forward_socket_addr)
     }
 }
