@@ -17,7 +17,6 @@ const MULTICAST_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 pub struct LocalEndpoints {
     pub ips: LocalIps,
     pub sockets: LocalSockets,
-    pub netmask: IpAddr,
 }
 
 impl LocalEndpoints {
@@ -44,13 +43,13 @@ impl LocalEndpoints {
                                 ips: LocalIps {
                                     eth: eth_ip,
                                     tun: tun_ip,
+                                    netmask,
                                 },
                                 sockets: LocalSockets {
                                     forward: Arc::new(forward),
                                     discovery: Arc::new(discovery),
                                     discovery_multicast: Arc::new(discovery_multicast),
                                 },
-                                netmask,
                             };
                         }
                     }
@@ -94,7 +93,7 @@ fn get_eth_address() -> Option<Address> {
 }
 
 /// Returns an IP address for the TUN device.
-fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
+pub fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     let eth_ip_octets = eth_ip.into_address().unwrap().octets();
     let netmask_octets = netmask.into_address().unwrap().octets();
 

@@ -1,5 +1,6 @@
 use crate::local_endpoints::{LocalEndpoints, DISCOVERY_PORT};
 use crate::peers::hello::Hello;
+use crate::peers::local_ips::LocalIps;
 use chrono::Utc;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -26,9 +27,11 @@ pub async fn discover_peers(
 
     let multicast_socket_addr = multicast_socket.local_addr().unwrap();
 
+    let local_ips = endpoints.ips.clone();
+
     // listen for multicast hello messages
     tokio::spawn(async move {
-        listen_multicast(multicast_socket).await; // this method also invokes greet_unicast when needed
+        listen_multicast(multicast_socket, local_ips).await; // this method also invokes greet_unicast when needed
     });
 
     // listen for unicast hello responses
@@ -37,26 +40,25 @@ pub async fn discover_peers(
     });
 
     // periodically send out multicast hello messages
-    greet_multicast(
-        socket_2,
-        multicast_socket_addr,
-        &endpoints.ips.eth,
-        &endpoints.ips.tun,
-    )
-    .await;
+    greet_multicast(socket_2, multicast_socket_addr, endpoints.ips).await;
 }
 
 /// Listens to multicast messages. TODO!
-async fn listen_multicast(multicast_socket: Arc<UdpSocket>) {
-    let mut msg = [0; 1024];
+async fn listen_multicast(multicast_socket: Arc<UdpSocket>, local_ips: LocalIps) {
+    let mut msg = [0; 256];
     loop {
         let (msg_len, from) = multicast_socket
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
-        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
         let now = Utc::now();
+        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
         let delay = (now - hello.timestamp).num_microseconds().unwrap();
+
+        if !hello.is_valid(&from, &local_ips, &now) {
+            continue;
+        };
+
         println!("\n{}", "-".repeat(40));
         println!(
             "Multicast Hello received\n\
@@ -71,7 +73,7 @@ async fn listen_multicast(multicast_socket: Arc<UdpSocket>) {
 
 /// Listens to unicast messages. TODO!
 async fn listen_unicast(socket: Arc<UdpSocket>) {
-    let mut msg = [0; 1024];
+    let mut msg = [0; 256];
     loop {
         let (msg_len, from) = socket
             .recv_from(&mut msg)
@@ -88,14 +90,13 @@ async fn listen_unicast(socket: Arc<UdpSocket>) {
 async fn greet_multicast(
     socket: Arc<UdpSocket>,
     multicast_socket_addr: SocketAddr,
-    eth_ip: &IpAddr,
-    tun_ip: &IpAddr,
+    local_ips: LocalIps,
 ) {
     loop {
         for _ in 0..RETRIES {
             socket
                 .send_to(
-                    Hello::new(eth_ip, tun_ip).to_toml_string().as_bytes(),
+                    Hello::new(&local_ips).to_toml_string().as_bytes(),
                     multicast_socket_addr,
                 )
                 .await
@@ -107,18 +108,13 @@ async fn greet_multicast(
 }
 
 /// Sends out messages to acknowledge a specific peer that this device is up.
-async fn greet_unicast(
-    local_socket: Arc<UdpSocket>,
-    destination_ip: IpAddr,
-    eth_ip: &IpAddr,
-    tun_ip: &IpAddr,
-) {
-    let dest_socket = SocketAddr::new(destination_ip, DISCOVERY_PORT);
+async fn greet_unicast(socket: Arc<UdpSocket>, destination_ip: IpAddr, local_ips: &LocalIps) {
+    let dest_socket_addr = SocketAddr::new(destination_ip, DISCOVERY_PORT);
     for _ in 0..RETRIES {
-        local_socket
+        socket
             .send_to(
-                Hello::new(eth_ip, tun_ip).to_toml_string().as_bytes(),
-                dest_socket,
+                Hello::new(local_ips).to_toml_string().as_bytes(),
+                dest_socket_addr,
             )
             .await
             .unwrap_or(0);

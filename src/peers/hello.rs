@@ -1,18 +1,16 @@
+use crate::local_endpoints::get_tun_ip;
+use crate::peers::local_ips::LocalIps;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
-    /// Ethernet IP address of the peer.
-    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub eth_ip: IpAddr,
-    /// TUN IP address of the peer.
-    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub tun_ip: IpAddr,
+    /// Ethernet IP, TUN IP, and netmask of the peer.
+    pub ips: LocalIps,
     /// Timestamp of the message.
     #[serde(
         deserialize_with = "deserialize_timestamp",
@@ -22,12 +20,25 @@ pub struct Hello {
 }
 
 impl Hello {
-    pub fn new(eth_ip: &IpAddr, tun_ip: &IpAddr) -> Self {
+    pub fn new(local_ips: &LocalIps) -> Self {
         Self {
-            eth_ip: eth_ip.to_owned(),
-            tun_ip: tun_ip.to_owned(),
+            ips: local_ips.to_owned(),
             timestamp: Utc::now(),
         }
+    }
+
+    pub fn is_valid(
+        &self,
+        from: &SocketAddr,
+        local_ips: &LocalIps,
+        received_at: &DateTime<Utc>,
+    ) -> bool {
+        let remote_ips = &self.ips;
+        remote_ips.eth == from.ip()
+            && remote_ips.tun != local_ips.tun
+            && remote_ips.netmask == local_ips.netmask
+            && remote_ips.tun == get_tun_ip(&remote_ips.eth, &remote_ips.netmask)
+            && received_at > &self.timestamp
     }
 
     pub fn to_toml_string(&self) -> String {
@@ -36,29 +47,6 @@ impl Hello {
 
     pub fn from_toml_bytes(msg: &[u8]) -> Self {
         toml::from_str(std::str::from_utf8(msg).unwrap()).unwrap()
-    }
-}
-
-fn serialize_ip<S>(ip: &IpAddr, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&ip.to_string())
-}
-
-fn deserialize_ip<'de, D>(deserializer: D) -> Result<IpAddr, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let ip_string = String::deserialize(deserializer)?;
-
-    if let Ok(ipv4) = Ipv4Addr::from_str(&ip_string) {
-        Ok(IpAddr::V4(ipv4))
-    } else {
-        Err(serde::de::Error::invalid_value(
-            Unexpected::Str(&ip_string),
-            &"Valid IP address",
-        ))
     }
 }
 
@@ -88,7 +76,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::peers::hello::Hello;
-    use chrono::{DateTime, Utc};
+    use crate::peers::local_ips::LocalIps;
+    use chrono::DateTime;
     use serde_test::{assert_tokens, Token};
     use std::net::IpAddr;
     use std::str::FromStr;
@@ -99,8 +88,11 @@ mod tests {
     fn test_serialize_and_deserialize_hello_message() {
         let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
         let hello = Hello {
-            eth_ip: IpAddr::from_str("8.8.8.8").unwrap(),
-            tun_ip: IpAddr::from_str("10.11.12.134").unwrap(),
+            ips: LocalIps {
+                eth: IpAddr::from_str("8.8.8.8").unwrap(),
+                tun: IpAddr::from_str("10.11.12.134").unwrap(),
+                netmask: IpAddr::from_str("255.255.255.0").unwrap(),
+            },
             timestamp,
         };
 
@@ -109,12 +101,20 @@ mod tests {
             &[
                 Token::Struct {
                     name: "Hello",
+                    len: 2,
+                },
+                Token::Str("ips"),
+                Token::Struct {
+                    name: "LocalIps",
                     len: 3,
                 },
-                Token::Str("eth_ip"),
+                Token::Str("eth"),
                 Token::Str("8.8.8.8"),
-                Token::Str("tun_ip"),
+                Token::Str("tun"),
                 Token::Str("10.11.12.134"),
+                Token::Str("netmask"),
+                Token::Str("255.255.255.0"),
+                Token::StructEnd,
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::StructEnd,

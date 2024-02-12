@@ -55,13 +55,14 @@ async fn main() {
     });
 
     let tun_ip = endpoints.ips.tun;
+    let netmask = endpoints.ips.netmask;
 
     let mut config = Configuration::default();
-    set_tun_name(&tun_ip, &endpoints.netmask, &mut config);
+    set_tun_name(&tun_ip, &netmask, &mut config);
     config
         .mtu(i32::try_from(mtu).unwrap())
         .address(tun_ip)
-        .netmask(endpoints.netmask)
+        .netmask(netmask)
         .up();
 
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
@@ -70,7 +71,7 @@ async fn main() {
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
-    configure_routing(&tun_ip, &endpoints.netmask);
+    configure_routing(&tun_ip, &netmask);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
@@ -153,7 +154,7 @@ fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
 /// Prints useful info about the created device.
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     let tun_ip = &local_endpoints.ips.tun;
-    let netmask = &local_endpoints.netmask;
+    let netmask = &local_endpoints.ips.netmask;
     let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
     let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
     let discovery_multicast_socket = &local_endpoints
