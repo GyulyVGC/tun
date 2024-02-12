@@ -17,6 +17,7 @@ const MULTICAST_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 pub struct LocalEndpoints {
     pub ips: LocalIps,
     pub sockets: LocalSockets,
+    pub netmask: IpAddr,
 }
 
 impl LocalEndpoints {
@@ -49,6 +50,7 @@ impl LocalEndpoints {
                                     discovery: Arc::new(discovery),
                                     discovery_multicast: Arc::new(discovery_multicast),
                                 },
+                                netmask,
                             };
                         }
                     }

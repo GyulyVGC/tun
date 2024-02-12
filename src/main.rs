@@ -61,8 +61,7 @@ async fn main() {
     config
         .mtu(i32::try_from(mtu).unwrap())
         .address(tun_ip)
-        // TODO: support every kind of netmask.
-        .netmask((255, 255, 255, 0))
+        .netmask(endpoints.netmask)
         .up();
 
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
@@ -127,6 +126,7 @@ fn configure_routing(_tun_ip: &IpAddr) {
 /// Prints useful info about the created device.
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     let tun_ip = &local_endpoints.ips.tun;
+    let netmask = &local_endpoints.netmask;
     let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
     let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
     let discovery_multicast_socket = &local_endpoints
@@ -141,6 +141,7 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     println!("    - multicast: {discovery_multicast_socket}\n");
     println!("TUN device created successfully:");
     println!("    - address:   {tun_ip}");
+    println!("    - netmask:   {netmask}");
     println!("    - name:      {tun_name}");
     println!("    - MTU:       {mtu} B");
     println!("{}\n", "=".repeat(40));
