@@ -13,7 +13,7 @@ use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::sync::{Mutex, RwLock};
-use tun::{Configuration, Device};
+use tun::{Configuration, Device, IntoAddress};
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
@@ -70,7 +70,7 @@ async fn main() {
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
-    configure_routing(&tun_ip);
+    configure_routing(&tun_ip, &endpoints.netmask);
 
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
@@ -106,7 +106,6 @@ async fn main() {
 fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
     #[cfg(not(target_os = "macos"))]
     {
-        use tun::IntoAddress;
         let tun_ip_octets = _tun_ip.into_address().unwrap().octets();
         let netmask_octets = _netmask.into_address().unwrap().octets();
 
@@ -121,13 +120,33 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
 }
 
 /// Manually setup routing on macOS (to be done after TUN creation).
-fn configure_routing(_tun_ip: &IpAddr) {
+fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
     #[cfg(target_os = "macos")]
-    process::Command::new("route")
-        // TODO: support every kind of netmask.
-        .args(["-n", "add", "-net", "10.0.0.0/24", &_tun_ip.to_string()])
-        .spawn()
-        .expect("Failed to configure routing");
+    {
+        let netmask_octets = _netmask.into_address().unwrap().octets();
+
+        let mut slash_net = 0;
+        for i in &netmask_octets {
+            slash_net += match i {
+                255 => 8,
+                254 => 7,
+                252 => 6,
+                248 => 5,
+                240 => 4,
+                224 => 3,
+                192 => 2,
+                128 => 1,
+                0 => 0,
+                _ => panic!("Invalid netmask"),
+            };
+        }
+
+        let net_string = format!("10.0.0.0/{slash_net}");
+        process::Command::new("route")
+            .args(["-n", "add", "-net", &net_string, &_tun_ip.to_string()])
+            .spawn()
+            .expect("Failed to configure routing");
+    }
 }
 
 // this could be a Display impl of LocalEndpoints... TODO!
