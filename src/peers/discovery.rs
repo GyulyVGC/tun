@@ -14,7 +14,7 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt, BufWriter};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 
-const RETRIES: u8 = 4;
+const RETRIES: u64 = 4;
 
 // values in seconds
 const TTL: u64 = 60 * 60;
@@ -88,7 +88,21 @@ async fn listen(
             .write()
             .await
             .entry(hello.ips.tun)
-            .and_modify(|p| p.refresh(delay, &hello, listen_type.is_unicast()))
+            .and_modify(|p| {
+                let since_last_seen = (now - p.last_seen).num_seconds().unsigned_abs();
+                p.refresh(delay, &hello, listen_type.is_unicast());
+
+                if hello.is_setup && since_last_seen > RETRIES * RETRIES_DELTA {
+                    if let ListenType::Multicast(socket) = listen_type.clone() {
+                        let dest_socket_addr = p.discovery_socket_addr();
+                        let local_ips_2 = local_ips.clone();
+
+                        tokio::spawn(async move {
+                            greet_unicast(socket, dest_socket_addr, local_ips_2).await;
+                        });
+                    }
+                }
+            })
             .or_insert_with(|| {
                 let peer = Peer::with_details(delay, &hello, listen_type.is_unicast());
 
@@ -119,22 +133,30 @@ async fn listen(
 
 /// Periodically sends out messages to let all other peers know that this device is up.
 async fn greet_multicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
+    // require unicast responses when this peer first joins the network
+    let mut is_setup = true;
     loop {
-        greet(&socket, dest, &local_ips).await;
+        greet(&socket, dest, &local_ips, is_setup).await;
+        is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
 }
 
 /// Sends out messages to acknowledge a specific peer that this device is up.
 async fn greet_unicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
-    greet(&socket, dest, &local_ips).await;
+    greet(&socket, dest, &local_ips, false).await;
 }
 
 /// Sends out replicated hello messages to multicast or to a specific peer.
-async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps) {
+async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, is_setup: bool) {
     for _ in 0..RETRIES {
         socket
-            .send_to(Hello::new(local_ips).to_toml_string().as_bytes(), dest)
+            .send_to(
+                Hello::with_details(local_ips, is_setup)
+                    .to_toml_string()
+                    .as_bytes(),
+                dest,
+            )
             .await
             .unwrap_or(0);
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;

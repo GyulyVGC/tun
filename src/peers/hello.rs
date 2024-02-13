@@ -16,13 +16,15 @@ pub struct Hello {
         serialize_with = "serialize_timestamp"
     )]
     pub timestamp: DateTime<Utc>,
+    pub is_setup: bool,
 }
 
 impl Hello {
-    pub fn new(local_ips: &LocalIps) -> Self {
+    pub fn with_details(local_ips: &LocalIps, is_setup: bool) -> Self {
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
+            is_setup,
         }
     }
 
@@ -63,6 +65,7 @@ impl Default for Hello {
                 netmask: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             },
             timestamp: DateTime::default(),
+            is_setup: false,
         }
     }
 }
@@ -111,6 +114,7 @@ mod tests {
                 netmask: IpAddr::from_str("255.255.255.0").unwrap(),
             },
             timestamp,
+            is_setup: false,
         };
 
         assert_tokens(
@@ -118,7 +122,7 @@ mod tests {
             &[
                 Token::Struct {
                     name: "Hello",
-                    len: 2,
+                    len: 3,
                 },
                 Token::Str("ips"),
                 Token::Struct {
@@ -134,6 +138,8 @@ mod tests {
                 Token::StructEnd,
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
+                Token::Str("is_setup"),
+                Token::Bool(false),
                 Token::StructEnd,
             ],
         );
