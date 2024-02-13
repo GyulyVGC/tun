@@ -81,7 +81,7 @@ async fn listen_multicast(
             .write()
             .await
             .entry(hello.ips.tun)
-            .and_modify(|p| p.refresh_multicast(delay, hello.timestamp))
+            .and_modify(|p| p.refresh_multicast(delay, &hello))
             .or_insert_with(|| {
                 let peer = Peer {
                     eth_ip: hello.ips.eth,
@@ -142,7 +142,7 @@ async fn listen_unicast(
             .write()
             .await
             .entry(hello.ips.tun)
-            .and_modify(|p| p.refresh_unicast(delay, hello.timestamp))
+            .and_modify(|p| p.refresh_unicast(delay, &hello))
             .or_insert_with(|| Peer {
                 eth_ip: hello.ips.eth,
                 num_seen_unicast: 1,

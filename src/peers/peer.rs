@@ -1,4 +1,5 @@
 use crate::local_endpoints::{DISCOVERY_PORT, FORWARD_PORT};
+use crate::peers::hello::Hello;
 use chrono::{DateTime, Utc};
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
@@ -36,17 +37,19 @@ impl Peer {
     }
 
     /// Updates this peer after receiving a unicast hello.
-    pub fn refresh_unicast(&mut self, delay: i64, last_seen: DateTime<Utc>) {
+    pub fn refresh_unicast(&mut self, delay: i64, hello: &Hello) {
         self.num_seen_unicast += 1;
         self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
-        self.last_seen = last_seen;
+        self.last_seen = hello.timestamp;
+        self.eth_ip = hello.ips.eth;
     }
 
     /// Updates this peer after receiving a multicast hello.
-    pub fn refresh_multicast(&mut self, delay: i64, last_seen: DateTime<Utc>) {
+    pub fn refresh_multicast(&mut self, delay: i64, hello: &Hello) {
         self.num_seen_multicast += 1;
         self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
-        self.last_seen = last_seen;
+        self.last_seen = hello.timestamp;
+        self.eth_ip = hello.ips.eth;
     }
 }
 
