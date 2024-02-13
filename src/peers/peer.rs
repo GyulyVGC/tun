@@ -19,6 +19,29 @@ pub struct Peer {
 }
 
 impl Peer {
+    /// Creates a new peer after receiving a hello message.
+    pub fn with_details(delay: i64, hello: &Hello, is_unicast: bool) -> Self {
+        Self {
+            eth_ip: hello.ips.eth,
+            num_seen_unicast: u64::from(is_unicast),
+            num_seen_multicast: u64::from(!is_unicast),
+            sum_delays: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
+            last_seen: hello.timestamp,
+        }
+    }
+
+    /// Updates this peer after receiving a hello message.
+    pub fn refresh(&mut self, delay: i64, hello: &Hello, is_unicast: bool) {
+        if is_unicast {
+            self.num_seen_unicast += 1;
+        } else {
+            self.num_seen_multicast += 1;
+        }
+        self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
+        self.last_seen = hello.timestamp;
+        self.eth_ip = hello.ips.eth;
+    }
+
     /// Average delay of hello messages received from this peer (seconds).
     pub fn avg_delay_as_seconds(&self) -> f64 {
         #[allow(clippy::cast_precision_loss)]
@@ -34,22 +57,6 @@ impl Peer {
     /// Socket address for discovery.
     pub fn discovery_socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.eth_ip, DISCOVERY_PORT)
-    }
-
-    /// Updates this peer after receiving a unicast hello.
-    pub fn refresh_unicast(&mut self, delay: i64, hello: &Hello) {
-        self.num_seen_unicast += 1;
-        self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
-        self.last_seen = hello.timestamp;
-        self.eth_ip = hello.ips.eth;
-    }
-
-    /// Updates this peer after receiving a multicast hello.
-    pub fn refresh_multicast(&mut self, delay: i64, hello: &Hello) {
-        self.num_seen_multicast += 1;
-        self.sum_delays += delay.unsigned_abs(); // TODO: timestamps must be monotonic!
-        self.last_seen = hello.timestamp;
-        self.eth_ip = hello.ips.eth;
     }
 }
 

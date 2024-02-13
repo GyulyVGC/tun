@@ -41,29 +41,36 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
 
     // listen for multicast hello messages
     tokio::spawn(async move {
-        listen_multicast(socket_3, multicast_socket, local_ips, peers, writer).await;
+        listen(
+            ListenType::Multicast(socket_3),
+            multicast_socket,
+            local_ips,
+            peers,
+            writer,
+        )
+        .await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen_unicast(socket, local_ips_2, peers_2, writer_2).await;
+        listen(ListenType::Unicast, socket, local_ips_2, peers_2, writer_2).await;
     });
 
     // periodically send out multicast hello messages
     greet_multicast(socket_2, multicast_socket_addr, endpoints.ips).await;
 }
 
-/// Listens to multicast hello messages and invokes `greet_unicast` when needed.
-async fn listen_multicast(
-    socket: Arc<UdpSocket>,
-    multicast_socket: Arc<UdpSocket>,
+/// Listens to hello messages, updates the peers file, and invokes `greet_unicast` when needed.
+async fn listen(
+    listen_type: ListenType,
+    listen_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
     writer: Arc<Mutex<BufWriter<File>>>,
 ) {
     let mut msg = [0; 256];
     loop {
-        let (msg_len, from) = multicast_socket
+        let (msg_len, from) = listen_socket
             .recv_from(&mut msg)
             .await
             .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
@@ -81,74 +88,20 @@ async fn listen_multicast(
             .write()
             .await
             .entry(hello.ips.tun)
-            .and_modify(|p| p.refresh_multicast(delay, &hello))
+            .and_modify(|p| p.refresh(delay, &hello, listen_type.is_unicast()))
             .or_insert_with(|| {
-                let peer = Peer {
-                    eth_ip: hello.ips.eth,
-                    num_seen_unicast: 0,
-                    num_seen_multicast: 1,
-                    sum_delays: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
-                    last_seen: hello.timestamp,
-                };
+                let peer = Peer::with_details(delay, &hello, listen_type.is_unicast());
 
-                let dest_socket_addr = peer.discovery_socket_addr();
-                let local_ips_2 = local_ips.clone();
-                let socket_2 = socket.clone();
+                if let ListenType::Multicast(socket) = listen_type.clone() {
+                    let dest_socket_addr = peer.discovery_socket_addr();
+                    let local_ips_2 = local_ips.clone();
 
-                tokio::spawn(async move {
-                    greet_unicast(socket_2, dest_socket_addr, local_ips_2).await;
-                });
+                    tokio::spawn(async move {
+                        greet_unicast(socket, dest_socket_addr, local_ips_2).await;
+                    });
+                }
 
                 peer
-            });
-
-        let mut buffer = writer.lock().await;
-        buffer.get_mut().set_len(0).await.unwrap();
-        buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
-        for peer in peers.read().await.values() {
-            buffer
-                .write_all(format!("{peer}\n").as_bytes())
-                .await
-                .unwrap();
-        }
-        buffer.flush().await.unwrap();
-    }
-}
-
-/// Listens to unicast hello messages.
-async fn listen_unicast(
-    socket: Arc<UdpSocket>,
-    local_ips: LocalIps,
-    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
-    writer: Arc<Mutex<BufWriter<File>>>,
-) {
-    let mut msg = [0; 256];
-    loop {
-        let (msg_len, from) = socket
-            .recv_from(&mut msg)
-            .await
-            .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
-
-        let now = Utc::now();
-        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
-
-        if !hello.is_valid(&from, &local_ips) {
-            continue;
-        };
-
-        let delay = (now - hello.timestamp).num_microseconds().unwrap();
-
-        peers
-            .write()
-            .await
-            .entry(hello.ips.tun)
-            .and_modify(|p| p.refresh_unicast(delay, &hello))
-            .or_insert_with(|| Peer {
-                eth_ip: hello.ips.eth,
-                num_seen_unicast: 1,
-                num_seen_multicast: 0,
-                sum_delays: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
-                last_seen: hello.timestamp,
             });
 
         let mut buffer = writer.lock().await;
@@ -185,5 +138,19 @@ async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps) 
             .await
             .unwrap_or(0);
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
+    }
+}
+
+#[derive(Clone)]
+enum ListenType {
+    /// Listen for unicast hello messages.
+    Unicast,
+    /// Listen for multicast hello messages, and send out unicast responses when needed from the associated object.
+    Multicast(Arc<UdpSocket>),
+}
+
+impl ListenType {
+    pub fn is_unicast(&self) -> bool {
+        matches!(self, Self::Unicast)
     }
 }
