@@ -68,8 +68,12 @@ async fn listen(
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
     writer: Arc<Mutex<BufWriter<File>>>,
 ) {
+    // used to determine whether a unicast response is required
+    let mut should_respond_to;
     let mut msg = [0; 256];
     loop {
+        should_respond_to = None;
+
         let (msg_len, from) = listen_socket
             .recv_from(&mut msg)
             .await
@@ -88,35 +92,27 @@ async fn listen(
             .write()
             .await
             .entry(hello.ips.tun)
-            .and_modify(|p| {
-                let since_last_seen = (now - p.last_seen).num_seconds().unsigned_abs();
-                p.refresh(delay, &hello, listen_type.is_unicast());
-
+            .and_modify(|peer| {
+                let since_last_seen = (now - peer.last_seen).num_seconds().unsigned_abs();
                 if hello.is_setup && since_last_seen > RETRIES * RETRIES_DELTA {
-                    if let ListenType::Multicast(socket) = listen_type.clone() {
-                        let dest_socket_addr = p.discovery_socket_addr();
-                        let local_ips_2 = local_ips.clone();
-
-                        tokio::spawn(async move {
-                            greet_unicast(socket, dest_socket_addr, local_ips_2).await;
-                        });
-                    }
+                    should_respond_to = Some(peer.discovery_socket_addr());
                 }
+                peer.refresh(delay, &hello, listen_type.is_unicast());
             })
             .or_insert_with(|| {
                 let peer = Peer::with_details(delay, &hello, listen_type.is_unicast());
-
-                if let ListenType::Multicast(socket) = listen_type.clone() {
-                    let dest_socket_addr = peer.discovery_socket_addr();
-                    let local_ips_2 = local_ips.clone();
-
-                    tokio::spawn(async move {
-                        greet_unicast(socket, dest_socket_addr, local_ips_2).await;
-                    });
-                }
-
+                should_respond_to = Some(peer.discovery_socket_addr());
                 peer
             });
+
+        if let Some(dest_socket_addr) = should_respond_to {
+            if let ListenType::Multicast(socket) = listen_type.clone() {
+                let local_ips_2 = local_ips.clone();
+                tokio::spawn(async move {
+                    greet_unicast(socket, dest_socket_addr, local_ips_2).await;
+                });
+            }
+        }
 
         let mut buffer = writer.lock().await;
         buffer.get_mut().set_len(0).await.unwrap();
