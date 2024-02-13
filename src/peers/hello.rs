@@ -1,9 +1,8 @@
-use crate::local_endpoints::get_tun_ip;
 use crate::peers::local_ips::LocalIps;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
@@ -34,19 +33,37 @@ impl Hello {
         // received_at: &DateTime<Utc>, TODO: timestamps must be monotonic!
     ) -> bool {
         let remote_ips = &self.ips;
+        // Ethernet address corresponds to sender socket address
         remote_ips.eth == from.ip()
+            // hello was not sent from this machine
+            && remote_ips.eth != local_ips.eth
+            // has not same TUN address of this machine
             && remote_ips.tun != local_ips.tun
-            && remote_ips.netmask == local_ips.netmask
-            && remote_ips.tun == get_tun_ip(&remote_ips.eth, &remote_ips.netmask)
+            // are in the same Ethernet IPv4 network
+            && remote_ips.is_same_ipv4_ethernet_network_of(local_ips)
+        // delay is non negative TODO: timestamps must be monotonic!
         // && received_at >= &self.timestamp
     }
 
     pub fn to_toml_string(&self) -> String {
-        toml::to_string(self).unwrap()
+        toml::to_string(self).unwrap_or_default()
     }
 
     pub fn from_toml_bytes(msg: &[u8]) -> Self {
-        toml::from_str(std::str::from_utf8(msg).unwrap()).unwrap()
+        toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).unwrap_or_default()
+    }
+}
+
+impl Default for Hello {
+    fn default() -> Self {
+        Self {
+            ips: LocalIps {
+                eth: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                tun: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                netmask: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            },
+            timestamp: DateTime::default(),
+        }
     }
 }
 

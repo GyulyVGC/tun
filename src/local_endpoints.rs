@@ -71,23 +71,29 @@ pub struct LocalSockets {
 /// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.
 ///
 /// A "suitable" interface satisfies the following:
-/// - it has a netmask
+/// - it has a netmask that:
+///   - is IP version 4
+///   - is not 0.0.0.0
 /// - it has an IP address that:
 ///   - is IP version 4
-///   - is not loopback
-///   - is not 0.0.0.0
-///   - is not multicast
+///   - is a private address (defined by IETF RFC 1918)
 fn get_eth_address() -> Option<Addr> {
     if let Ok(devices) = NetworkInterface::show() {
         for device in devices {
             for address in device.addr {
-                if address.netmask().is_some()
-                    && address.ip().is_ipv4()
-                    && !address.ip().is_loopback()
-                    && !address.ip().is_unspecified()
-                    && !address.ip().is_multicast()
-                {
-                    return Some(address);
+                if let Some(netmask) = address.netmask() {
+                    let ip = address.ip();
+                    if netmask.is_ipv4()
+                        && !netmask.is_unspecified()
+                        && ip.is_ipv4()
+                        && ip.into_address().unwrap().is_private()
+                        // no need to also check the following because of the is_private() check
+                        // && !ip.is_unspecified()
+                        // && !ip.is_loopback()
+                        // && !ip.is_multicast()
+                    {
+                        return Some(address);
+                    }
                 }
             }
         }

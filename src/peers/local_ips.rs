@@ -2,6 +2,7 @@ use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
+use tun::IntoAddress;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct LocalIps {
@@ -14,6 +15,26 @@ pub struct LocalIps {
     /// Netmask of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
     pub netmask: IpAddr,
+}
+
+impl LocalIps {
+    pub fn is_same_ipv4_ethernet_network_of(&self, other: &Self) -> bool {
+        if self.netmask != other.netmask || !self.eth.is_ipv4() || !other.eth.is_ipv4() {
+            return false;
+        }
+
+        let netmask = self.netmask.into_address().unwrap().octets();
+        let eth_1 = self.eth.into_address().unwrap().octets();
+        let eth_2 = other.eth.into_address().unwrap().octets();
+
+        for i in 0..4 {
+            if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 fn serialize_ip<S>(ip: &IpAddr, serializer: S) -> Result<S::Ok, S::Error>
