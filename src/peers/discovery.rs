@@ -165,34 +165,23 @@ async fn listen_unicast(
 }
 
 /// Periodically sends out messages to let all other peers know that this device is up.
-async fn greet_multicast(
-    socket: Arc<UdpSocket>,
-    multicast_socket_addr: SocketAddr,
-    local_ips: LocalIps,
-) {
+async fn greet_multicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
     loop {
-        for _ in 0..RETRIES {
-            socket
-                .send_to(
-                    Hello::new(&local_ips).to_toml_string().as_bytes(),
-                    multicast_socket_addr,
-                )
-                .await
-                .unwrap_or(0);
-            tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
-        }
+        greet(&socket, dest, &local_ips).await;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
 }
 
 /// Sends out messages to acknowledge a specific peer that this device is up.
-async fn greet_unicast(socket: Arc<UdpSocket>, dest_socket_addr: SocketAddr, local_ips: LocalIps) {
+async fn greet_unicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
+    greet(&socket, dest, &local_ips).await;
+}
+
+/// Sends out replicated hello messages to multicast or to a specific peer.
+async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps) {
     for _ in 0..RETRIES {
         socket
-            .send_to(
-                Hello::new(&local_ips).to_toml_string().as_bytes(),
-                dest_socket_addr,
-            )
+            .send_to(Hello::new(local_ips).to_toml_string().as_bytes(), dest)
             .await
             .unwrap_or(0);
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;

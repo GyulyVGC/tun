@@ -87,10 +87,10 @@ fn get_eth_address() -> Option<Addr> {
                         && !netmask.is_unspecified()
                         && ip.is_ipv4()
                         && ip.into_address().unwrap().is_private()
-                        // no need to also check the following because of the is_private() check
-                        // && !ip.is_unspecified()
-                        // && !ip.is_loopback()
-                        // && !ip.is_multicast()
+                    // no need to also check the following because of the is_private() check
+                    // && !ip.is_unspecified()
+                    // && !ip.is_loopback()
+                    // && !ip.is_multicast()
                     {
                         return Some(address);
                     }
