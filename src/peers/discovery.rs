@@ -17,7 +17,7 @@ use tokio::sync::{Mutex, RwLock};
 const RETRIES: u64 = 4;
 
 // values in seconds
-const TTL: u64 = 60 * 60;
+const TTL: u64 = 60; // * 60;
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
 
@@ -33,11 +33,13 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
     let local_ips_2 = local_ips.clone();
 
     let peers_2 = peers.clone();
+    let peers_3 = peers.clone();
 
     let writer = Arc::new(Mutex::new(BufWriter::new(
         File::create("./peers.txt").await.unwrap(),
     )));
     let writer_2 = writer.clone();
+    let writer_3 = writer.clone();
 
     // listen for multicast hello messages
     tokio::spawn(async move {
@@ -54,6 +56,11 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
     // listen for unicast hello responses
     tokio::spawn(async move {
         listen(ListenType::Unicast, socket, local_ips_2, peers_2, writer_2).await;
+    });
+
+    // remove inactive peers
+    tokio::spawn(async move {
+        remove_inactive_peers(peers_3, writer_3).await;
     });
 
     // periodically send out multicast hello messages
@@ -114,16 +121,38 @@ async fn listen(
             }
         }
 
-        let mut buffer = writer.lock().await;
-        buffer.get_mut().set_len(0).await.unwrap();
-        buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
-        for peer in peers.read().await.values() {
-            buffer
-                .write_all(format!("{peer}\n").as_bytes())
-                .await
-                .unwrap();
-        }
-        buffer.flush().await.unwrap();
+        update_peers_file(&writer, &peers).await;
+    }
+}
+
+/// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
+async fn remove_inactive_peers(
+    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    writer: Arc<Mutex<BufWriter<File>>>,
+) {
+    loop {
+        let oldest_peer = peers
+            .read()
+            .await
+            .values()
+            .min_by(|p1, p2| p1.last_seen.cmp(&p2.last_seen))
+            .cloned();
+        let sleep_time = if let Some(p) = oldest_peer {
+            // TODO: timestamps must be monotonic!
+            let since_oldest = (Utc::now() - p.last_seen).num_seconds().unsigned_abs();
+            TTL.checked_sub(since_oldest).unwrap_or_default()
+        } else {
+            TTL
+        };
+
+        tokio::time::sleep(Duration::from_secs(sleep_time)).await;
+
+        peers
+            .write()
+            .await
+            .retain(|_, p| (Utc::now() - p.last_seen).num_seconds().unsigned_abs() < TTL);
+
+        update_peers_file(&writer, &peers).await;
     }
 }
 
@@ -157,6 +186,22 @@ async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, 
             .unwrap_or(0);
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
+}
+
+async fn update_peers_file(
+    writer: &Arc<Mutex<BufWriter<File>>>,
+    peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>,
+) {
+    let mut buffer = writer.lock().await;
+    buffer.get_mut().set_len(0).await.unwrap();
+    buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
+    for peer in peers.read().await.values() {
+        buffer
+            .write_all(format!("{peer}\n").as_bytes())
+            .await
+            .unwrap();
+    }
+    buffer.flush().await.unwrap();
 }
 
 #[derive(Clone)]

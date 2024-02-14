@@ -13,7 +13,7 @@ use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::sync::{Mutex, RwLock};
-use tun::{Configuration, Device, IntoAddress};
+use tun::{Configuration, Device};
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
@@ -124,6 +124,7 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
 fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
     #[cfg(target_os = "macos")]
     {
+        use tun::IntoAddress;
         let netmask_octets = _netmask.into_address().unwrap().octets();
 
         let mut slash_net = 0;

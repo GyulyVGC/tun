@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 
 /// Struct representing a peer.
+#[derive(Clone)]
 pub struct Peer {
     /// Ethernet IP address of this peer.
     pub(crate) eth_ip: IpAddr,
