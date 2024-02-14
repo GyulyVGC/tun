@@ -105,19 +105,19 @@ async fn main() {
 ///
 /// Example: the TUN with address 10.0.0.1 will be called nullnet1.
 fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let tun_ip_octets = _tun_ip.into_address().unwrap().octets();
-        let netmask_octets = _netmask.into_address().unwrap().octets();
-
-        let mut host_octets = [0; 4];
-        for i in 0..4 {
-            host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
-        }
-
-        let host_num = u32::from_be_bytes(host_octets);
-        _config.name(format!("nullnet{host_num}"));
-    }
+    // #[cfg(not(target_os = "macos"))]
+    // {
+    //     let tun_ip_octets = _tun_ip.into_address().unwrap().octets();
+    //     let netmask_octets = _netmask.into_address().unwrap().octets();
+    //
+    //     let mut host_octets = [0; 4];
+    //     for i in 0..4 {
+    //         host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
+    //     }
+    //
+    //     let host_num = u32::from_be_bytes(host_octets);
+    //     _config.name(format!("nullnet{host_num}"));
+    // }
 }
 
 /// Manually setup routing on macOS (to be done after TUN creation).
