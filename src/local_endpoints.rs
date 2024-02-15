@@ -9,7 +9,7 @@ use tun::IntoAddress;
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 
-const MULTICAST_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
+pub const MULTICAST_IP: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 1);
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -31,10 +31,9 @@ impl LocalEndpoints {
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
-                        let discovery_multicast_socket_addr =
-                            SocketAddr::new(MULTICAST_IP, DISCOVERY_PORT);
-                        if let Ok(discovery_multicast) =
-                            UdpSocket::bind(discovery_multicast_socket_addr).await
+                        if discovery
+                            .join_multicast_v4(MULTICAST_IP, eth_ip.into_address().unwrap())
+                            .is_ok()
                         {
                             forward.set_broadcast(true).unwrap();
                             discovery.set_broadcast(true).unwrap();
@@ -48,7 +47,6 @@ impl LocalEndpoints {
                                 sockets: LocalSockets {
                                     forward: Arc::new(forward),
                                     discovery: Arc::new(discovery),
-                                    discovery_multicast: Arc::new(discovery_multicast),
                                 },
                             };
                         }
@@ -65,7 +63,6 @@ impl LocalEndpoints {
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
-    pub discovery_multicast: Arc<UdpSocket>,
 }
 
 /// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.

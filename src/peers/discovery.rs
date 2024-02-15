@@ -1,4 +1,4 @@
-use crate::local_endpoints::LocalEndpoints;
+use crate::local_endpoints::{LocalEndpoints, DISCOVERY_PORT, MULTICAST_IP};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::Peer;
@@ -24,10 +24,8 @@ const RETRIES_DELTA: u64 = 1;
 pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap<IpAddr, Peer>>>) {
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
-    let socket_3 = socket_2.clone();
-    let multicast_socket = endpoints.sockets.discovery_multicast;
-
-    let multicast_socket_addr = multicast_socket.local_addr().unwrap();
+    let socket_3 = socket.clone();
+    let socket_4 = socket.clone();
 
     let local_ips = endpoints.ips.clone();
     let local_ips_2 = local_ips.clone();
@@ -45,7 +43,7 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
     tokio::spawn(async move {
         listen(
             ListenType::Multicast(socket_3),
-            multicast_socket,
+            socket_4,
             local_ips,
             peers,
             writer,
@@ -64,7 +62,12 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
     });
 
     // periodically send out multicast hello messages
-    greet_multicast(socket_2, multicast_socket_addr, endpoints.ips).await;
+    greet_multicast(
+        socket_2,
+        SocketAddr::new(IpAddr::V4(MULTICAST_IP), DISCOVERY_PORT),
+        endpoints.ips,
+    )
+    .await;
 }
 
 /// Listens to hello messages, updates the peers file, and invokes `greet_unicast` when needed.
