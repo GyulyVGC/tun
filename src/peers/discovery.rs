@@ -4,15 +4,13 @@ use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::Peer;
 use chrono::Utc;
 use std::collections::HashMap;
-use std::io::SeekFrom;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::fs::File;
-use tokio::io::{AsyncSeekExt, AsyncWriteExt, BufWriter};
 use tokio::net::UdpSocket;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio_rusqlite::Connection;
 
 const RETRIES: u64 = 4;
 
@@ -20,6 +18,8 @@ const RETRIES: u64 = 4;
 const TTL: u64 = 60; // * 60;
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
+
+const SQLITE_PATH: &str = "./peers.sqlite";
 
 pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap<IpAddr, Peer>>>) {
     let socket = endpoints.sockets.discovery;
@@ -35,11 +35,9 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
     let peers_2 = peers.clone();
     let peers_3 = peers.clone();
 
-    let writer = Arc::new(Mutex::new(BufWriter::new(
-        File::create("./peers.txt").await.unwrap(),
-    )));
-    let writer_2 = writer.clone();
-    let writer_3 = writer.clone();
+    let db = Arc::new(Mutex::new(Connection::open(SQLITE_PATH).await.unwrap()));
+    let db_2 = db.clone();
+    let db_3 = db.clone();
 
     // listen for multicast hello messages
     tokio::spawn(async move {
@@ -48,19 +46,19 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap
             multicast_socket,
             local_ips,
             peers,
-            writer,
+            db,
         )
         .await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(ListenType::Unicast, socket, local_ips_2, peers_2, writer_2).await;
+        listen(ListenType::Unicast, socket, local_ips_2, peers_2, db_2).await;
     });
 
     // remove inactive peers
     tokio::spawn(async move {
-        remove_inactive_peers(peers_3, writer_3).await;
+        remove_inactive_peers(peers_3, db_3).await;
     });
 
     // periodically send out multicast hello messages
@@ -73,7 +71,7 @@ async fn listen(
     listen_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
-    writer: Arc<Mutex<BufWriter<File>>>,
+    db: Arc<Mutex<Connection>>,
 ) {
     // used to determine whether a unicast response is required
     let mut should_respond_to;
@@ -121,14 +119,14 @@ async fn listen(
             }
         }
 
-        update_peers_file(&writer, &peers).await;
+        update_db(&db, &peers).await;
     }
 }
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
 async fn remove_inactive_peers(
     peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
-    writer: Arc<Mutex<BufWriter<File>>>,
+    db: Arc<Mutex<Connection>>,
 ) {
     loop {
         let oldest_peer = peers
@@ -152,7 +150,7 @@ async fn remove_inactive_peers(
             .await
             .retain(|_, p| (Utc::now() - p.last_seen).num_seconds().unsigned_abs() < TTL);
 
-        update_peers_file(&writer, &peers).await;
+        update_db(&db, &peers).await;
     }
 }
 
@@ -188,20 +186,63 @@ async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, 
     }
 }
 
-async fn update_peers_file(
-    writer: &Arc<Mutex<BufWriter<File>>>,
+async fn drop_table<'a>(connection: &MutexGuard<'a, Connection>) {
+    connection
+        .call(|c| {
+            c.execute("DROP TABLE IF EXISTS peer", ()).unwrap();
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+async fn create_table<'a>(connection: &MutexGuard<'a, Connection>) {
+    connection
+        .call(|c| {
+            c.execute(
+                "CREATE TABLE IF NOT EXISTS peer (
+                        tun_ip             TEXT PRIMARY KEY,
+                        eth_ip             TEXT NOT NULL,
+                        num_seen_unicast   INTEGER NOT NULL,
+                        num_seen_multicast INTEGER NOT NULL,
+                        avg_delay          REAL NOT NULL,
+                        last_seen          TEXT NOT NULL
+                    )",
+                (),
+            )
+            .unwrap();
+            Ok(())
+        })
+        .await
+        .unwrap();
+}
+
+async fn update_table<'a>(
+    connection: &MutexGuard<'a, Connection>,
     peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>,
 ) {
-    let mut buffer = writer.lock().await;
-    buffer.get_mut().set_len(0).await.unwrap();
-    buffer.get_mut().seek(SeekFrom::Start(0)).await.unwrap();
-    for peer in peers.read().await.values() {
-        buffer
-            .write_all(format!("{peer}\n").as_bytes())
-            .await
-            .unwrap();
+    for (tun_ip, peer) in peers.read().await.iter() {
+        let (tun_ip, peer) = (*tun_ip, peer.to_owned());
+        connection
+        .call(move |c| {
+                c.execute(
+                    "INSERT INTO peer (tun_ip, eth_ip, num_seen_unicast, num_seen_multicast, avg_delay, last_seen)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    (tun_ip.to_string(), peer.eth_ip.to_string(), peer.num_seen_unicast,
+                     peer.num_seen_multicast, peer.avg_delay as f64 / 1_000_000_f64, peer.last_seen.to_string()),
+                ).unwrap();
+            Ok(())
+        })
+        .await
+        .unwrap();
     }
-    buffer.flush().await.unwrap();
+}
+
+async fn update_db(db: &Arc<Mutex<Connection>>, peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>) {
+    let connection = db.lock().await;
+    drop_table(&connection).await;
+    create_table(&connection).await;
+    update_table(&connection, peers).await;
 }
 
 #[derive(Clone)]
