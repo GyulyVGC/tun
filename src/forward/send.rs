@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
@@ -9,13 +9,13 @@ use tokio::sync::{Mutex, RwLock};
 use tun::AsyncDevice;
 
 use crate::frames::os_frame::OsFrame;
-use crate::peers::peer::Peer;
+use crate::peers::peer::{PeerKey, PeerVal};
 
 pub async fn send(
     device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
-    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) {
     let mut os_frame = OsFrame::new();
     loop {
@@ -49,7 +49,7 @@ pub async fn send(
 
 async fn get_dst_socket(
     socket_buf: &[u8],
-    peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
     if socket_buf.len() < 20 {
         None
@@ -58,7 +58,7 @@ async fn get_dst_socket(
         peers
             .read()
             .await
-            .get(&IpAddr::from(dest_ip_slice))
-            .map(Peer::forward_socket_addr)
+            .get(&PeerKey::from_slice(dest_ip_slice))
+            .map(PeerVal::forward_socket_addr)
     }
 }
