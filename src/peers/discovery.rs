@@ -130,7 +130,7 @@ async fn listen(
                 tx.send((
                     Peer {
                         key: peer_key,
-                        val: peer_val.to_owned(),
+                        val: peer_val.clone(),
                     },
                     PeerDbAction::Insert,
                 ))
