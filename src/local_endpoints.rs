@@ -29,13 +29,16 @@ impl LocalEndpoints {
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
+                    println!("Forward socket bound successfully");
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
+                        println!("Discovery socket bound successfully");
                         let discovery_multicast_socket_addr =
                             SocketAddr::new(MULTICAST_IP, DISCOVERY_PORT);
                         if let Ok(discovery_multicast) =
                             UdpSocket::bind(discovery_multicast_socket_addr).await
                         {
+                            println!("Discovery multicast socket bound successfully");
                             forward.set_broadcast(true).unwrap();
                             discovery.set_broadcast(true).unwrap();
                             let tun_ip = get_tun_ip(&eth_ip, &netmask);
@@ -55,7 +58,7 @@ impl LocalEndpoints {
                     }
                 }
             }
-            println!("Could not correctly bind a socket; will retry in 10 seconds...");
+            println!("Could not bind all needed sockets; will retry in 10 seconds...");
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }
