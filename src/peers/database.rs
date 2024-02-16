@@ -16,12 +16,14 @@ pub async fn manage_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
     // make sure peer table exists and it's empty
     setup_db(&connection).await;
 
-    // listen for messages on the channel
-    if let Some((peer, action)) = rx.recv().await {
-        match action {
-            PeerDbAction::Insert => insert_peer(&connection, peer).await,
-            PeerDbAction::Modify => modify_peer(&connection, peer).await,
-            PeerDbAction::Remove => remove_peer(&connection, peer).await,
+    // keep listening for messages on the channel
+    loop {
+        if let Some((peer, action)) = rx.recv().await {
+            match action {
+                PeerDbAction::Insert => insert_peer(&connection, peer).await,
+                PeerDbAction::Modify => modify_peer(&connection, peer).await,
+                PeerDbAction::Remove => remove_peer(&connection, peer).await,
+            }
         }
     }
 }
