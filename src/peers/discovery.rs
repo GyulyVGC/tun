@@ -232,7 +232,7 @@ async fn update_table<'a>(
                     "INSERT INTO peer (tun_ip, eth_ip, num_seen_unicast, num_seen_multicast, avg_delay, last_seen)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     (peer_key.tun_ip.to_string(), peer_val.eth_ip.to_string(), peer_val.num_seen_unicast,
-                     peer_val.num_seen_multicast, peer_val.avg_delay as f64 / 1_000_000_f64, peer_val.last_seen.to_string()),
+                     peer_val.num_seen_multicast, peer_val.avg_delay_as_seconds(), peer_val.last_seen.to_string()),
                 ).unwrap();
             Ok(())
         })

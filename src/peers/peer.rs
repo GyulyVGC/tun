@@ -71,4 +71,10 @@ impl PeerVal {
     pub fn discovery_socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.eth_ip, DISCOVERY_PORT)
     }
+
+    /// Returns the average delay of messages from this peer, expressed as seconds.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn avg_delay_as_seconds(&self) -> f64 {
+        self.avg_delay as f64 / 1_000_000_f64
+    }
 }
