@@ -5,8 +5,14 @@ use crate::peers::hello::Hello;
 use chrono::{DateTime, Utc};
 use std::net::{IpAddr, SocketAddr};
 
+/// Struct representing a peer.
+pub struct Peer {
+    pub(crate) key: PeerKey,
+    pub(crate) val: PeerVal,
+}
+
 /// Struct identifying a peer.
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct PeerKey {
     /// TUN IP address of the peer.
     pub(crate) tun_ip: IpAddr,

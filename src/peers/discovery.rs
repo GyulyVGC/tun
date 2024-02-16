@@ -1,8 +1,8 @@
 use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::update_db;
+use crate::peers::database::{manage_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::{PeerKey, PeerVal};
+use crate::peers::peer::{Peer, PeerKey, PeerVal};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -10,8 +10,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio::sync::{Mutex, RwLock};
-use tokio_rusqlite::Connection;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc, RwLock};
 
 const RETRIES: u64 = 4;
 
@@ -19,8 +19,6 @@ const RETRIES: u64 = 4;
 const TTL: u64 = 60; // * 60;
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 const RETRIES_DELTA: u64 = 1;
-
-const SQLITE_PATH: &str = "./peers.sqlite";
 
 pub async fn discover_peers(
     endpoints: LocalEndpoints,
@@ -39,9 +37,14 @@ pub async fn discover_peers(
     let peers_2 = peers.clone();
     let peers_3 = peers.clone();
 
-    let db = Arc::new(Mutex::new(Connection::open(SQLITE_PATH).await.unwrap()));
-    let db_2 = db.clone();
-    let db_3 = db.clone();
+    let (tx, rx) = mpsc::unbounded_channel();
+    let tx_2 = tx.clone();
+    let tx_3 = tx.clone();
+
+    // update peers database
+    tokio::spawn(async move {
+        manage_db(rx).await;
+    });
 
     // listen for multicast hello messages
     tokio::spawn(async move {
@@ -50,19 +53,19 @@ pub async fn discover_peers(
             multicast_socket,
             local_ips,
             peers,
-            db,
+            tx,
         )
         .await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(ListenType::Unicast, socket, local_ips_2, peers_2, db_2).await;
+        listen(ListenType::Unicast, socket, local_ips_2, peers_2, tx_2).await;
     });
 
     // remove inactive peers
     tokio::spawn(async move {
-        remove_inactive_peers(peers_3, db_3).await;
+        remove_inactive_peers(peers_3, tx_3).await;
     });
 
     // periodically send out multicast hello messages
@@ -75,7 +78,7 @@ async fn listen(
     listen_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-    db: Arc<Mutex<Connection>>,
+    tx: UnboundedSender<(Peer, PeerDbAction)>,
 ) {
     // used to determine whether a unicast response is required
     let mut should_respond_to;
@@ -97,21 +100,43 @@ async fn listen(
 
         let delay = (now - hello.timestamp).num_microseconds().unwrap();
 
+        let peer_key = PeerKey::from_ip_addr(hello.ips.tun);
         peers
             .write()
             .await
-            .entry(PeerKey::from_ip_addr(hello.ips.tun))
-            .and_modify(|peer| {
-                let since_last_seen = (now - peer.last_seen).num_seconds().unsigned_abs();
+            .entry(peer_key)
+            .and_modify(|peer_val| {
+                let since_last_seen = (now - peer_val.last_seen).num_seconds().unsigned_abs();
                 if hello.is_setup && since_last_seen > RETRIES * RETRIES_DELTA {
-                    should_respond_to = Some(peer.discovery_socket_addr());
+                    should_respond_to = Some(peer_val.discovery_socket_addr());
                 }
-                peer.refresh(delay, &hello, listen_type.is_unicast());
+                peer_val.refresh(delay, &hello, listen_type.is_unicast());
+
+                // update peer db
+                tx.send((
+                    Peer {
+                        key: peer_key,
+                        val: peer_val.to_owned(),
+                    },
+                    PeerDbAction::Modify,
+                ))
+                .unwrap();
             })
             .or_insert_with(|| {
-                let peer = PeerVal::with_details(delay, &hello, listen_type.is_unicast());
-                should_respond_to = Some(peer.discovery_socket_addr());
-                peer
+                let peer_val = PeerVal::with_details(delay, &hello, listen_type.is_unicast());
+                should_respond_to = Some(peer_val.discovery_socket_addr());
+
+                // update peer db
+                tx.send((
+                    Peer {
+                        key: peer_key,
+                        val: peer_val.to_owned(),
+                    },
+                    PeerDbAction::Insert,
+                ))
+                .unwrap();
+
+                peer_val
             });
 
         if let Some(dest_socket_addr) = should_respond_to {
@@ -122,24 +147,22 @@ async fn listen(
                 });
             }
         }
-
-        update_db(&db, &peers).await;
     }
 }
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
 async fn remove_inactive_peers(
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-    db: Arc<Mutex<Connection>>,
+    tx: UnboundedSender<(Peer, PeerDbAction)>,
 ) {
     loop {
-        let oldest_peer = peers
+        let oldest_peer_val = peers
             .read()
             .await
             .values()
             .min_by(|p1, p2| p1.last_seen.cmp(&p2.last_seen))
             .cloned();
-        let sleep_time = if let Some(p) = oldest_peer {
+        let sleep_time = if let Some(p) = oldest_peer_val {
             // TODO: timestamps must be monotonic!
             let since_oldest = (Utc::now() - p.last_seen).num_seconds().unsigned_abs();
             TTL.checked_sub(since_oldest).unwrap_or_default()
@@ -149,12 +172,26 @@ async fn remove_inactive_peers(
 
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
 
-        peers
-            .write()
-            .await
-            .retain(|_, p| (Utc::now() - p.last_seen).num_seconds().unsigned_abs() < TTL);
+        peers.write().await.retain(|peer_key, peer_val| {
+            let retain = (Utc::now() - peer_val.last_seen)
+                .num_seconds()
+                .unsigned_abs()
+                < TTL;
 
-        update_db(&db, &peers).await;
+            // update peer db
+            if !retain {
+                tx.send((
+                    Peer {
+                        key: *peer_key,
+                        val: peer_val.to_owned(),
+                    },
+                    PeerDbAction::Remove,
+                ))
+                .unwrap();
+            }
+
+            retain
+        });
     }
 }
 

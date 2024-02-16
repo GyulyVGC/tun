@@ -1,20 +1,30 @@
-use crate::peers::peer::{PeerKey, PeerVal};
+use crate::peers::peer::{Peer, PeerKey, PeerVal};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::RwLock;
 use tokio_rusqlite::Connection;
 
-pub async fn update_db(
-    db: &Arc<Mutex<Connection>>,
-    peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-) {
-    let connection = db.lock().await;
-    drop_table(&connection).await;
-    create_table(&connection).await;
-    update_table(&connection, peers).await;
+const SQLITE_PATH: &str = "./peers.sqlite";
+
+pub enum PeerDbAction {
+    Insert,
+    Modify,
+    Remove,
 }
 
-async fn create_table<'a>(connection: &MutexGuard<'a, Connection>) {
+pub async fn manage_db(rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
+    let connection = Connection::open(SQLITE_PATH).await.unwrap();
+    setup_db(&connection).await;
+    // update_table(&connection, peers).await;
+}
+
+async fn setup_db(connection: &Connection) {
+    drop_table(connection).await;
+    create_table(connection).await;
+}
+
+async fn create_table(connection: &Connection) {
     connection
         .call(|c| {
             c.execute(
@@ -35,10 +45,7 @@ async fn create_table<'a>(connection: &MutexGuard<'a, Connection>) {
         .unwrap();
 }
 
-async fn update_table<'a>(
-    connection: &MutexGuard<'a, Connection>,
-    peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-) {
+async fn update_table<'a>(connection: &Connection, peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>) {
     for (peer_key, peer_val) in peers.read().await.iter() {
         let (peer_key, peer_val) = (peer_key.to_owned(), peer_val.to_owned());
         connection
@@ -56,7 +63,7 @@ async fn update_table<'a>(
     }
 }
 
-async fn drop_table<'a>(connection: &MutexGuard<'a, Connection>) {
+async fn drop_table<'a>(connection: &Connection) {
     connection
         .call(|c| {
             c.execute("DROP TABLE IF EXISTS peer", ()).unwrap();
