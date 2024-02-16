@@ -9,8 +9,6 @@ use tun::IntoAddress;
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 
-const MULTICAST_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
-
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
 #[derive(Clone)]
@@ -34,7 +32,7 @@ impl LocalEndpoints {
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
                         println!("Discovery socket bound successfully");
                         let discovery_multicast_socket_addr =
-                            SocketAddr::new(MULTICAST_IP, DISCOVERY_PORT);
+                            SocketAddr::new(get_multicast_ip(eth_ip), DISCOVERY_PORT);
                         if let Ok(discovery_multicast) =
                             UdpSocket::bind(discovery_multicast_socket_addr).await
                         {
@@ -105,7 +103,7 @@ fn get_eth_address() -> Option<Addr> {
 }
 
 /// Returns an IP address for the TUN device.
-pub fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
+fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     let eth_ip_octets = eth_ip.into_address().unwrap().octets();
     let netmask_octets = netmask.into_address().unwrap().octets();
 
@@ -117,6 +115,16 @@ pub fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     }
 
     IpAddr::from(tun_ip_octets)
+}
+
+/// Returns the multicast IP address to use for discovery.
+fn get_multicast_ip(_eth_ip: IpAddr) -> IpAddr {
+    #[cfg(not(target_os = "windows"))]
+    return IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
+
+    // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
+    #[cfg(target_os = "windows")]
+    return _eth_ip;
 }
 
 #[cfg(test)]
