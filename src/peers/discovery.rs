@@ -1,10 +1,10 @@
 use crate::local_endpoints::LocalEndpoints;
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::Peer;
+use crate::peers::peer::{PeerKey, PeerVal};
 use chrono::Utc;
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,7 +21,10 @@ const RETRIES_DELTA: u64 = 1;
 
 const SQLITE_PATH: &str = "./peers.sqlite";
 
-pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<HashMap<IpAddr, Peer>>>) {
+pub async fn discover_peers(
+    endpoints: LocalEndpoints,
+    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
+) {
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
     let socket_3 = socket_2.clone();
@@ -70,7 +73,7 @@ async fn listen(
     listen_type: ListenType,
     listen_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
-    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
     db: Arc<Mutex<Connection>>,
 ) {
     // used to determine whether a unicast response is required
@@ -96,7 +99,7 @@ async fn listen(
         peers
             .write()
             .await
-            .entry(hello.ips.tun)
+            .entry(PeerKey::from_ip_addr(hello.ips.tun))
             .and_modify(|peer| {
                 let since_last_seen = (now - peer.last_seen).num_seconds().unsigned_abs();
                 if hello.is_setup && since_last_seen > RETRIES * RETRIES_DELTA {
@@ -105,7 +108,7 @@ async fn listen(
                 peer.refresh(delay, &hello, listen_type.is_unicast());
             })
             .or_insert_with(|| {
-                let peer = Peer::with_details(delay, &hello, listen_type.is_unicast());
+                let peer = PeerVal::with_details(delay, &hello, listen_type.is_unicast());
                 should_respond_to = Some(peer.discovery_socket_addr());
                 peer
             });
@@ -125,7 +128,7 @@ async fn listen(
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
 async fn remove_inactive_peers(
-    peers: Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
     db: Arc<Mutex<Connection>>,
 ) {
     loop {
@@ -219,17 +222,17 @@ async fn create_table<'a>(connection: &MutexGuard<'a, Connection>) {
 
 async fn update_table<'a>(
     connection: &MutexGuard<'a, Connection>,
-    peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>,
+    peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) {
-    for (tun_ip, peer) in peers.read().await.iter() {
-        let (tun_ip, peer) = (*tun_ip, peer.to_owned());
+    for (peer_key, peer_val) in peers.read().await.iter() {
+        let (peer_key, peer_val) = (peer_key.to_owned(), peer_val.to_owned());
         connection
         .call(move |c| {
                 c.execute(
                     "INSERT INTO peer (tun_ip, eth_ip, num_seen_unicast, num_seen_multicast, avg_delay, last_seen)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    (tun_ip.to_string(), peer.eth_ip.to_string(), peer.num_seen_unicast,
-                     peer.num_seen_multicast, peer.avg_delay as f64 / 1_000_000_f64, peer.last_seen.to_string()),
+                    (peer_key.tun_ip.to_string(), peer_val.eth_ip.to_string(), peer_val.num_seen_unicast,
+                     peer_val.num_seen_multicast, peer_val.avg_delay as f64 / 1_000_000_f64, peer_val.last_seen.to_string()),
                 ).unwrap();
             Ok(())
         })
@@ -238,7 +241,7 @@ async fn update_table<'a>(
     }
 }
 
-async fn update_db(db: &Arc<Mutex<Connection>>, peers: &Arc<RwLock<HashMap<IpAddr, Peer>>>) {
+async fn update_db(db: &Arc<Mutex<Connection>>, peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>) {
     let connection = db.lock().await;
     drop_table(&connection).await;
     create_table(&connection).await;
