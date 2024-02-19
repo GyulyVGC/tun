@@ -11,6 +11,8 @@ use tun::AsyncDevice;
 use crate::craft::reject_payloads::send_termination_message;
 use crate::frames::socket_frame::SocketFrame;
 
+/// Handles incoming network packets (receives packets from the socket and sends them to the TUN interface),
+/// ensuring the firewall rules are correctly observed.
 pub async fn receive(
     device: &Arc<Mutex<WriteHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,

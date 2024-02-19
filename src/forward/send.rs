@@ -11,6 +11,8 @@ use tun::AsyncDevice;
 use crate::frames::os_frame::OsFrame;
 use crate::peers::peer::{PeerKey, PeerVal};
 
+/// Handles outgoing network packets (receives packets from the TUN interface and sends them to the socket),
+/// ensuring the firewall rules are correctly observed.
 pub async fn send(
     device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
     socket: &Arc<UdpSocket>,
