@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
+use tokio::io;
 use tokio::net::UdpSocket;
 use tun::IntoAddress;
 
@@ -29,18 +30,19 @@ impl LocalEndpoints {
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
+                    forward.set_broadcast(true).unwrap();
+                    let forward_shared = Arc::new(forward);
                     println!("Forward socket bound successfully");
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
+                        discovery.set_broadcast(true).unwrap();
+                        let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
-                        let discovery_multicast_socket_addr =
-                            SocketAddr::new(get_multicast_ip(eth_ip), DISCOVERY_PORT);
-                        if let Ok(discovery_multicast) =
-                            UdpSocket::bind(discovery_multicast_socket_addr).await
+                        if let Ok(discovery_multicast_shared) =
+                            get_discovery_multicast_shared(discovery_shared.clone()).await
                         {
                             println!("Discovery multicast socket bound successfully");
-                            forward.set_broadcast(true).unwrap();
-                            discovery.set_broadcast(true).unwrap();
+
                             let tun_ip = get_tun_ip(&eth_ip, &netmask);
                             return Self {
                                 ips: LocalIps {
@@ -49,9 +51,9 @@ impl LocalEndpoints {
                                     netmask,
                                 },
                                 sockets: LocalSockets {
-                                    forward: Arc::new(forward),
-                                    discovery: Arc::new(discovery),
-                                    discovery_multicast: Arc::new(discovery_multicast),
+                                    forward: forward_shared,
+                                    discovery: discovery_shared,
+                                    discovery_multicast: discovery_multicast_shared,
                                 },
                             };
                         }
@@ -119,14 +121,24 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     IpAddr::from(tun_ip_octets)
 }
 
-/// Returns the multicast IP address to use for discovery.
-fn get_multicast_ip(_eth_ip: IpAddr) -> IpAddr {
+/// Returns the multicast socket to use for discovery.
+#[allow(clippy::unused_async)]
+async fn get_discovery_multicast_shared(
+    _discovery_socket: Arc<UdpSocket>,
+) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
-    return IpAddr::from([224, 0, 0, 1]);
+    {
+        UdpSocket::bind(SocketAddr::new(
+            IpAddr::from([224, 0, 0, 1]),
+            DISCOVERY_PORT,
+        ))
+        .await
+        .map(Arc::new)
+    }
 
     // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
     #[cfg(target_os = "windows")]
-    return _eth_ip;
+    Ok(_discovery_socket)
 }
 
 #[cfg(test)]
