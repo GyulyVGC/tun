@@ -1,15 +1,16 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::{DISCOVERY_PORT, MULTICAST};
 use chrono::Utc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
-use crate::local_endpoints::{LocalEndpoints, DISCOVERY_PORT};
+use crate::local_endpoints::LocalEndpoints;
 use crate::peers::database::{manage_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
@@ -199,7 +200,7 @@ async fn remove_inactive_peers(
 async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(IpAddr::from([224, 0, 0, 1]), DISCOVERY_PORT);
+    let dest = SocketAddr::new(MULTICAST, DISCOVERY_PORT);
     loop {
         greet(&socket, dest, &local_ips, is_setup).await;
         is_setup = false;

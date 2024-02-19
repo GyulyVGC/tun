@@ -4,8 +4,8 @@ use std::net::{IpAddr, SocketAddr};
 
 use chrono::{DateTime, Utc};
 
-use crate::local_endpoints::{DISCOVERY_PORT, FORWARD_PORT};
 use crate::peers::hello::Hello;
+use crate::{DISCOVERY_PORT, FORWARD_PORT};
 
 /// Struct representing a peer.
 pub struct Peer {

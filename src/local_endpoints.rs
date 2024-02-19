@@ -2,15 +2,13 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
 use tun::IntoAddress;
 
 use crate::peers::local_ips::LocalIps;
-
-pub const FORWARD_PORT: u16 = 9999;
-pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -110,8 +108,7 @@ fn get_eth_address() -> Option<Addr> {
 fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     let eth_ip_octets = eth_ip.into_address().unwrap().octets();
     let netmask_octets = netmask.into_address().unwrap().octets();
-
-    let tun_net_octets = [10, 0, 0, 0];
+    let tun_net_octets = NETWORK.into_address().unwrap().octets();
     let mut tun_ip_octets = [0; 4];
 
     for i in 0..4 {
@@ -128,12 +125,9 @@ async fn get_discovery_multicast_shared(
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
     {
-        UdpSocket::bind(SocketAddr::new(
-            IpAddr::from([224, 0, 0, 1]),
-            DISCOVERY_PORT,
-        ))
-        .await
-        .map(Arc::new)
+        UdpSocket::bind(SocketAddr::new(MULTICAST, DISCOVERY_PORT))
+            .await
+            .map(Arc::new)
     }
 
     // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)

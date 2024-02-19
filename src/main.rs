@@ -1,7 +1,7 @@
 #![allow(clippy::used_underscore_binding)]
 
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,6 +27,11 @@ mod forward;
 mod frames;
 mod local_endpoints;
 mod peers;
+
+pub const FORWARD_PORT: u16 = 9999;
+pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
+pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
+pub const MULTICAST: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 
 #[tokio::main]
 async fn main() {
@@ -131,7 +136,7 @@ fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
                 "-n",
                 "add",
                 "-net",
-                "10.0.0.0",
+                &NETWORK.to_string(),
                 &_tun_ip.to_string(),
                 "-netmask",
                 &_netmask.to_string(),
