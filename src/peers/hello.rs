@@ -10,7 +10,7 @@ use crate::peers::local_ips::LocalIps;
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
-    /// Ethernet IP, TUN IP, and netmask of the peer.
+    /// Ethernet IP, TUN IP, and netmask of the peer sending the message.
     pub ips: LocalIps,
     /// Timestamp of the message.
     #[serde(
@@ -18,10 +18,12 @@ pub struct Hello {
         serialize_with = "serialize_timestamp"
     )]
     pub timestamp: DateTime<Utc>,
+    /// Whether this message should be acknowledged with unicast answers.
     pub is_setup: bool,
 }
 
 impl Hello {
+    /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool) -> Self {
         Self {
             ips: local_ips.to_owned(),
@@ -30,6 +32,11 @@ impl Hello {
         }
     }
 
+    /// Checks the `Hello` message is valid; a message is valid if:
+    /// - the Ethernet address specified is consistent with the address sending the message
+    /// - the message was not sent from this machine itself
+    /// - the TUN address specified is not the same of the local TUN interface
+    /// - the Ethernet address is in the same local network of this machine
     pub fn is_valid(
         &self,
         from: &SocketAddr,
@@ -49,10 +56,12 @@ impl Hello {
         // && received_at >= &self.timestamp
     }
 
+    /// Serializes this message to a TOML string.
     pub fn to_toml_string(&self) -> String {
         toml::to_string(self).unwrap_or_default()
     }
 
+    /// Deserializes TOML bytes into a `Hello` message.
     pub fn from_toml_bytes(msg: &[u8]) -> Self {
         toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).unwrap_or_default()
     }

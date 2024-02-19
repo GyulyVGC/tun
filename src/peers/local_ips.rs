@@ -6,6 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tun::IntoAddress;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+/// Collection of the relevant local IP addresses.
 pub struct LocalIps {
     /// Ethernet IP address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
@@ -19,8 +20,13 @@ pub struct LocalIps {
 }
 
 impl LocalIps {
+    /// Checks that Ethernet addresses are in the same local network.
     pub fn is_same_ipv4_ethernet_network_of(&self, other: &Self) -> bool {
-        if self.netmask != other.netmask || !self.eth.is_ipv4() || !other.eth.is_ipv4() {
+        if self.netmask != other.netmask
+            || !self.netmask.is_ipv4()
+            || !self.eth.is_ipv4()
+            || !other.eth.is_ipv4()
+        {
             return false;
         }
 
