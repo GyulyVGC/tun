@@ -11,7 +11,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
 use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::{manage_db, PeerDbAction};
+use crate::peers::database::{manage_peers_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
@@ -44,7 +44,7 @@ pub async fn discover_peers(
 
     // update peers database
     tokio::spawn(async move {
-        manage_db(rx).await;
+        manage_peers_db(rx).await;
     });
 
     // listen for multicast hello messages

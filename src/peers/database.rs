@@ -11,7 +11,8 @@ pub enum PeerDbAction {
     Remove,
 }
 
-pub async fn manage_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
+/// Handles the peers database, receiving messages from the channel and sending proper queries to the DB.
+pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
     let connection = Connection::open(SQLITE_PATH).await.unwrap();
 
     // make sure peer table exists and it's empty
@@ -29,12 +30,13 @@ pub async fn manage_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
     }
 }
 
+/// Inserts a new entry into the peers DB.
 async fn insert_peer(connection: &Connection, peer: Peer) {
     let Peer { key, val } = peer;
     connection
         .call(move |c| {
             c.execute(
-                "INSERT INTO peer (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_multicast, last_seen)
+                "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_multicast, last_seen)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
                 val.num_seen_unicast, val.num_seen_multicast, val.last_seen.to_string()),
@@ -45,12 +47,13 @@ async fn insert_peer(connection: &Connection, peer: Peer) {
         .unwrap();
 }
 
+/// Modifies an existing entry in the peers DB.
 async fn modify_peer(connection: &Connection, peer: Peer) {
     let Peer { key, val } = peer;
     connection
         .call(move |c| {
             c.execute(
-                "UPDATE peer
+                "UPDATE peers
                     SET eth_ip = ?1,
                         avg_delay = ?2,
                         num_seen_unicast = ?3,
@@ -73,12 +76,13 @@ async fn modify_peer(connection: &Connection, peer: Peer) {
         .unwrap();
 }
 
+/// Removes an entry from the peers DB.
 async fn remove_peer(connection: &Connection, peer: Peer) {
     let Peer { key, val: _ } = peer;
     connection
         .call(move |c| {
             c.execute(
-                "DELETE FROM peer
+                "DELETE FROM peers
                     WHERE tun_ip = ?1",
                 [key.tun_ip.to_string()],
             )
@@ -89,26 +93,29 @@ async fn remove_peer(connection: &Connection, peer: Peer) {
         .unwrap();
 }
 
+/// Drop the peers table and creates a new one.
 async fn setup_db(connection: &Connection) {
     drop_table(connection).await;
     create_table(connection).await;
 }
 
+/// Drops the peers table.
 async fn drop_table<'a>(connection: &Connection) {
     connection
         .call(|c| {
-            c.execute("DROP TABLE IF EXISTS peer", ()).unwrap();
+            c.execute("DROP TABLE IF EXISTS peers", ()).unwrap();
             Ok(())
         })
         .await
         .unwrap();
 }
 
+/// Creates the peers table.
 async fn create_table(connection: &Connection) {
     connection
         .call(|c| {
             c.execute(
-                "CREATE TABLE IF NOT EXISTS peer (
+                "CREATE TABLE IF NOT EXISTS peers (
                         tun_ip             TEXT PRIMARY KEY NOT NULL,
                         eth_ip             TEXT NOT NULL,
                         avg_delay          REAL NOT NULL,

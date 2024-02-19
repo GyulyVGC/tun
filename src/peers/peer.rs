@@ -32,14 +32,14 @@ impl PeerKey {
     }
 }
 
-/// Struct including attributes of a peer.
+/// Struct including relevant attributes of a peer.
 #[derive(Clone)]
 pub struct PeerVal {
     /// Ethernet IP address of this peer.
     pub(crate) eth_ip: IpAddr,
-    /// Number unicast hello messages received from this peer.
+    /// Number of unicast hello messages received from this peer.
     pub(crate) num_seen_unicast: u64,
-    /// Number multicast hello messages received from this peer.
+    /// Number of multicast hello messages received from this peer.
     pub(crate) num_seen_multicast: u64,
     /// Average delay of all hello messages received from this peer (microseconds).
     pub(crate) avg_delay: u64,
@@ -48,7 +48,7 @@ pub struct PeerVal {
 }
 
 impl PeerVal {
-    /// Creates a new peer after receiving a hello message.
+    /// Creates new peer attributes from a `Hello` message.
     pub fn with_details(delay: i64, hello: &Hello, is_unicast: bool) -> Self {
         Self {
             eth_ip: hello.ips.eth,
@@ -59,7 +59,7 @@ impl PeerVal {
         }
     }
 
-    /// Updates this peer after receiving a hello message.
+    /// Updates this peer attributes after receiving a `Hello` message.
     pub fn refresh(&mut self, delay: i64, hello: &Hello, is_unicast: bool) {
         let tot_seen_prev = self.num_seen_unicast + self.num_seen_multicast;
         self.avg_delay =
