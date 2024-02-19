@@ -1,10 +1,12 @@
-use crate::peers::local_ips::LocalIps;
-use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
+
+use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::net::UdpSocket;
 use tun::IntoAddress;
+
+use crate::peers::local_ips::LocalIps;
 
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
@@ -120,7 +122,7 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
 /// Returns the multicast IP address to use for discovery.
 fn get_multicast_ip(_eth_ip: IpAddr) -> IpAddr {
     #[cfg(not(target_os = "windows"))]
-    return IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
+    return IpAddr::from([224, 0, 0, 1]);
 
     // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
     #[cfg(target_os = "windows")]
@@ -129,8 +131,9 @@ fn get_multicast_ip(_eth_ip: IpAddr) -> IpAddr {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::net::IpAddr;
+
+    use super::*;
 
     #[test]
     fn test_get_tun_ip_netmask_28() {

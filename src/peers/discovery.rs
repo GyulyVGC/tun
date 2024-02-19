@@ -1,17 +1,19 @@
-use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::{manage_db, PeerDbAction};
-use crate::peers::hello::Hello;
-use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::{Peer, PeerKey, PeerVal};
-use chrono::Utc;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+
+use chrono::Utc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
+
+use crate::local_endpoints::LocalEndpoints;
+use crate::peers::database::{manage_db, PeerDbAction};
+use crate::peers::hello::Hello;
+use crate::peers::local_ips::LocalIps;
+use crate::peers::peer::{Peer, PeerKey, PeerVal};
 
 const RETRIES: u64 = 4;
 

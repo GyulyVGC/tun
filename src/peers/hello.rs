@@ -1,9 +1,11 @@
-use crate::peers::local_ips::LocalIps;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::str::FromStr;
+
+use crate::peers::local_ips::LocalIps;
 
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -95,12 +97,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::peers::hello::Hello;
-    use crate::peers::local_ips::LocalIps;
-    use chrono::DateTime;
-    use serde_test::{assert_tokens, Token};
     use std::net::IpAddr;
     use std::str::FromStr;
+
+    use chrono::DateTime;
+    use serde_test::{assert_tokens, Token};
+
+    use crate::peers::hello::Hello;
+    use crate::peers::local_ips::LocalIps;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 

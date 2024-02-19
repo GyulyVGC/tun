@@ -1,6 +1,7 @@
-use crate::peers::peer::Peer;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_rusqlite::Connection;
+
+use crate::peers::peer::Peer;
 
 const SQLITE_PATH: &str = "./peers.sqlite";
 

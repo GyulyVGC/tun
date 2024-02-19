@@ -1,9 +1,11 @@
 #![allow(clippy::module_name_repetitions)]
 
+use std::net::{IpAddr, SocketAddr};
+
+use chrono::{DateTime, Utc};
+
 use crate::local_endpoints::{DISCOVERY_PORT, FORWARD_PORT};
 use crate::peers::hello::Hello;
-use chrono::{DateTime, Utc};
-use std::net::{IpAddr, SocketAddr};
 
 /// Struct representing a peer.
 pub struct Peer {

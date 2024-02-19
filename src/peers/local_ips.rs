@@ -1,7 +1,8 @@
-use serde::de::Unexpected;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
+
+use serde::de::Unexpected;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tun::IntoAddress;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
