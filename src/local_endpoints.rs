@@ -2,7 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
+use crate::{DISCOVERY_PORT, FORWARD_PORT, NETWORK};
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
@@ -123,7 +123,7 @@ async fn get_discovery_multicast_shared(
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
     {
-        UdpSocket::bind(SocketAddr::new(MULTICAST, DISCOVERY_PORT))
+        UdpSocket::bind(SocketAddr::new(crate::MULTICAST, DISCOVERY_PORT))
             .await
             .map(Arc::new)
     }

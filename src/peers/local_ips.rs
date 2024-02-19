@@ -5,7 +5,7 @@ use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tun::IntoAddress;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 /// Collection of the relevant local IP addresses.
 pub struct LocalIps {
     /// Ethernet IP address of the peer.

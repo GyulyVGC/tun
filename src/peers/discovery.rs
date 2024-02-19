@@ -16,24 +16,35 @@ use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
 
+/// Number of copies for each of the produced `Hello` messages (each of the copies must have its own timestamp anyway).
 const RETRIES: u64 = 4;
 
-// values in seconds
+/// Time to live before a peer is removed from the local list (seconds).
 const TTL: u64 = 60; // * 60;
+
+/// Retransmission period of multicast `Hello` messages (seconds).
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
+
+/// Period between the forward of two consecutive `Hello` message copies (seconds).
 const RETRIES_DELTA: u64 = 1;
 
+/// Peers discovery mechanism; it consists of different tasks:
+/// - update the peers database
+/// - listen for multicast `Hello` messages
+/// - listen for (and produces) unicast `Hello` responses
+/// - remove inactive peers when their TTL expires
+/// - periodically send out multicast `Hello` messages
 pub async fn discover_peers(
     endpoints: LocalEndpoints,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) {
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
-    let socket_3 = socket_2.clone();
+    let socket_3 = socket.clone();
+
     let multicast_socket = endpoints.sockets.discovery_multicast;
 
-    let local_ips = endpoints.ips.clone();
-    let local_ips_2 = local_ips.clone();
+    let local_ips = endpoints.ips;
 
     let peers_2 = peers.clone();
     let peers_3 = peers.clone();
@@ -61,7 +72,7 @@ pub async fn discover_peers(
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(ListenType::Unicast, socket, local_ips_2, peers_2, tx_2).await;
+        listen(ListenType::Unicast, socket, local_ips, peers_2, tx_2).await;
     });
 
     // remove inactive peers
@@ -70,10 +81,10 @@ pub async fn discover_peers(
     });
 
     // periodically send out multicast hello messages
-    greet_multicast(socket_2, endpoints.ips).await;
+    greet_multicast(socket_2, local_ips).await;
 }
 
-/// Listens to hello messages, updates the peers file, and invokes `greet_unicast` when needed.
+/// Listens to hello messages (unicast or multicast as specified), and invokes `greet_unicast` when needed.
 async fn listen(
     listen_type: ListenType,
     listen_socket: Arc<UdpSocket>,
@@ -142,9 +153,8 @@ async fn listen(
 
         if let Some(dest_socket_addr) = should_respond_to {
             if let ListenType::Multicast(socket) = listen_type.clone() {
-                let local_ips_2 = local_ips.clone();
                 tokio::spawn(async move {
-                    greet_unicast(socket, dest_socket_addr, local_ips_2).await;
+                    greet_unicast(socket, dest_socket_addr, local_ips).await;
                 });
             }
         }
@@ -233,7 +243,7 @@ async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, 
 enum ListenType {
     /// Listen for unicast hello messages.
     Unicast,
-    /// Listen for multicast hello messages, and send out unicast responses when needed from the associated object.
+    /// Listen for multicast hello messages, and send out FROM the associated object unicast responses when needed.
     Multicast(Arc<UdpSocket>),
 }
 
