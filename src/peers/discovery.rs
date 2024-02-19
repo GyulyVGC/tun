@@ -223,7 +223,7 @@ async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, 
                 dest,
             )
             .await
-            .unwrap();
+            .unwrap_or_default();
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
 }
