@@ -12,15 +12,20 @@ use crate::peers::local_ips::LocalIps;
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
-#[derive(Clone)]
 pub struct LocalEndpoints {
     pub ips: LocalIps,
     pub sockets: LocalSockets,
 }
 
+pub struct LocalSockets {
+    pub forward: Arc<UdpSocket>,
+    pub discovery: Arc<UdpSocket>,
+    pub discovery_multicast: Arc<UdpSocket>,
+}
+
 impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of errors.
-    pub async fn new() -> Self {
+    pub async fn setup() -> Self {
         loop {
             if let Some(address) = get_eth_address() {
                 let eth_ip = address.ip();
@@ -41,11 +46,10 @@ impl LocalEndpoints {
                         {
                             println!("Discovery multicast socket bound successfully");
 
-                            let tun_ip = get_tun_ip(&eth_ip, &netmask);
                             return Self {
                                 ips: LocalIps {
                                     eth: eth_ip,
-                                    tun: tun_ip,
+                                    tun: get_tun_ip(&eth_ip, &netmask),
                                     netmask,
                                 },
                                 sockets: LocalSockets {
@@ -58,17 +62,10 @@ impl LocalEndpoints {
                     }
                 }
             }
-            println!("Could not bind all needed sockets; will retry in 10 seconds...");
+            println!("Could not bind all needed sockets; will retry again in 10 seconds...");
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }
-}
-
-#[derive(Clone)]
-pub struct LocalSockets {
-    pub forward: Arc<UdpSocket>,
-    pub discovery: Arc<UdpSocket>,
-    pub discovery_multicast: Arc<UdpSocket>,
 }
 
 /// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.

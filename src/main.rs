@@ -43,6 +43,7 @@ async fn main() {
         process::exit(1);
     }));
 
+    // read CLI arguments
     let Args {
         mtu,
         firewall_path,
@@ -51,19 +52,17 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    let endpoints = LocalEndpoints::new().await;
-    let endpoints_2 = endpoints.clone();
+    // setup the local environment
+    let endpoints = LocalEndpoints::setup().await;
+    let tun_ip = endpoints.ips.tun;
+    let netmask = endpoints.ips.netmask;
+    let forward_socket = endpoints.sockets.forward.clone();
 
+    // maps of all the peers
     let peers = Arc::new(RwLock::new(HashMap::new()));
     let peers_2 = peers.clone();
 
-    tokio::spawn(async move {
-        discover_peers(endpoints_2, peers_2).await;
-    });
-
-    let tun_ip = endpoints.ips.tun;
-    let netmask = endpoints.ips.netmask;
-
+    // configure TUN device
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
     config
@@ -72,39 +71,52 @@ async fn main() {
         .netmask(netmask)
         .up();
 
+    // create the asynchronous TUN device, and split it into reader & writer halves
     let device = tun::create_as_async(&config).expect("Failed to create TUN device");
     let tun_name = device.get_ref().name().unwrap();
     let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
+    // properly setup routing tables
     configure_routing(&tun_ip, &netmask);
 
+    // create firewall based on the defined rules
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await;
 
+    // spawn a number of asynchronous tasks to handle incoming and outgoing network traffic
     for _ in 0..num_tasks / 2 {
         let writer = writer_shared.clone();
         let reader = reader_shared.clone();
-        let socket_1 = endpoints.sockets.forward.clone();
+        let socket_1 = forward_socket.clone();
         let socket_2 = socket_1.clone();
         let firewall_1 = firewall_shared.clone();
         let firewall_2 = firewall_shared.clone();
         let peers_2 = peers.clone();
 
+        // handle incoming traffic
         tokio::spawn(async move {
             Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
         });
 
+        // handle outgoing traffic
         tokio::spawn(async move {
             Box::pin(send(&reader, &socket_2, &firewall_2, peers_2)).await;
         });
     }
 
+    // print information about the overall setup
     print_info(&endpoints, &tun_name, mtu);
 
+    // discover peers in the same area network
+    tokio::spawn(async move {
+        discover_peers(endpoints, peers_2).await;
+    });
+
+    // watch the file defining rules and update the firewall accordingly
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
 
