@@ -17,6 +17,7 @@ pub struct LocalEndpoints {
     pub sockets: LocalSockets,
 }
 
+/// Collection of the relevant local sockets.
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
@@ -24,7 +25,7 @@ pub struct LocalSockets {
 }
 
 impl LocalEndpoints {
-    /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of errors.
+    /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Self {
         loop {
             if let Some(address) = get_eth_address() {

@@ -1,3 +1,4 @@
+/// Computes the IPv4 header checksum.
 pub fn ipv4_checksum(ipv4_header: &[u8]) -> u16 {
     assert_eq!(ipv4_header.len() % 2, 0);
     let mut checksum = 0;
@@ -14,6 +15,7 @@ pub fn ipv4_checksum(ipv4_header: &[u8]) -> u16 {
     !u16::try_from(checksum).unwrap()
 }
 
+/// Computes the ICMP header checksum.
 pub fn icmp_checksum(icmp_data: &[u8]) -> u16 {
     assert_eq!(icmp_data.len() % 2, 0);
     let mut checksum = 0;
@@ -30,6 +32,7 @@ pub fn icmp_checksum(icmp_data: &[u8]) -> u16 {
     !u16::try_from(checksum).unwrap()
 }
 
+/// Computes the TCP checksum.
 pub fn tcp_checksum(ip_tcp_headers: &[u8]) -> u16 {
     assert_eq!(ip_tcp_headers.len() % 2, 0);
     let mut checksum = 0;
