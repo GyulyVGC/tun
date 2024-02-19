@@ -41,12 +41,14 @@ async fn main() {
     let Args {
         mtu,
         firewall_path,
+        // log_path, TODO!
+        // peers_path,
         num_tasks,
     } = Args::parse();
 
     let endpoints = LocalEndpoints::new().await;
     let endpoints_2 = endpoints.clone();
-    // tun ip to socket address map of all the discovered peers
+
     let peers = Arc::new(RwLock::new(HashMap::new()));
     let peers_2 = peers.clone();
 
@@ -101,9 +103,9 @@ async fn main() {
     set_firewall_rules(&firewall_shared, &firewall_path, false).await;
 }
 
-/// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
-///
-/// Example: the TUN with address 10.0.0.1 will be called nullnet1.
+// /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
+// ///
+// /// Example: the TUN with address 10.0.0.1 will be called nullnet1.
 fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
     // #[cfg(not(target_os = "macos"))]
     // {
@@ -124,28 +126,16 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
 fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
     #[cfg(target_os = "macos")]
     {
-        use tun::IntoAddress;
-        let netmask_octets = _netmask.into_address().unwrap().octets();
-
-        let mut slash_net = 0;
-        for i in &netmask_octets {
-            slash_net += match i {
-                255 => 8,
-                254 => 7,
-                252 => 6,
-                248 => 5,
-                240 => 4,
-                224 => 3,
-                192 => 2,
-                128 => 1,
-                0 => 0,
-                _ => panic!("Invalid netmask"),
-            };
-        }
-
-        let net_string = format!("10.0.0.0/{slash_net}");
         process::Command::new("route")
-            .args(["-n", "add", "-net", &net_string, &_tun_ip.to_string()])
+            .args([
+                "-n",
+                "add",
+                "-net",
+                "10.0.0.0",
+                &_tun_ip.to_string(),
+                "-netmask",
+                &_netmask.to_string(),
+            ])
             .spawn()
             .expect("Failed to configure routing");
     }
