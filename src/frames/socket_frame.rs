@@ -1,8 +1,8 @@
 #[cfg(target_os = "macos")]
 use crate::frames::os_frame::OsFrame;
 
-/// Representation of a network packet transiting on sockets
-/// All packets of this kind must be in raw IP form
+/// Representation of a network packet transiting on sockets.
+/// All packets of this kind are raw IP.
 pub struct SocketFrame {
     pub frame: [u8; 65536],
     pub actual_bytes: usize,

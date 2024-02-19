@@ -1,5 +1,5 @@
-/// Representation of a network packet that can be interpreted by specific OSs
-/// Packets of this kind can either be in raw IP or null/loopback form
+/// Representation of a network packet that can be interpreted by the target specific Operating System.
+/// Packets of this kind are raw IP in Windows and Linux, and null/loopback in macOS.
 pub struct OsFrame {
     pub frame: [u8; 65536],
     pub actual_bytes: usize,
