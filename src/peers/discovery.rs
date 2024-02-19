@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, RwLock};
 
-use crate::local_endpoints::LocalEndpoints;
+use crate::local_endpoints::{LocalEndpoints, DISCOVERY_PORT};
 use crate::peers::database::{manage_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
@@ -30,8 +30,6 @@ pub async fn discover_peers(
     let socket_2 = socket.clone();
     let socket_3 = socket_2.clone();
     let multicast_socket = endpoints.sockets.discovery_multicast;
-
-    let multicast_socket_addr = multicast_socket.local_addr().unwrap();
 
     let local_ips = endpoints.ips.clone();
     let local_ips_2 = local_ips.clone();
@@ -71,7 +69,7 @@ pub async fn discover_peers(
     });
 
     // periodically send out multicast hello messages
-    greet_multicast(socket_2, multicast_socket_addr, endpoints.ips).await;
+    greet_multicast(socket_2, endpoints.ips).await;
 }
 
 /// Listens to hello messages, updates the peers file, and invokes `greet_unicast` when needed.
@@ -198,9 +196,10 @@ async fn remove_inactive_peers(
 }
 
 /// Periodically sends out messages to let all other peers know that this device is up.
-async fn greet_multicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
+async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
+    let dest = SocketAddr::new(IpAddr::from([224, 0, 0, 1]), DISCOVERY_PORT);
     loop {
         greet(&socket, dest, &local_ips, is_setup).await;
         is_setup = false;
