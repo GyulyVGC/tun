@@ -118,11 +118,11 @@ async fn listen(
             .await
             .entry(peer_key)
             .and_modify(|peer_val| {
-                let since_last_seen = (now - peer_val.last_seen).num_seconds().unsigned_abs();
-                if hello.is_setup && since_last_seen > RETRIES * RETRIES_DELTA {
+                peer_val.refresh(delay, &hello, listen_type.is_unicast());
+
+                if hello.is_setup {
                     should_respond_to = Some(peer_val.discovery_socket_addr());
                 }
-                peer_val.refresh(delay, &hello, listen_type.is_unicast());
 
                 // update peer db
                 tx.send((
@@ -136,6 +136,7 @@ async fn listen(
             })
             .or_insert_with(|| {
                 let peer_val = PeerVal::with_details(delay, &hello, listen_type.is_unicast());
+
                 should_respond_to = Some(peer_val.discovery_socket_addr());
 
                 // update peer db
@@ -154,7 +155,7 @@ async fn listen(
         if let Some(dest_socket_addr) = should_respond_to {
             if let ListenType::Multicast(socket) = listen_type.clone() {
                 tokio::spawn(async move {
-                    greet_unicast(socket, dest_socket_addr, local_ips).await;
+                    greet_unicast(socket, dest_socket_addr, local_ips, !hello.is_setup).await;
                 });
             }
         }
@@ -212,20 +213,31 @@ async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     let mut is_setup = true;
     let dest = SocketAddr::new(MULTICAST, DISCOVERY_PORT);
     loop {
-        greet(&socket, dest, &local_ips, is_setup).await;
+        greet(&socket, dest, &local_ips, is_setup, true).await;
         is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
 }
 
 /// Sends out messages to acknowledge a specific peer that this device is up.
-async fn greet_unicast(socket: Arc<UdpSocket>, dest: SocketAddr, local_ips: LocalIps) {
-    greet(&socket, dest, &local_ips, false).await;
+async fn greet_unicast(
+    socket: Arc<UdpSocket>,
+    dest: SocketAddr,
+    local_ips: LocalIps,
+    should_retry: bool,
+) {
+    greet(&socket, dest, &local_ips, false, should_retry).await;
 }
 
 /// Sends out replicated hello messages to multicast or to a specific peer.
-async fn greet(socket: &Arc<UdpSocket>, dest: SocketAddr, local_ips: &LocalIps, is_setup: bool) {
-    for _ in 0..RETRIES {
+async fn greet(
+    socket: &Arc<UdpSocket>,
+    dest: SocketAddr,
+    local_ips: &LocalIps,
+    is_setup: bool,
+    should_retry: bool,
+) {
+    for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
                 Hello::with_details(local_ips, is_setup)
