@@ -158,8 +158,7 @@ fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
     }
 }
 
-// this could be a Display impl of LocalEndpoints... TODO!
-/// Prints useful info about the created device.
+/// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
@@ -183,7 +182,7 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
     println!("{}\n", "=".repeat(40));
 }
 
-/// Refreshes the firewall rules whenever the corresponding file is updated.
+/// Loads and refreshes firewall rules whenever the corresponding file is updated.
 async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &str, is_init: bool) {
     let print_info = |result: &Result<(), FirewallError>, is_init: bool| match result {
         Err(err) => {
