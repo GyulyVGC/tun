@@ -16,7 +16,7 @@ tokio = { version = "1.35.1", features = ["net", "sync", "rt-multi-thread", "mac
 notify = "6.1.1"
 network-interface = "1.1.1"
 chrono = { version = "0.4.33", default-features = false }
-serde = { version = "1.0.196", default_features = false, features = ["derive", "alloc"] }
+serde = { version = "1.0.197", default_features = false, features = ["derive", "alloc"] }
 toml = "0.8.10"
 tokio-rusqlite = "0.5.0"
 
