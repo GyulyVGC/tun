@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
@@ -20,15 +21,19 @@ pub struct Hello {
     pub timestamp: DateTime<Utc>,
     /// Whether this message should be acknowledged with unicast answers.
     pub is_setup: bool,
+    /// Names of the processes running on the peer sending the message.
+    pub processes: HashSet<String>,
 }
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool) -> Self {
+        let processes = listeners::get_for_nullnet(local_ips.tun);
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
             is_setup,
+            processes,
         }
     }
 
@@ -77,6 +82,7 @@ impl Default for Hello {
             },
             timestamp: DateTime::default(),
             is_setup: false,
+            processes: HashSet::default(),
         }
     }
 }
@@ -106,6 +112,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::net::IpAddr;
     use std::str::FromStr;
 
@@ -128,6 +135,7 @@ mod tests {
             },
             timestamp,
             is_setup: false,
+            processes: HashSet::from(["nullnetd".to_string()]),
         };
 
         assert_tokens(
@@ -135,7 +143,7 @@ mod tests {
             &[
                 Token::Struct {
                     name: "Hello",
-                    len: 3,
+                    len: 4,
                 },
                 Token::Str("ips"),
                 Token::Struct {
@@ -153,6 +161,10 @@ mod tests {
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
                 Token::Bool(false),
+                Token::Str("processes"),
+                Token::Seq { len: Some(1) },
+                Token::Str("nullnetd"),
+                Token::SeqEnd,
                 Token::StructEnd,
             ],
         );

@@ -1,5 +1,6 @@
 #![allow(clippy::module_name_repetitions)]
 
+use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 
 use chrono::{DateTime, Utc};
@@ -45,6 +46,8 @@ pub struct PeerVal {
     pub(crate) avg_delay: u64,
     /// Timestamp of the last hello message received from this peer.
     pub(crate) last_seen: DateTime<Utc>,
+    /// Names of the processes running on this peer.
+    pub(crate) processes: HashSet<String>,
 }
 
 impl PeerVal {
@@ -56,6 +59,7 @@ impl PeerVal {
             num_seen_multicast: u64::from(!is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
+            processes: hello.processes.clone(),
         }
     }
 
@@ -68,6 +72,7 @@ impl PeerVal {
         self.num_seen_multicast += u64::from(!is_unicast);
         self.last_seen = hello.timestamp;
         self.eth_ip = hello.ips.eth;
+        self.processes = hello.processes.clone();
     }
 
     /// Socket address for normal network operations.
