@@ -2,7 +2,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{DISCOVERY_PORT, FORWARD_PORT, NETWORK};
+use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
@@ -43,7 +43,7 @@ impl LocalEndpoints {
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
                         if let Ok(discovery_multicast_shared) =
-                            get_discovery_multicast_shared(discovery_shared.clone()).await
+                            get_discovery_multicast_shared(&discovery_shared).await
                         {
                             println!("Discovery multicast socket bound successfully");
 
@@ -117,20 +117,28 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
 }
 
 /// Returns the multicast socket to use for discovery.
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::no_effect_underscore_binding)]
 async fn get_discovery_multicast_shared(
-    _discovery_socket: Arc<UdpSocket>,
+    _discovery_socket: &Arc<UdpSocket>,
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
     {
-        UdpSocket::bind(SocketAddr::new(crate::MULTICAST, DISCOVERY_PORT))
+        UdpSocket::bind(SocketAddr::new(MULTICAST, DISCOVERY_PORT))
             .await
             .map(Arc::new)
     }
 
     // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
     #[cfg(target_os = "windows")]
-    Ok(_discovery_socket)
+    {
+        _discovery_socket
+            .join_multicast_v4(
+                MULTICAST.into_address().unwrap(),
+                std::net::Ipv4Addr::UNSPECIFIED,
+            )
+            .unwrap();
+        Ok(_discovery_socket.to_owned())
+    }
 }
 
 #[cfg(test)]
