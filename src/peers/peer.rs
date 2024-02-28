@@ -52,11 +52,11 @@ pub struct PeerVal {
 
 impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
-    pub fn with_details(delay: i64, hello: &Hello, is_unicast: bool) -> Self {
+    pub fn with_details(delay: i64, hello: &Hello) -> Self {
         Self {
             eth_ip: hello.ips.eth,
-            num_seen_unicast: u64::from(is_unicast),
-            num_seen_multicast: u64::from(!is_unicast),
+            num_seen_unicast: u64::from(hello.is_unicast),
+            num_seen_multicast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
             processes: hello.processes.clone(),
@@ -64,12 +64,12 @@ impl PeerVal {
     }
 
     /// Updates this peer attributes after receiving a `Hello` message.
-    pub fn refresh(&mut self, delay: i64, hello: &Hello, is_unicast: bool) {
+    pub fn refresh(&mut self, delay: i64, hello: &Hello) {
         let tot_seen_prev = self.num_seen_unicast + self.num_seen_multicast;
         self.avg_delay =
             (tot_seen_prev * self.avg_delay + delay.unsigned_abs()) / (tot_seen_prev + 1); // TODO: timestamps must be monotonic!
-        self.num_seen_unicast += u64::from(is_unicast);
-        self.num_seen_multicast += u64::from(!is_unicast);
+        self.num_seen_unicast += u64::from(hello.is_unicast);
+        self.num_seen_multicast += u64::from(!hello.is_unicast);
 
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;

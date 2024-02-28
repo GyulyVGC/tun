@@ -22,6 +22,8 @@ pub struct Hello {
     pub timestamp: DateTime<Utc>,
     /// Whether this message should be acknowledged with unicast answers.
     pub is_setup: bool,
+    /// Whether this message is for a single receiver.
+    pub is_unicast: bool,
     /// Names of the processes running on the peer sending the message.
     #[serde(flatten)]
     pub processes: ListenerNames,
@@ -29,12 +31,13 @@ pub struct Hello {
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
-    pub fn with_details(local_ips: &LocalIps, is_setup: bool) -> Self {
+    pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
         let processes = ListenerNames::from_set(listeners::get_for_nullnet(local_ips.tun));
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
             is_setup,
+            is_unicast,
             processes,
         }
     }
@@ -84,6 +87,7 @@ impl Default for Hello {
             },
             timestamp: DateTime::default(),
             is_setup: false,
+            is_unicast: false,
             processes: ListenerNames::default(),
         }
     }
@@ -138,6 +142,7 @@ mod tests {
             },
             timestamp,
             is_setup: false,
+            is_unicast: true,
             processes: ListenerNames {
                 names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
             },
@@ -157,6 +162,8 @@ mod tests {
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
                 Token::Bool(false),
+                Token::Str("is_unicast"),
+                Token::Bool(true),
                 Token::Str("process_names"),
                 Token::Seq { len: Some(2) },
                 Token::Str("nullnetd"),
@@ -178,6 +185,7 @@ mod tests {
             },
             timestamp,
             is_setup: false,
+            is_unicast: true,
             processes: ListenerNames {
                 names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
             },
@@ -190,6 +198,7 @@ mod tests {
              netmask = \"255.255.255.0\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
              is_setup = false\n\
+             is_unicast = true\n\
              process_names = [\"nullnetd\", \"tun\"]\n"
         );
     }

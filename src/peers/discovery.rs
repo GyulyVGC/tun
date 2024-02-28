@@ -118,7 +118,7 @@ async fn listen(
             .await
             .entry(peer_key)
             .and_modify(|peer_val| {
-                peer_val.refresh(delay, &hello, listen_type.is_unicast());
+                peer_val.refresh(delay, &hello);
 
                 if hello.is_setup {
                     should_respond_to = Some(peer_val.discovery_socket_addr());
@@ -135,7 +135,7 @@ async fn listen(
                 .unwrap();
             })
             .or_insert_with(|| {
-                let peer_val = PeerVal::with_details(delay, &hello, listen_type.is_unicast());
+                let peer_val = PeerVal::with_details(delay, &hello);
 
                 should_respond_to = Some(peer_val.discovery_socket_addr());
 
@@ -240,7 +240,7 @@ async fn greet(
     for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
-                Hello::with_details(local_ips, is_setup)
+                Hello::with_details(local_ips, is_setup, !dest.ip().is_multicast())
                     .to_toml_string()
                     .as_bytes(),
                 dest,
@@ -257,10 +257,4 @@ enum ListenType {
     Unicast,
     /// Listen for multicast hello messages, and send out FROM the associated object unicast responses when needed.
     Multicast(Arc<UdpSocket>),
-}
-
-impl ListenType {
-    pub fn is_unicast(&self) -> bool {
-        matches!(self, Self::Unicast)
-    }
 }
