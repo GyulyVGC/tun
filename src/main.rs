@@ -222,11 +222,8 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
 
     loop {
-        // only update rules if the event is related to a file content change
-        if let Ok(Ok(Event {
-            kind: EventKind::Modify(ModifyKind::Data(_)),
-            ..
-        })) = rx.recv()
+        // update rules when file changes
+        if let Ok(Ok(_)) = rx.recv()
         {
             // debounce duplicated events
             if last_update_time.elapsed().as_millis() > 100 {
