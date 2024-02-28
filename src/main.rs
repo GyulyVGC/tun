@@ -223,8 +223,9 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
 
     loop {
         // update rules when file changes
-        if let Ok(Ok(_)) = rx.recv()
+        if let Ok(Ok(e)) = rx.recv()
         {
+            println!("{e:?}");
             // debounce duplicated events
             if last_update_time.elapsed().as_millis() > 100 {
                 // ensure file changes are propagated
