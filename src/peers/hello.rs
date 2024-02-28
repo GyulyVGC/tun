@@ -1,7 +1,7 @@
-use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
+use crate::peers::listener_names::ListenerNames;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -12,6 +12,7 @@ use crate::peers::local_ips::LocalIps;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
     /// Ethernet IP, TUN IP, and netmask of the peer sending the message.
+    #[serde(flatten)]
     pub ips: LocalIps,
     /// Timestamp of the message.
     #[serde(
@@ -22,13 +23,14 @@ pub struct Hello {
     /// Whether this message should be acknowledged with unicast answers.
     pub is_setup: bool,
     /// Names of the processes running on the peer sending the message.
-    pub processes: HashSet<String>,
+    #[serde(flatten)]
+    pub processes: ListenerNames,
 }
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool) -> Self {
-        let processes = listeners::get_for_nullnet(local_ips.tun);
+        let processes = ListenerNames::from_set(listeners::get_for_nullnet(local_ips.tun));
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
@@ -82,7 +84,7 @@ impl Default for Hello {
             },
             timestamp: DateTime::default(),
             is_setup: false,
-            processes: HashSet::default(),
+            processes: ListenerNames::default(),
         }
     }
 }
@@ -112,14 +114,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-    use std::net::IpAddr;
+    use std::collections::BTreeSet;
+    use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
 
     use chrono::DateTime;
     use serde_test::{assert_tokens, Token};
 
     use crate::peers::hello::Hello;
+    use crate::peers::listener_names::ListenerNames;
     use crate::peers::local_ips::LocalIps;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
@@ -135,38 +138,70 @@ mod tests {
             },
             timestamp,
             is_setup: false,
-            processes: HashSet::from(["nullnetd".to_string()]),
+            processes: ListenerNames {
+                names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
+            },
         };
 
         assert_tokens(
             &hello,
             &[
-                Token::Struct {
-                    name: "Hello",
-                    len: 4,
-                },
-                Token::Str("ips"),
-                Token::Struct {
-                    name: "LocalIps",
-                    len: 3,
-                },
+                Token::Map { len: None },
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("tun"),
                 Token::Str("10.11.12.134"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
-                Token::StructEnd,
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
                 Token::Bool(false),
-                Token::Str("processes"),
-                Token::Seq { len: Some(1) },
+                Token::Str("process_names"),
+                Token::Seq { len: Some(2) },
                 Token::Str("nullnetd"),
+                Token::Str("tun"),
                 Token::SeqEnd,
-                Token::StructEnd,
+                Token::MapEnd,
             ],
         );
+    }
+
+    #[test]
+    fn test_toml_string_hello_message() {
+        let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
+        let hello = Hello {
+            ips: LocalIps {
+                eth: IpAddr::from_str("8.8.8.8").unwrap(),
+                tun: IpAddr::from_str("10.11.12.134").unwrap(),
+                netmask: IpAddr::from_str("255.255.255.0").unwrap(),
+            },
+            timestamp,
+            is_setup: false,
+            processes: ListenerNames {
+                names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
+            },
+        };
+
+        assert_eq!(
+            hello.to_toml_string(),
+            "eth = \"8.8.8.8\"\n\
+             tun = \"10.11.12.134\"\n\
+             netmask = \"255.255.255.0\"\n\
+             timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
+             is_setup = false\n\
+             process_names = [\"nullnetd\", \"tun\"]\n"
+        );
+    }
+
+    #[test]
+    fn test_default_hello_message_not_valid() {
+        let default = Hello::default();
+        let local_ips = LocalIps {
+            eth: IpAddr::from([192, 168, 1, 113]),
+            tun: IpAddr::from([10, 0, 0, 113]),
+            netmask: IpAddr::from([255, 255, 255, 0]),
+        };
+        assert!(!default.is_valid(&SocketAddr::new(default.ips.eth, 0), &local_ips));
     }
 }

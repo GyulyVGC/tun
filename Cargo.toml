@@ -19,7 +19,8 @@ network-interface = "1.1.1"
 chrono = { version = "0.4.34", default-features = false }
 serde = { version = "1.0.197", default_features = false, features = ["derive", "alloc"] }
 toml = "0.8.10"
-tokio-rusqlite = "0.5.0"
+tokio-rusqlite = "0.5.1"
+rusqlite = "0.31.0"
 
 [dev-dependencies]
 serde_test = "1.0.176"

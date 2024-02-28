@@ -1,11 +1,11 @@
 #![allow(clippy::module_name_repetitions)]
 
-use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 
 use chrono::{DateTime, Utc};
 
 use crate::peers::hello::Hello;
+use crate::peers::listener_names::ListenerNames;
 use crate::{DISCOVERY_PORT, FORWARD_PORT};
 
 /// Struct representing a peer.
@@ -47,7 +47,7 @@ pub struct PeerVal {
     /// Timestamp of the last hello message received from this peer.
     pub(crate) last_seen: DateTime<Utc>,
     /// Names of the processes running on this peer.
-    pub(crate) processes: HashSet<String>,
+    pub(crate) processes: ListenerNames,
 }
 
 impl PeerVal {
@@ -70,8 +70,9 @@ impl PeerVal {
             (tot_seen_prev * self.avg_delay + delay.unsigned_abs()) / (tot_seen_prev + 1); // TODO: timestamps must be monotonic!
         self.num_seen_unicast += u64::from(is_unicast);
         self.num_seen_multicast += u64::from(!is_unicast);
-        self.last_seen = hello.timestamp;
+
         self.eth_ip = hello.ips.eth;
+        self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
     }
 
