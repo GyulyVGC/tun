@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Update nullnet.service file
-cp nullnet.service /etc/systemd/system/ && \
-systemctl enable nullnet && \
+sudo cp nullnet.service /etc/systemd/system/ && \
+sudo systemctl enable nullnet && \
 git checkout main && \
 git pull && \
 cargo b --release && \
-reboot
+sudo reboot
