@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use std::{panic, process};
 
 use clap::Parser;
-use notify::event::ModifyKind;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::sync::{Mutex, RwLock};
@@ -222,10 +221,12 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
 
     loop {
-        // update rules when file changes
-        if let Ok(Ok(e)) = rx.recv()
+        // only update rules if the event is related to a file change
+        if let Ok(Ok(Event {
+            kind: EventKind::Modify(_),
+            ..
+        })) = rx.recv()
         {
-            println!("{e:?}");
             // debounce duplicated events
             if last_update_time.elapsed().as_millis() > 100 {
                 // ensure file changes are propagated
