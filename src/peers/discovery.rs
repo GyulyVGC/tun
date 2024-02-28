@@ -41,6 +41,7 @@ pub async fn discover_peers(
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
     let socket_3 = socket.clone();
+    let socket_4 = socket.clone();
 
     let multicast_socket = endpoints.sockets.discovery_multicast;
 
@@ -60,19 +61,12 @@ pub async fn discover_peers(
 
     // listen for multicast hello messages
     tokio::spawn(async move {
-        listen(
-            ListenType::Multicast(socket_3),
-            multicast_socket,
-            local_ips,
-            peers,
-            tx,
-        )
-        .await;
+        listen(multicast_socket, socket, local_ips, peers, tx).await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(ListenType::Unicast, socket, local_ips, peers_2, tx_2).await;
+        listen(socket_2, socket_3, local_ips, peers_2, tx_2).await;
     });
 
     // remove inactive peers
@@ -81,13 +75,13 @@ pub async fn discover_peers(
     });
 
     // periodically send out multicast hello messages
-    greet_multicast(socket_2, local_ips).await;
+    greet_multicast(socket_4, local_ips).await;
 }
 
-/// Listens to hello messages (unicast or multicast as specified), and invokes `greet_unicast` when needed.
+/// Listens to hello messages (unicast or multicast), and invokes `greet_unicast` when needed.
 async fn listen(
-    listen_type: ListenType,
     listen_socket: Arc<UdpSocket>,
+    unicast_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
     tx: UnboundedSender<(Peer, PeerDbAction)>,
@@ -153,9 +147,10 @@ async fn listen(
             });
 
         if let Some(dest_socket_addr) = should_respond_to {
-            if let ListenType::Multicast(socket) = listen_type.clone() {
+            if !hello.is_unicast {
+                let source = unicast_socket.clone();
                 tokio::spawn(async move {
-                    greet_unicast(socket, dest_socket_addr, local_ips, !hello.is_setup).await;
+                    greet_unicast(source, dest_socket_addr, local_ips, !hello.is_setup).await;
                 });
             }
         }
@@ -249,12 +244,4 @@ async fn greet(
             .unwrap_or_default();
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
-}
-
-#[derive(Clone)]
-enum ListenType {
-    /// Listen for unicast hello messages.
-    Unicast,
-    /// Listen for multicast hello messages, and send out FROM the associated object unicast responses when needed.
-    Multicast(Arc<UdpSocket>),
 }
