@@ -25,7 +25,6 @@ pub struct Hello {
     /// Whether this message is for a single receiver.
     pub is_unicast: bool,
     /// Names of the processes running on the peer sending the message.
-    #[serde(flatten)]
     pub listeners: TunListenersAll,
 }
 
@@ -121,23 +120,40 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::HashSet;
     use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
 
-    use chrono::DateTime;
+    use chrono::{DateTime, Utc};
+    use listeners::Listener;
     use serde_test::{assert_tokens, Token};
 
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
-    use crate::peers::tun_listener::TunListener;
+    use crate::peers::tun_listener::TunListenersAll;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 
-    #[test]
-    fn test_serialize_and_deserialize_hello_message() {
-        let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
-        let hello = Hello {
+    fn listeners_for_tests() -> TunListenersAll {
+        TunListenersAll::from_listeners(
+            HashSet::from([
+                Listener {
+                    pid: 1234,
+                    name: "sshd".to_string(),
+                    socket: SocketAddr::new(IpAddr::from_str("10.0.0.9").unwrap(), 22),
+                },
+                Listener {
+                    pid: 999,
+                    name: "nullnetd".to_string(),
+                    socket: SocketAddr::new(IpAddr::from_str("10.0.0.9").unwrap(), 875),
+                },
+            ]),
+            IpAddr::from_str("10.0.0.9").unwrap(),
+        )
+    }
+
+    fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
+        Hello {
             ips: LocalIps {
                 eth: IpAddr::from_str("8.8.8.8").unwrap(),
                 tun: IpAddr::from_str("10.11.12.134").unwrap(),
@@ -146,10 +162,14 @@ mod tests {
             timestamp,
             is_setup: false,
             is_unicast: true,
-            processes: TunListener {
-                names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
-            },
-        };
+            listeners: listeners_for_tests(),
+        }
+    }
+
+    #[test]
+    fn test_serialize_and_deserialize_hello_message() {
+        let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
+        let hello = hello_for_tests(timestamp);
 
         assert_tokens(
             &hello,
@@ -167,11 +187,8 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("is_unicast"),
                 Token::Bool(true),
-                Token::Str("process_names"),
-                Token::Seq { len: Some(2) },
-                Token::Str("nullnetd"),
-                Token::Str("tun"),
-                Token::SeqEnd,
+                Token::Str("listeners"),
+                Token::Str("[999/nullnetd on 875, 1234/sshd on 22]"),
                 Token::MapEnd,
             ],
         );
@@ -180,19 +197,7 @@ mod tests {
     #[test]
     fn test_toml_string_hello_message() {
         let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
-        let hello = Hello {
-            ips: LocalIps {
-                eth: IpAddr::from_str("8.8.8.8").unwrap(),
-                tun: IpAddr::from_str("10.11.12.134").unwrap(),
-                netmask: IpAddr::from_str("255.255.255.0").unwrap(),
-            },
-            timestamp,
-            is_setup: false,
-            is_unicast: true,
-            processes: TunListener {
-                names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
-            },
-        };
+        let hello = hello_for_tests(timestamp);
 
         assert_eq!(
             hello.to_toml_string(),
@@ -202,7 +207,7 @@ mod tests {
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
              is_setup = false\n\
              is_unicast = true\n\
-             process_names = [\"nullnetd\", \"tun\"]\n"
+             listeners = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n"
         );
     }
 
