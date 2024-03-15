@@ -51,6 +51,7 @@ impl FromStr for TunListenersAll {
             .strip_suffix(']')
             .ok_or(err_str)?
             .split(", ")
+            .filter(|str| !str.is_empty())
             .map(|str| str.parse().map_err(|e: String| e))
             .collect::<Result<BTreeSet<TunListener>, String>>()?;
         Ok(Self(listeners))

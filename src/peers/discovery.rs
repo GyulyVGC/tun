@@ -86,9 +86,9 @@ async fn listen(
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
     tx: UnboundedSender<(Peer, PeerDbAction)>,
 ) {
-    // used to determine whether a unicast response is required
+    // used to determine whether an unicast response is required
     let mut should_respond_to;
-    let mut msg = [0; 256];
+    let mut msg = [0; 1024];
     loop {
         should_respond_to = None;
 
