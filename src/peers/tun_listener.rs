@@ -18,7 +18,8 @@ impl TunListenersAll {
             listeners
                 .into_iter()
                 .filter(|listener| {
-                    listener.socket.ip() == addr || listener.socket.ip().is_unspecified()
+                    let ip = listener.socket.ip();
+                    ip.is_ipv4() && (ip == addr || ip.is_unspecified())
                 })
                 .map(TunListener::from_listener)
                 .collect(),
