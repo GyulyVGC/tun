@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
-use crate::peers::listener_names::ListenerNames;
+use crate::peers::tun_listener::TunListenersAll;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -26,19 +26,22 @@ pub struct Hello {
     pub is_unicast: bool,
     /// Names of the processes running on the peer sending the message.
     #[serde(flatten)]
-    pub processes: ListenerNames,
+    pub listeners: TunListenersAll,
 }
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let processes = ListenerNames::from_set(listeners::get_for_nullnet(local_ips.tun));
+        let listeners = TunListenersAll::from_listeners(
+            listeners::get_all().unwrap_or_default(),
+            local_ips.tun,
+        );
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
             is_setup,
             is_unicast,
-            processes,
+            listeners,
         }
     }
 
@@ -88,7 +91,7 @@ impl Default for Hello {
             timestamp: DateTime::default(),
             is_setup: false,
             is_unicast: false,
-            processes: ListenerNames::default(),
+            listeners: TunListenersAll::default(),
         }
     }
 }
@@ -126,8 +129,8 @@ mod tests {
     use serde_test::{assert_tokens, Token};
 
     use crate::peers::hello::Hello;
-    use crate::peers::listener_names::ListenerNames;
     use crate::peers::local_ips::LocalIps;
+    use crate::peers::tun_listener::TunListener;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 
@@ -143,7 +146,7 @@ mod tests {
             timestamp,
             is_setup: false,
             is_unicast: true,
-            processes: ListenerNames {
+            processes: TunListener {
                 names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
             },
         };
@@ -186,7 +189,7 @@ mod tests {
             timestamp,
             is_setup: false,
             is_unicast: true,
-            processes: ListenerNames {
+            processes: TunListener {
                 names: BTreeSet::from(["nullnetd".to_string(), "tun".to_string()]),
             },
         };

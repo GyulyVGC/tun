@@ -10,7 +10,7 @@ strip = true
 
 [dependencies]
 nullnet-firewall = { git = "https://github.com/GyulyVGC/nullnet-firewall.git" }
-listeners = { git = "https://github.com/GyulyVGC/listeners.git" }
+listeners = "0.1.0"
 tun = { version = "0.6.1", features = ["async"] }
 clap = { version = "4.5.1", features = ["derive"] }
 tokio = { version = "1.35.1", features = ["net", "sync", "rt-multi-thread", "macros", "io-util", "time"] }

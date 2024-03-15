@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use chrono::{DateTime, Utc};
 
 use crate::peers::hello::Hello;
-use crate::peers::listener_names::ListenerNames;
+use crate::peers::tun_listener::TunListenersAll;
 use crate::{DISCOVERY_PORT, FORWARD_PORT};
 
 /// Struct representing a peer.
@@ -47,7 +47,7 @@ pub struct PeerVal {
     /// Timestamp of the last hello message received from this peer.
     pub(crate) last_seen: DateTime<Utc>,
     /// Names of the processes running on this peer.
-    pub(crate) processes: ListenerNames,
+    pub(crate) listeners: TunListenersAll,
 }
 
 impl PeerVal {
@@ -59,7 +59,7 @@ impl PeerVal {
             num_seen_multicast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
-            processes: hello.processes.clone(),
+            listeners: hello.listeners.clone(),
         }
     }
 
@@ -73,7 +73,7 @@ impl PeerVal {
 
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
-        self.processes = hello.processes.clone();
+        self.listeners = hello.listeners.clone();
     }
 
     /// Socket address for normal network operations.
