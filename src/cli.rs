@@ -6,7 +6,7 @@ use clap::Parser;
 pub struct Args {
     /// Maximum Transmission Unit (bytes)
     #[arg(long, default_value_t = 42500)]
-    pub mtu: usize,
+    pub mtu: u16,
     /// Path of the file defining firewall rules (it should be inside a dedicated folder)
     #[arg(long, default_value_t = String::from("firewall/firewall.txt"))]
     pub firewall_path: String,

@@ -65,7 +65,7 @@ async fn main() {
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
     config
-        .mtu(i32::try_from(mtu).unwrap())
+        .mtu(i32::from(mtu))
         .address(tun_ip)
         .netmask(netmask)
         .up();
@@ -158,7 +158,7 @@ fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
 }
 
 /// Prints useful info about the local environment and the created interface.
-fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: usize) {
+fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
     let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();

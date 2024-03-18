@@ -104,7 +104,7 @@ async fn listen(
             continue;
         };
 
-        let delay = (now - hello.timestamp).num_microseconds().unwrap();
+        let delay = (now - hello.timestamp).num_microseconds().unwrap_or_default();
 
         let peer_key = PeerKey::from_ip_addr(hello.ips.tun);
         peers
