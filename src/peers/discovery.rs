@@ -104,6 +104,9 @@ async fn listen(
             continue;
         };
 
+        let hello_is_unicast = hello.is_unicast;
+        let hello_is_setup = hello.is_setup;
+
         let delay = (now - hello.timestamp)
             .num_microseconds()
             .unwrap_or_default();
@@ -116,7 +119,7 @@ async fn listen(
             .and_modify(|peer_val| {
                 peer_val.refresh(delay, &hello);
 
-                if hello.is_setup {
+                if hello_is_setup {
                     should_respond_to = Some(peer_val.discovery_socket_addr());
                 }
 
@@ -131,7 +134,7 @@ async fn listen(
                 .unwrap();
             })
             .or_insert_with(|| {
-                let peer_val = PeerVal::with_details(delay, &hello);
+                let peer_val = PeerVal::with_details(delay, hello);
 
                 should_respond_to = Some(peer_val.discovery_socket_addr());
 
@@ -149,10 +152,10 @@ async fn listen(
             });
 
         if let Some(dest_socket_addr) = should_respond_to {
-            if !hello.is_unicast {
+            if !hello_is_unicast {
                 let source = unicast_socket.clone();
                 tokio::spawn(async move {
-                    greet_unicast(source, dest_socket_addr, local_ips, !hello.is_setup).await;
+                    greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
                 });
             }
         }

@@ -41,7 +41,7 @@ async fn insert_peer(connection: &Connection, peer: Peer) {
                 "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_multicast, last_seen, processes)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
-                val.num_seen_unicast, val.num_seen_multicast, val.last_seen.to_string(), val.listeners),
+                val.num_seen_unicast, val.num_seen_multicast, val.last_seen.to_string(), val.processes),
             ).expect("Failed to insert peer");
             Ok(())
         })
@@ -69,7 +69,7 @@ async fn modify_peer(connection: &Connection, peer: Peer) {
                     val.num_seen_unicast,
                     val.num_seen_multicast,
                     val.last_seen.to_string(),
-                    val.listeners,
+                    val.processes,
                     key.tun_ip.to_string(),
                 ),
             )

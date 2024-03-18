@@ -47,19 +47,19 @@ pub struct PeerVal {
     /// Timestamp of the last hello message received from this peer.
     pub(crate) last_seen: DateTime<Utc>,
     /// Names of the processes running on this peer.
-    pub(crate) listeners: TunListenersAll,
+    pub(crate) processes: TunListenersAll,
 }
 
 impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
-    pub fn with_details(delay: i64, hello: &Hello) -> Self {
+    pub fn with_details(delay: i64, hello: Hello) -> Self {
         Self {
             eth_ip: hello.ips.eth,
             num_seen_unicast: u64::from(hello.is_unicast),
             num_seen_multicast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
-            listeners: hello.processes.clone(),
+            processes: hello.processes,
         }
     }
 
@@ -73,7 +73,7 @@ impl PeerVal {
 
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
-        self.listeners = hello.processes.clone();
+        self.processes = hello.processes.clone();
     }
 
     /// Socket address for normal network operations.
