@@ -139,29 +139,53 @@ impl FromStr for Process {
 
 #[cfg(test)]
 mod tests {
-    // use rusqlite::ToSql;
-    // use std::collections::BTreeSet;
-    // use tokio_rusqlite::types::ToSqlOutput;
-    // use tokio_rusqlite::types::Value::Text;
+    use crate::peers::processes::{Process, Processes};
+    use listeners::Listener;
+    use std::collections::{BTreeSet, HashSet};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-    // #[test]
-    // fn test_listener_processes_to_sql() {
-    //     let listener_processes = TunListener {
-    //         names: BTreeSet::from([
-    //             "nullnet".to_string(),
-    //             "nullnetd".to_string(),
-    //             "tun".to_string(),
-    //         ]),
-    //     };
-    //     assert_eq!(
-    //         TunListener::to_sql(&listener_processes),
-    //         Ok(ToSqlOutput::Owned(Text(
-    //             "[nullnet, nullnetd, tun]".to_string()
-    //         )))
-    //     );
-    // }
+    fn listeners_for_tests() -> HashSet<Listener> {
+        let mut listeners = HashSet::new();
+        listeners.insert(Listener {
+            pid: 1,
+            name: "nullnet".to_string(),
+            socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 10),
+        });
+        listeners.insert(Listener {
+            pid: 2,
+            name: "tun".to_string(),
+            socket: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 20),
+        });
+        listeners.insert(Listener {
+            pid: 3,
+            name: "sshd".to_string(),
+            socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 30),
+        });
+        listeners.insert(Listener {
+            pid: 4,
+            name: "tun".to_string(),
+            socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)), 40),
+        });
+        listeners
+    }
 
-    use crate::peers::processes::Process;
+    #[test]
+    fn test_process_from_listener() {
+        let listener = Listener {
+            pid: 1234,
+            name: "nullnet".to_string(),
+            socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80),
+        };
+        let process = Process::from_listener(listener);
+        assert_eq!(
+            process,
+            Process {
+                pid: 1234,
+                name: "nullnet".to_string(),
+                port: 80,
+            }
+        );
+    }
 
     #[test]
     fn test_process_to_string() {
@@ -219,5 +243,113 @@ mod tests {
 
         let process = "1234-nullnet on 80".to_string().parse::<Process>();
         assert_eq!(process, Err("invalid digit found in string".to_string()));
+    }
+
+    #[test]
+    fn test_processes_from_listeners_1() {
+        let listeners = listeners_for_tests();
+        let processes =
+            Processes::from_listeners(listeners, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)));
+        assert_eq!(
+            processes,
+            Processes(BTreeSet::from([
+                Process {
+                    pid: 1,
+                    name: "nullnet".to_string(),
+                    port: 10,
+                },
+                Process {
+                    pid: 3,
+                    name: "sshd".to_string(),
+                    port: 30,
+                },
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_processes_from_listeners_2() {
+        let listeners = listeners_for_tests();
+        let processes =
+            Processes::from_listeners(listeners, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)));
+        assert_eq!(
+            processes,
+            Processes(BTreeSet::from([
+                Process {
+                    pid: 1,
+                    name: "nullnet".to_string(),
+                    port: 10,
+                },
+                Process {
+                    pid: 4,
+                    name: "tun".to_string(),
+                    port: 40,
+                },
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_processes_to_string() {
+        let processes = Processes(BTreeSet::from([
+            Process {
+                pid: 1,
+                name: "nullnet".to_string(),
+                port: 10,
+            },
+            Process {
+                pid: 3,
+                name: "sshd".to_string(),
+                port: 30,
+            },
+        ]));
+        assert_eq!(processes.to_string(), "[1/nullnet on 10, 3/sshd on 30]");
+    }
+
+    #[test]
+    fn test_empty_processes_to_string() {
+        let processes = Processes(BTreeSet::new());
+        assert_eq!(processes.to_string(), "[]");
+    }
+
+    #[test]
+    fn test_processes_from_string() {
+        let processes = "[1/nullnet on 10, 3/sshd on 30]".parse();
+        assert_eq!(
+            processes,
+            Ok(Processes(BTreeSet::from([
+                Process {
+                    pid: 1,
+                    name: "nullnet".to_string(),
+                    port: 10,
+                },
+                Process {
+                    pid: 3,
+                    name: "sshd".to_string(),
+                    port: 30,
+                },
+            ])))
+        );
+
+        let processes = "[]".parse();
+        assert_eq!(processes, Ok(Processes(BTreeSet::new())));
+
+        let processes = "[1/nullnet on 10, 3/sshd on 30".parse::<Processes>();
+        assert_eq!(
+            processes,
+            Err("Wrong format for processes collection".to_string())
+        );
+
+        let processes = "1/nullnet on 10, 3/sshd on 30]".parse::<Processes>();
+        assert_eq!(
+            processes,
+            Err("Wrong format for processes collection".to_string())
+        );
+
+        let processes = "[1/nullnet on 10, 3/sshd on 30,]".parse::<Processes>();
+        assert_eq!(processes, Err("invalid digit found in string".to_string()));
+
+        let processes = "[1/nullnet on 10 3/sshd on 30,]".parse::<Processes>();
+        assert_eq!(processes, Err("invalid digit found in string".to_string()));
     }
 }
