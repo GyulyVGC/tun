@@ -13,7 +13,9 @@ pub enum PeerDbAction {
 
 /// Handles the peers database, receiving messages from the channel and sending proper queries to the DB.
 pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) {
-    let connection = Connection::open(SQLITE_PATH).await.unwrap();
+    let connection = Connection::open(SQLITE_PATH)
+        .await
+        .expect("Failed to open the DB");
 
     // make sure peer table exists and it's empty
     setup_db(&connection).await;
@@ -40,11 +42,11 @@ async fn insert_peer(connection: &Connection, peer: Peer) {
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
                 val.num_seen_unicast, val.num_seen_multicast, val.last_seen.to_string(), val.listeners),
-            ).unwrap();
+            ).expect("Failed to insert peer");
             Ok(())
         })
         .await
-        .unwrap();
+        .expect("Database connection failed");
 }
 
 /// Modifies an existing entry in the peers DB.
@@ -71,11 +73,11 @@ async fn modify_peer(connection: &Connection, peer: Peer) {
                     key.tun_ip.to_string(),
                 ),
             )
-            .unwrap();
+            .expect("Failed to modify peer");
             Ok(())
         })
         .await
-        .unwrap();
+        .expect("Database connection failed");
 }
 
 /// Removes an entry from the peers DB.
@@ -88,11 +90,11 @@ async fn remove_peer(connection: &Connection, peer: Peer) {
                     WHERE tun_ip = ?1",
                 [key.tun_ip.to_string()],
             )
-            .unwrap();
+            .expect("Failed to remove peer");
             Ok(())
         })
         .await
-        .unwrap();
+        .expect("Database connection failed");
 }
 
 /// Drop the peers table and creates a new one.
@@ -105,11 +107,12 @@ async fn setup_db(connection: &Connection) {
 async fn drop_table<'a>(connection: &Connection) {
     connection
         .call(|c| {
-            c.execute("DROP TABLE IF EXISTS peers", ()).unwrap();
+            c.execute("DROP TABLE IF EXISTS peers", ())
+                .expect("Failed to drop peers table");
             Ok(())
         })
         .await
-        .unwrap();
+        .expect("Database connection failed");
 }
 
 /// Creates the peers table.
@@ -128,9 +131,9 @@ async fn create_table(connection: &Connection) {
                     )",
                 (),
             )
-            .unwrap();
+            .expect("Failed to create peers table");
             Ok(())
         })
         .await
-        .unwrap();
+        .expect("Database connection failed");
 }
