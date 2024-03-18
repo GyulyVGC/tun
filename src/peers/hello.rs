@@ -24,14 +24,14 @@ pub struct Hello {
     pub is_setup: bool,
     /// Whether this message is for a single receiver.
     pub is_unicast: bool,
-    /// Names of the processes running on the peer sending the message.
-    pub listeners: TunListenersAll,
+    /// Processes listening on the peer sending the message.
+    pub processes: TunListenersAll,
 }
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let listeners = TunListenersAll::from_listeners(
+        let processes = TunListenersAll::from_listeners(
             listeners::get_all().unwrap_or_default(),
             local_ips.tun,
         );
@@ -40,7 +40,7 @@ impl Hello {
             timestamp: Utc::now(),
             is_setup,
             is_unicast,
-            listeners,
+            processes,
         }
     }
 
@@ -90,7 +90,7 @@ impl Default for Hello {
             timestamp: DateTime::default(),
             is_setup: false,
             is_unicast: false,
-            listeners: TunListenersAll::default(),
+            processes: TunListenersAll::default(),
         }
     }
 }
@@ -162,7 +162,7 @@ mod tests {
             timestamp,
             is_setup: false,
             is_unicast: true,
-            listeners: listeners_for_tests(),
+            processes: listeners_for_tests(),
         }
     }
 
@@ -187,7 +187,7 @@ mod tests {
                 Token::Bool(false),
                 Token::Str("is_unicast"),
                 Token::Bool(true),
-                Token::Str("listeners"),
+                Token::Str("processes"),
                 Token::Str("[999/nullnetd on 875, 1234/sshd on 22]"),
                 Token::MapEnd,
             ],
@@ -207,7 +207,7 @@ mod tests {
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
              is_setup = false\n\
              is_unicast = true\n\
-             listeners = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n"
+             processes = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n"
         );
     }
 
@@ -220,5 +220,34 @@ mod tests {
             netmask: IpAddr::from([255, 255, 255, 0]),
         };
         assert!(!default.is_valid(&SocketAddr::new(default.ips.eth, 0), &local_ips));
+    }
+
+    #[test]
+    fn test_serialize_and_deserialize_hello_message_with_empty_processes() {
+        let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
+        let mut hello = hello_for_tests(timestamp);
+        hello.processes = TunListenersAll::default();
+
+        assert_tokens(
+            &hello,
+            &[
+                Token::Map { len: None },
+                Token::Str("eth"),
+                Token::Str("8.8.8.8"),
+                Token::Str("tun"),
+                Token::Str("10.11.12.134"),
+                Token::Str("netmask"),
+                Token::Str("255.255.255.0"),
+                Token::Str("timestamp"),
+                Token::Str(TEST_TIMESTAMP),
+                Token::Str("is_setup"),
+                Token::Bool(false),
+                Token::Str("is_unicast"),
+                Token::Bool(true),
+                Token::Str("processes"),
+                Token::Str("[]"),
+                Token::MapEnd,
+            ],
+        );
     }
 }

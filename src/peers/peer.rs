@@ -59,7 +59,7 @@ impl PeerVal {
             num_seen_multicast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
-            listeners: hello.listeners.clone(),
+            listeners: hello.processes.clone(),
         }
     }
 
@@ -73,7 +73,7 @@ impl PeerVal {
 
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
-        self.listeners = hello.listeners.clone();
+        self.listeners = hello.processes.clone();
     }
 
     /// Socket address for normal network operations.

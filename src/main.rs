@@ -51,7 +51,7 @@ async fn main() {
         num_tasks,
     } = Args::parse();
 
-    // setup the local environment
+    // set up the local environment
     let endpoints = LocalEndpoints::setup().await;
     let tun_ip = endpoints.ips.tun;
     let netmask = endpoints.ips.netmask;
