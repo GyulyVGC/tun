@@ -1,7 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
-use crate::peers::tun_listener::TunListenersAll;
+use crate::peers::processes::Processes;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -25,16 +25,14 @@ pub struct Hello {
     /// Whether this message is for a single receiver.
     pub is_unicast: bool,
     /// Processes listening on the peer sending the message.
-    pub processes: TunListenersAll,
+    pub processes: Processes,
 }
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let processes = TunListenersAll::from_listeners(
-            listeners::get_all().unwrap_or_default(),
-            local_ips.tun,
-        );
+        let processes =
+            Processes::from_listeners(listeners::get_all().unwrap_or_default(), local_ips.tun);
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
@@ -90,7 +88,7 @@ impl Default for Hello {
             timestamp: DateTime::default(),
             is_setup: false,
             is_unicast: false,
-            processes: TunListenersAll::default(),
+            processes: Processes::default(),
         }
     }
 }
@@ -130,12 +128,12 @@ mod tests {
 
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
-    use crate::peers::tun_listener::TunListenersAll;
+    use crate::peers::processes::Processes;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 
-    fn listeners_for_tests() -> TunListenersAll {
-        TunListenersAll::from_listeners(
+    fn processes_for_tests() -> Processes {
+        Processes::from_listeners(
             HashSet::from([
                 Listener {
                     pid: 1234,
@@ -162,7 +160,7 @@ mod tests {
             timestamp,
             is_setup: false,
             is_unicast: true,
-            processes: listeners_for_tests(),
+            processes: processes_for_tests(),
         }
     }
 
@@ -226,7 +224,7 @@ mod tests {
     fn test_serialize_and_deserialize_hello_message_with_empty_processes() {
         let timestamp = DateTime::from_str(TEST_TIMESTAMP).unwrap();
         let mut hello = hello_for_tests(timestamp);
-        hello.processes = TunListenersAll::default();
+        hello.processes = Processes::default();
 
         assert_tokens(
             &hello,
