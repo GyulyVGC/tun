@@ -1,11 +1,12 @@
-use listeners::Listener;
-use serde::de::Error;
-use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashSet};
 use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
 use std::num::ParseIntError;
 use std::str::FromStr;
+
+use listeners::Listener;
+use serde::de::Error;
+use serde::{Deserialize, Serialize};
 use tokio_rusqlite::types::ToSqlOutput;
 use tokio_rusqlite::ToSql;
 
@@ -139,10 +140,12 @@ impl FromStr for Process {
 
 #[cfg(test)]
 mod tests {
-    use crate::peers::processes::{Process, Processes};
-    use listeners::Listener;
     use std::collections::{BTreeSet, HashSet};
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+
+    use listeners::Listener;
+
+    use crate::peers::processes::{Process, Processes};
 
     fn listeners_for_tests() -> HashSet<Listener> {
         let mut listeners = HashSet::new();

@@ -2,13 +2,13 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
 use tun::IntoAddress;
 
 use crate::peers::local_ips::LocalIps;
+use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
