@@ -130,7 +130,7 @@ async fn get_discovery_multicast_shared(
     {
         _discovery_socket
             .join_multicast_v4(
-                MULTICAST.into_address().unwrap(),
+                MULTICAST.into_ipv4().unwrap(),
                 std::net::Ipv4Addr::UNSPECIFIED,
             )
             .unwrap();
