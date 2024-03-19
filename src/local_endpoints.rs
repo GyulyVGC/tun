@@ -105,7 +105,17 @@ fn get_eth_addr() -> Option<EthAddr> {
 fn get_eth_addr() -> Option<EthAddr> {
     if let Ok(devices) = nix::ifaddrs::getifaddrs() {
         for device in devices {
-            println!("ADDRESS: {:?}", device.address.unwrap().as_sockaddr_in());
+            if let Some(sockaddr_storage) = device.address {
+                if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
+                    let ip = IpAddr::from(sockaddr_in.ip());
+                    if let Some(sockaddr_storage) = device.netmask {
+                        if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
+                            let netmask = IpAddr::from(sockaddr_in.ip());
+                            return Some(EthAddr { ip, netmask });
+                        }
+                    }
+                }
+            }
         }
     }
     None
