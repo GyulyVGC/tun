@@ -100,6 +100,11 @@ async fn listen(
         let now = Utc::now();
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
 
+        println!(
+            "Received a Hello from {from} — is_unicast: {:?}",
+            hello.is_unicast
+        );
+
         if !hello.is_valid(&from, &local_ips) {
             continue;
         };
