@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use tun::IntoAddress;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 /// Collection of the relevant local IP addresses.
@@ -30,9 +29,9 @@ impl LocalIps {
             return false;
         }
 
-        let netmask = self.netmask.into_address().unwrap().octets();
-        let eth_1 = self.eth.into_address().unwrap().octets();
-        let eth_2 = other.eth.into_address().unwrap().octets();
+        let netmask = self.netmask.into_ipv4().unwrap().octets();
+        let eth_1 = self.eth.into_ipv4().unwrap().octets();
+        let eth_2 = other.eth.into_ipv4().unwrap().octets();
 
         for i in 0..4 {
             if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
@@ -64,5 +63,18 @@ where
             Unexpected::Str(&ip_string),
             &"Valid IP address",
         ))
+    }
+}
+
+pub trait IntoIpv4 {
+    fn into_ipv4(self) -> Option<Ipv4Addr>;
+}
+
+impl IntoIpv4 for IpAddr {
+    fn into_ipv4(self) -> Option<Ipv4Addr> {
+        match self {
+            IpAddr::V4(ipv4) => Some(ipv4),
+            IpAddr::V6(_) => None,
+        }
     }
 }

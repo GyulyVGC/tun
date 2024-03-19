@@ -12,7 +12,7 @@ use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::sync::{Mutex, RwLock};
-use tun::{Configuration, Device};
+use tun2::{AbstractDevice, Configuration};
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
@@ -64,21 +64,17 @@ async fn main() {
     // configure TUN device
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
-    config
-        .mtu(i32::from(mtu))
-        .address(tun_ip)
-        .netmask(netmask)
-        .up();
+    config.mtu(mtu).address(tun_ip).netmask(netmask).up();
 
     // create the asynchronous TUN device, and split it into reader & writer halves
-    let device = tun::create_as_async(&config).expect("Failed to create TUN device");
-    let tun_name = device.get_ref().name().unwrap();
+    let device = tun2::create_as_async(&config).expect("Failed to create TUN device");
+    let tun_name = device.as_ref().tun_name().unwrap_or_default();
     let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(Mutex::new(read_half));
     let writer_shared = Arc::new(Mutex::new(write_half));
 
     // properly setup routing tables
-    configure_routing(&tun_ip, &netmask);
+    // configure_routing(&tun_ip, &netmask);
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
@@ -138,24 +134,24 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
     // }
 }
 
-/// Manually setup routing on macOS (to be done after TUN creation).
-fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
-    #[cfg(target_os = "macos")]
-    {
-        process::Command::new("route")
-            .args([
-                "-n",
-                "add",
-                "-net",
-                &NETWORK.to_string(),
-                &_tun_ip.to_string(),
-                "-netmask",
-                &_netmask.to_string(),
-            ])
-            .spawn()
-            .expect("Failed to configure routing");
-    }
-}
+// /// Manually setup routing on macOS (to be done after TUN creation).
+// fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
+//     #[cfg(target_os = "macos")]
+//     {
+//         process::Command::new("route")
+//             .args([
+//                 "-n",
+//                 "add",
+//                 "-net",
+//                 &NETWORK.to_string(),
+//                 &_tun_ip.to_string(),
+//                 "-netmask",
+//                 &_netmask.to_string(),
+//             ])
+//             .spawn()
+//             .expect("Failed to configure routing");
+//     }
+// }
 
 /// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {

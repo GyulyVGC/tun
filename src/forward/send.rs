@@ -6,7 +6,7 @@ use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
-use tun::AsyncDevice;
+use tun2::AsyncDevice;
 
 use crate::frames::os_frame::OsFrame;
 use crate::peers::peer::{PeerKey, PeerVal};

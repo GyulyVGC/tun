@@ -6,7 +6,7 @@ use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
-use tun::AsyncDevice;
+use tun2::AsyncDevice;
 
 use crate::craft::reject_payloads::send_termination_message;
 use crate::frames::socket_frame::SocketFrame;

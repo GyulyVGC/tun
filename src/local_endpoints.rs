@@ -5,9 +5,8 @@ use std::time::Duration;
 use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
-use tun::IntoAddress;
 
-use crate::peers::local_ips::LocalIps;
+use crate::peers::local_ips::{IntoIpv4, LocalIps};
 use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 
 /// Struct including local IP addresses and sockets, used to set configurations
@@ -85,7 +84,7 @@ fn get_eth_address() -> Option<Addr> {
                     if netmask.is_ipv4()
                         && !netmask.is_unspecified()
                         && ip.is_ipv4()
-                        && ip.into_address().unwrap().is_private()
+                        && ip.into_ipv4().unwrap().is_private()
                     // no need to also check the following because of the is_private() check
                     // && !ip.is_unspecified()
                     // && !ip.is_loopback()
@@ -102,9 +101,9 @@ fn get_eth_address() -> Option<Addr> {
 
 /// Returns an IP address for the TUN device.
 fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
-    let eth_ip_octets = eth_ip.into_address().unwrap().octets();
-    let netmask_octets = netmask.into_address().unwrap().octets();
-    let tun_net_octets = NETWORK.into_address().unwrap().octets();
+    let eth_ip_octets = eth_ip.into_ipv4().unwrap().octets();
+    let netmask_octets = netmask.into_ipv4().unwrap().octets();
+    let tun_net_octets = NETWORK.into_ipv4().unwrap().octets();
     let mut tun_ip_octets = [0; 4];
 
     for i in 0..4 {
