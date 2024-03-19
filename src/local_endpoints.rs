@@ -1,11 +1,12 @@
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-
-use network_interface::{Addr, NetworkInterface, NetworkInterfaceConfig};
 use tokio::io;
 use tokio::net::UdpSocket;
 
+use crate::peers::eth_addr::EthAddr;
 use crate::peers::local_ips::{IntoIpv4, LocalIps};
 use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
 
@@ -27,9 +28,9 @@ impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Self {
         loop {
-            if let Some(address) = get_eth_address() {
-                let eth_ip = address.ip();
-                let netmask = address.netmask().unwrap();
+            if let Some(eth_addr) = get_eth_addr() {
+                let eth_ip = eth_addr.ip;
+                let netmask = eth_addr.netmask;
                 println!("Local IP address found: {eth_ip}");
                 let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
@@ -75,7 +76,8 @@ impl LocalEndpoints {
 /// - it has an IP address that:
 ///   - is IP version 4
 ///   - is a private address (defined by IETF RFC 1918)
-fn get_eth_address() -> Option<Addr> {
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+fn get_eth_addr() -> Option<EthAddr> {
     if let Ok(devices) = NetworkInterface::show() {
         for device in devices {
             for address in device.addr {
@@ -85,15 +87,25 @@ fn get_eth_address() -> Option<Addr> {
                         && !netmask.is_unspecified()
                         && ip.is_ipv4()
                         && ip.into_ipv4().unwrap().is_private()
-                    // no need to also check the following because of the is_private() check
-                    // && !ip.is_unspecified()
-                    // && !ip.is_loopback()
-                    // && !ip.is_multicast()
                     {
-                        return Some(address);
+                        return Some(EthAddr { ip, netmask });
                     }
                 }
             }
+        }
+    }
+    None
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "macos"),
+    not(target_os = "windows")
+))]
+fn get_eth_addr() -> Option<EthAddr> {
+    if let Ok(devices) = nix::ifaddrs::getifaddrs() {
+        for device in devices {
+            println!("{:?}", device);
         }
     }
     None

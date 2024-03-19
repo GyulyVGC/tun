@@ -15,12 +15,17 @@ tun2 = { version = "1.2.3", features = ["async"] }
 clap = { version = "4.5.3", features = ["derive"] }
 tokio = { version = "1.35.1", features = ["net", "sync", "rt-multi-thread", "macros", "io-util", "time"] }
 notify = "6.1.1"
-network-interface = "1.1.1"
 chrono = { version = "0.4.35", default-features = false }
 serde = { version = "1.0.197", default_features = false, features = ["derive", "alloc"] }
 toml = "0.8.12"
 tokio-rusqlite = "0.5.1"
 rusqlite = "0.31.0"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+network-interface = "1.1.1"
+
+[target.'cfg(all(not(target_os = "linux"), not(target_os = "macos"), not(target_os = "windows")))'.dependencies]
+nix = { version = "0.28.0", features = ["net"] }
 
 [dev-dependencies]
 serde_test = "1.0.176"
