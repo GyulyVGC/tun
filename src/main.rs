@@ -29,6 +29,7 @@ mod peers;
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
+pub const GATEWAY: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
 pub const MULTICAST: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 
 #[tokio::main]
@@ -63,7 +64,7 @@ async fn main() {
     // configure TUN device
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
-    config.mtu(mtu).address(tun_ip).netmask(netmask).up();
+    config.mtu(mtu).address(tun_ip).netmask(netmask).destination(GATEWAY).up();
 
     // create the asynchronous TUN device, and split it into reader & writer halves
     let device = tun2::create_as_async(&config).expect("Failed to create TUN device");
