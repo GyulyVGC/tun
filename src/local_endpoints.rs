@@ -105,7 +105,7 @@ fn get_eth_addr() -> Option<EthAddr> {
 fn get_eth_addr() -> Option<EthAddr> {
     if let Ok(devices) = nix::ifaddrs::getifaddrs() {
         for device in devices {
-            println!("ADDRESS: {:?}     NETMASK: {:?}", device.address, device.netmask);
+            println!("ADDRESS: {:?}", device.address.unwrap().as_unix_addr());
         }
     }
     None
