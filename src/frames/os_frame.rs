@@ -6,8 +6,8 @@ pub struct OsFrame {
 }
 
 impl OsFrame {
-    #[cfg(target_os = "macos")]
-    pub const AF_INET_HEADER: &'static [u8] = &[0, 0, 0, 2];
+    // #[cfg(target_os = "macos")]
+    // pub const AF_INET_HEADER: &'static [u8] = &[0, 0, 0, 2];
 
     pub fn new() -> Self {
         Self {
@@ -21,11 +21,11 @@ impl OsFrame {
     }
 
     pub fn to_socket_buf(&self) -> &[u8] {
-        #[cfg(not(target_os = "macos"))]
+        // #[cfg(not(target_os = "macos"))]
         let socket_buf = self.actual_frame_from_byte(0);
 
-        #[cfg(target_os = "macos")]
-        let socket_buf = self.actual_frame_from_byte(4);
+        // #[cfg(target_os = "macos")]
+        // let socket_buf = self.actual_frame_from_byte(4);
 
         socket_buf
     }
