@@ -23,7 +23,6 @@ use crate::peers::discovery::discover_peers;
 mod cli;
 mod craft;
 mod forward;
-mod frames;
 mod local_endpoints;
 mod peers;
 

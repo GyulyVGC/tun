@@ -8,7 +8,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
 use tun2::AsyncDevice;
 
-use crate::frames::os_frame::OsFrame;
+use crate::forward::frame::Frame;
 use crate::peers::peer::{PeerKey, PeerVal};
 
 /// Handles outgoing network packets (receives packets from the TUN interface and sends them to the socket),
@@ -19,29 +19,29 @@ pub async fn send(
     firewall: &Arc<RwLock<Firewall>>,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) {
-    let mut os_frame = OsFrame::new();
+    let mut frame = Frame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        os_frame.actual_bytes = device
+        frame.size = device
             .lock()
             .await
-            .read(&mut os_frame.frame)
+            .read(&mut frame.frame)
             .await
             .unwrap_or(0);
 
-        if os_frame.actual_bytes > 0 {
+        if frame.size > 0 {
             // send the packet to the socket
-            let socket_buf = os_frame.to_socket_buf();
-            let Some(dst_socket) = get_dst_socket(socket_buf, &peers).await else {
+            let pkt_data = frame.pkt_data();
+            let Some(dst_socket) = get_dst_socket(pkt_data, &peers).await else {
                 continue;
             };
             match firewall
                 .read()
                 .await
-                .resolve_packet(socket_buf, FirewallDirection::OUT)
+                .resolve_packet(pkt_data, FirewallDirection::OUT)
             {
                 FirewallAction::ACCEPT => {
-                    socket.send_to(socket_buf, dst_socket).await.unwrap_or(0);
+                    socket.send_to(pkt_data, dst_socket).await.unwrap_or(0);
                 }
                 FirewallAction::DENY | FirewallAction::REJECT => {}
             };
@@ -50,13 +50,13 @@ pub async fn send(
 }
 
 async fn get_dst_socket(
-    socket_buf: &[u8],
+    pkt_data: &[u8],
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
-    if socket_buf.len() < 20 {
+    if pkt_data.len() < 20 {
         None
     } else {
-        let dest_ip_slice: [u8; 4] = socket_buf[16..20].try_into().unwrap();
+        let dest_ip_slice: [u8; 4] = pkt_data[16..20].try_into().unwrap();
         peers
             .read()
             .await
