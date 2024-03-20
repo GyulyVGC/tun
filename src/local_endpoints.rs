@@ -162,7 +162,7 @@ async fn get_discovery_multicast_shared(
     broadcast: IpAddr,
     _discovery_socket: &Arc<UdpSocket>,
 ) -> io::Result<Arc<UdpSocket>> {
-    // #[cfg(not(target_os = "windows"))]
+    #[cfg(not(target_os = "windows"))]
     {
         UdpSocket::bind(SocketAddr::new(broadcast, DISCOVERY_PORT))
             .await
@@ -170,16 +170,16 @@ async fn get_discovery_multicast_shared(
     }
 
     // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
-    // #[cfg(target_os = "windows")]
-    // {
-    //     _discovery_socket
-    //         .join_multicast_v4(
-    //             MULTICAST.into_ipv4().unwrap(),
-    //             std::net::Ipv4Addr::UNSPECIFIED,
-    //         )
-    //         .unwrap();
-    //     Ok(_discovery_socket.to_owned())
-    // }
+    #[cfg(target_os = "windows")]
+    {
+        // _discovery_socket
+        //     .join_multicast_v4(
+        //         MULTICAST.into_ipv4().unwrap(),
+        //         std::net::Ipv4Addr::UNSPECIFIED,
+        //     )
+        //     .unwrap();
+        Ok(_discovery_socket.to_owned())
+    }
 }
 
 #[cfg(test)]
