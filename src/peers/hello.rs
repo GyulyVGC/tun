@@ -157,6 +157,7 @@ mod tests {
                 eth: IpAddr::from_str("8.8.8.8").unwrap(),
                 tun: IpAddr::from_str("10.11.12.134").unwrap(),
                 netmask: IpAddr::from_str("255.255.255.0").unwrap(),
+                broadcast: IpAddr::from_str("8.8.8.255").unwrap(),
             },
             timestamp,
             is_setup: false,
@@ -180,6 +181,8 @@ mod tests {
                 Token::Str("10.11.12.134"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
+                Token::Str("broadcast"),
+                Token::Str("8.8.8.255"),
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
@@ -203,6 +206,7 @@ mod tests {
             "eth = \"8.8.8.8\"\n\
              tun = \"10.11.12.134\"\n\
              netmask = \"255.255.255.0\"\n\
+             broadcast = \"8.8.8.255\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
              is_setup = false\n\
              is_unicast = true\n\
@@ -217,6 +221,7 @@ mod tests {
             eth: IpAddr::from([192, 168, 1, 113]),
             tun: IpAddr::from([10, 0, 0, 113]),
             netmask: IpAddr::from([255, 255, 255, 0]),
+            broadcast: IpAddr::from([192, 168, 1, 255]),
         };
         assert!(!default.is_valid(&SocketAddr::new(default.ips.eth, 0), &local_ips));
     }
@@ -237,6 +242,8 @@ mod tests {
                 Token::Str("10.11.12.134"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
+                Token::Str("broadcast"),
+                Token::Str("8.8.8.255"),
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
