@@ -21,7 +21,7 @@ pub struct LocalEndpoints {
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
-    pub discovery_multicast: Arc<UdpSocket>,
+    pub discovery_broadcast: Arc<UdpSocket>,
 }
 
 impl LocalEndpoints {
@@ -39,14 +39,13 @@ impl LocalEndpoints {
                     println!("Forward socket bound successfully");
                     let discovery_socket_addr = SocketAddr::new(ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
-                        discovery.set_multicast_loop_v4(true).unwrap();
                         discovery.set_broadcast(true).unwrap();
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
-                        if let Ok(discovery_multicast_shared) =
-                            get_discovery_multicast_shared(broadcast, &discovery_shared).await
+                        if let Ok(discovery_broadcast_shared) =
+                            get_discovery_broadcast_shared(broadcast, &discovery_shared).await
                         {
-                            println!("Discovery multicast socket bound successfully");
+                            println!("Discovery broadcast socket bound successfully");
 
                             return Self {
                                 ips: LocalIps {
@@ -58,7 +57,7 @@ impl LocalEndpoints {
                                 sockets: LocalSockets {
                                     forward: forward_shared,
                                     discovery: discovery_shared,
-                                    discovery_multicast: discovery_multicast_shared,
+                                    discovery_broadcast: discovery_broadcast_shared,
                                 },
                             };
                         }
@@ -129,7 +128,11 @@ fn get_eth_addr() -> Option<EthAddr> {
                                         && ip.is_ipv4()
                                         && ip.into_ipv4().unwrap().is_private()
                                     {
-                                        return Some(EthAddr { ip, netmask, broadcast });
+                                        return Some(EthAddr {
+                                            ip,
+                                            netmask,
+                                            broadcast,
+                                        });
                                     }
                                 }
                             }
@@ -156,30 +159,20 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     IpAddr::from(tun_ip_octets)
 }
 
-/// Returns the multicast socket to use for discovery.
+/// Returns the broadcast socket to use for discovery.
 #[allow(clippy::unused_async, clippy::no_effect_underscore_binding)]
-async fn get_discovery_multicast_shared(
-    broadcast: IpAddr,
+async fn get_discovery_broadcast_shared(
+    _broadcast: IpAddr,
     _discovery_socket: &Arc<UdpSocket>,
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
-    {
-        UdpSocket::bind(SocketAddr::new(broadcast, DISCOVERY_PORT))
-            .await
-            .map(Arc::new)
-    }
+    return UdpSocket::bind(SocketAddr::new(_broadcast, DISCOVERY_PORT))
+        .await
+        .map(Arc::new);
 
-    // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
+    // on Windows broadcast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
     #[cfg(target_os = "windows")]
-    {
-        // _discovery_socket
-        //     .join_multicast_v4(
-        //         MULTICAST.into_ipv4().unwrap(),
-        //         std::net::Ipv4Addr::UNSPECIFIED,
-        //     )
-        //     .unwrap();
-        Ok(_discovery_socket.to_owned())
-    }
+    return Ok(_discovery_socket.to_owned());
 }
 
 #[cfg(test)]
