@@ -210,7 +210,7 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
     watcher
-        .watch(&firewall_directory, RecursiveMode::NonRecursive)
+        .watch(&firewall_directory, RecursiveMode::Recursive)
         .unwrap();
 
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
