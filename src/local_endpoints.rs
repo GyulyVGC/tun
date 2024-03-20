@@ -70,10 +70,13 @@ impl LocalEndpoints {
     }
 }
 
-/// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.
+/// Checks the available network devices and returns IP address, netmask, and broadcast of the first "suitable" interface.
 ///
 /// A "suitable" interface satisfies the following:
 /// - it has a netmask that:
+///   - is IP version 4
+///   - is not 0.0.0.0
+/// - it has a broadcast address that:
 ///   - is IP version 4
 ///   - is not 0.0.0.0
 /// - it has an IP address that:
@@ -87,16 +90,9 @@ fn get_eth_addr() -> Option<EthAddr> {
                 if let Some(netmask) = address.netmask() {
                     if let Some(broadcast) = address.broadcast() {
                         let ip = address.ip();
-                        if netmask.is_ipv4()
-                            && !netmask.is_unspecified()
-                            && ip.is_ipv4()
-                            && ip.into_ipv4().unwrap().is_private()
-                        {
-                            return Some(EthAddr {
-                                ip,
-                                netmask,
-                                broadcast,
-                            });
+                        let eth_addr = EthAddr::new(ip, netmask, broadcast);
+                        if eth_addr.is_suitable() {
+                            return Some(eth_addr);
                         }
                     }
                 }
@@ -112,27 +108,20 @@ fn get_eth_addr() -> Option<EthAddr> {
     not(target_os = "windows")
 ))]
 fn get_eth_addr() -> Option<EthAddr> {
-    if let Ok(devices) = nix::ifaddrs::getifaddrs() {
-        for device in devices {
-            if let Some(sockaddr_storage) = device.address {
-                if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
-                    let ip = IpAddr::from(sockaddr_in.ip());
-                    if let Some(sockaddr_storage) = device.netmask {
-                        if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
-                            let netmask = IpAddr::from(sockaddr_in.ip());
-                            if let Some(sockaddr_storage) = device.broadcast {
-                                if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
-                                    let broadcast = IpAddr::from(sockaddr_in.ip());
-                                    if netmask.is_ipv4()
-                                        && !netmask.is_unspecified()
-                                        && ip.is_ipv4()
-                                        && ip.into_ipv4().unwrap().is_private()
-                                    {
-                                        return Some(EthAddr {
-                                            ip,
-                                            netmask,
-                                            broadcast,
-                                        });
+    if let Ok(addrs) = nix::ifaddrs::getifaddrs() {
+        for addr in addrs {
+            if let Some(sockaddr_ip) = addr.address {
+                if let Some(addr_ip) = sockaddr_ip.as_sockaddr_in() {
+                    let ip = IpAddr::from(addr_ip.ip());
+                    if let Some(sockaddr_netmask) = addr.netmask {
+                        if let Some(addr_netmask) = sockaddr_netmask.as_sockaddr_in() {
+                            let netmask = IpAddr::from(addr_netmask.ip());
+                            if let Some(sockaddr_broadcast) = addr.broadcast {
+                                if let Some(addr_broadcast) = sockaddr_broadcast.as_sockaddr_in() {
+                                    let broadcast = IpAddr::from(addr_broadcast.ip());
+                                    let eth_addr = EthAddr::new(ip, netmask, broadcast);
+                                    if eth_addr.is_suitable() {
+                                        return Some(eth_addr);
                                     }
                                 }
                             }
