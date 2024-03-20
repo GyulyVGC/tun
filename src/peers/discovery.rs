@@ -218,7 +218,7 @@ async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     let mut is_setup = true;
     let dest = SocketAddr::new(MULTICAST, DISCOVERY_PORT);
     loop {
-        greet(&socket, dest, &local_ips, is_setup, true).await;
+        greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
@@ -231,7 +231,7 @@ async fn greet_unicast(
     local_ips: LocalIps,
     should_retry: bool,
 ) {
-    greet(&socket, dest, &local_ips, false, should_retry).await;
+    greet(&socket, dest, &local_ips, false, should_retry, true).await;
 }
 
 /// Sends out replicated hello messages to multicast or to a specific peer.
@@ -241,11 +241,12 @@ async fn greet(
     local_ips: &LocalIps,
     is_setup: bool,
     should_retry: bool,
+    is_unicast: bool,
 ) {
     for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
-                Hello::with_details(local_ips, is_setup, !dest.ip().is_multicast())
+                Hello::with_details(local_ips, is_setup, is_unicast)
                     .to_toml_string()
                     .as_bytes(),
                 dest,
