@@ -29,7 +29,7 @@ mod peers;
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
-pub const MULTICAST: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
+pub const MULTICAST: IpAddr = IpAddr::V4(Ipv4Addr::new(192, 168, 1, 255));
 
 #[tokio::main]
 async fn main() {
