@@ -1,5 +1,3 @@
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
-use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -82,8 +80,10 @@ impl LocalEndpoints {
 /// - it has an IP address that:
 ///   - is IP version 4
 ///   - is a private address (defined by IETF RFC 1918)
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+#[cfg(not(target_os = "freebsd"))]
 fn get_eth_addr() -> Option<EthAddr> {
+    use network_interface::{NetworkInterface, NetworkInterfaceConfig};
+
     if let Ok(devices) = NetworkInterface::show() {
         for device in devices {
             for address in device.addr {
@@ -102,11 +102,7 @@ fn get_eth_addr() -> Option<EthAddr> {
     None
 }
 
-#[cfg(all(
-    not(target_os = "linux"),
-    not(target_os = "macos"),
-    not(target_os = "windows")
-))]
+#[cfg(target_os = "freebsd")]
 fn get_eth_addr() -> Option<EthAddr> {
     if let Ok(addrs) = nix::ifaddrs::getifaddrs() {
         for addr in addrs {
