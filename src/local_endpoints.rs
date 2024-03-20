@@ -121,12 +121,17 @@ fn get_eth_addr() -> Option<EthAddr> {
                     if let Some(sockaddr_storage) = device.netmask {
                         if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
                             let netmask = IpAddr::from(sockaddr_in.ip());
-                            if netmask.is_ipv4()
-                                && !netmask.is_unspecified()
-                                && ip.is_ipv4()
-                                && ip.into_ipv4().unwrap().is_private()
-                            {
-                                return Some(EthAddr { ip, netmask });
+                            if let Some(sockaddr_storage) = device.broadcast {
+                                if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
+                                    let broadcast = IpAddr::from(sockaddr_in.ip());
+                                    if netmask.is_ipv4()
+                                        && !netmask.is_unspecified()
+                                        && ip.is_ipv4()
+                                        && ip.into_ipv4().unwrap().is_private()
+                                    {
+                                        return Some(EthAddr { ip, netmask, broadcast });
+                                    }
+                                }
                             }
                         }
                     }
