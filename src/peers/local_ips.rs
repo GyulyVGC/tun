@@ -25,7 +25,9 @@ impl LocalIps {
     /// Checks that Ethernet addresses are in the same local network.
     pub fn is_same_ipv4_ethernet_network_of(&self, other: &Self) -> bool {
         if self.netmask != other.netmask
+            || self.broadcast != other.broadcast
             || !self.netmask.is_ipv4()
+            || !self.broadcast.is_ipv4()
             || !self.eth.is_ipv4()
             || !other.eth.is_ipv4()
         {
