@@ -38,6 +38,7 @@ impl LocalEndpoints {
                     println!("Forward socket bound successfully");
                     let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
+                        discovery.set_multicast_loop_v4(true).unwrap();
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
                         if let Ok(discovery_multicast_shared) =
