@@ -16,6 +16,9 @@ pub struct LocalIps {
     /// Netmask of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
     pub netmask: IpAddr,
+    /// Broadcast address of the peer.
+    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
+    pub broadcast: IpAddr,
 }
 
 impl LocalIps {

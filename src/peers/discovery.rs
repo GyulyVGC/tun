@@ -14,7 +14,7 @@ use crate::peers::database::{manage_peers_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
-use crate::{DISCOVERY_PORT, MULTICAST};
+use crate::{DISCOVERY_PORT};
 
 /// Number of copies for each of the produced `Hello` messages (each of the copies must have its own timestamp anyway).
 const RETRIES: u64 = 4;
@@ -216,7 +216,7 @@ async fn remove_inactive_peers(
 async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(MULTICAST, DISCOVERY_PORT);
+    let dest = SocketAddr::new(local_ips.broadcast, DISCOVERY_PORT);
     loop {
         greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;

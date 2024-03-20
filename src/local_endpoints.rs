@@ -8,7 +8,7 @@ use tokio::net::UdpSocket;
 
 use crate::peers::eth_addr::EthAddr;
 use crate::peers::local_ips::{IntoIpv4, LocalIps};
-use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
+use crate::{DISCOVERY_PORT, FORWARD_PORT, NETWORK};
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -29,29 +29,31 @@ impl LocalEndpoints {
     pub async fn setup() -> Self {
         loop {
             if let Some(eth_addr) = get_eth_addr() {
-                let eth_ip = eth_addr.ip;
+                let ip = eth_addr.ip;
                 let netmask = eth_addr.netmask;
-                println!("Local IP address found: {eth_ip}");
-                let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
+                let broadcast = eth_addr.broadcast;
+                println!("Local IP address found: {ip}");
+                let forward_socket_addr = SocketAddr::new(ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
                     let forward_shared = Arc::new(forward);
                     println!("Forward socket bound successfully");
-                    let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
+                    let discovery_socket_addr = SocketAddr::new(ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
                         discovery.set_multicast_loop_v4(true).unwrap();
                         discovery.set_broadcast(true).unwrap();
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
                         if let Ok(discovery_multicast_shared) =
-                            get_discovery_multicast_shared(&discovery_shared).await
+                            get_discovery_multicast_shared(broadcast, &discovery_shared).await
                         {
                             println!("Discovery multicast socket bound successfully");
 
                             return Self {
                                 ips: LocalIps {
-                                    eth: eth_ip,
-                                    tun: get_tun_ip(&eth_ip, &netmask),
+                                    eth: ip,
+                                    tun: get_tun_ip(&ip, &netmask),
                                     netmask,
+                                    broadcast,
                                 },
                                 sockets: LocalSockets {
                                     forward: forward_shared,
@@ -84,13 +86,19 @@ fn get_eth_addr() -> Option<EthAddr> {
         for device in devices {
             for address in device.addr {
                 if let Some(netmask) = address.netmask() {
-                    let ip = address.ip();
-                    if netmask.is_ipv4()
-                        && !netmask.is_unspecified()
-                        && ip.is_ipv4()
-                        && ip.into_ipv4().unwrap().is_private()
-                    {
-                        return Some(EthAddr { ip, netmask });
+                    if let Some(broadcast) = address.broadcast() {
+                        let ip = address.ip();
+                        if netmask.is_ipv4()
+                            && !netmask.is_unspecified()
+                            && ip.is_ipv4()
+                            && ip.into_ipv4().unwrap().is_private()
+                        {
+                            return Some(EthAddr {
+                                ip,
+                                netmask,
+                                broadcast,
+                            });
+                        }
                     }
                 }
             }
@@ -113,7 +121,13 @@ fn get_eth_addr() -> Option<EthAddr> {
                     if let Some(sockaddr_storage) = device.netmask {
                         if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
                             let netmask = IpAddr::from(sockaddr_in.ip());
-                            return Some(EthAddr { ip, netmask });
+                            if netmask.is_ipv4()
+                                && !netmask.is_unspecified()
+                                && ip.is_ipv4()
+                                && ip.into_ipv4().unwrap().is_private()
+                            {
+                                return Some(EthAddr { ip, netmask });
+                            }
                         }
                     }
                 }
@@ -140,11 +154,12 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
 /// Returns the multicast socket to use for discovery.
 #[allow(clippy::unused_async, clippy::no_effect_underscore_binding)]
 async fn get_discovery_multicast_shared(
+    broadcast: IpAddr,
     _discovery_socket: &Arc<UdpSocket>,
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
     {
-        UdpSocket::bind(SocketAddr::new(MULTICAST, DISCOVERY_PORT))
+        UdpSocket::bind(SocketAddr::new(broadcast, DISCOVERY_PORT))
             .await
             .map(Arc::new)
     }

@@ -84,6 +84,7 @@ impl Default for Hello {
                 eth: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
                 tun: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
                 netmask: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                broadcast: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
             },
             timestamp: DateTime::default(),
             is_setup: false,
