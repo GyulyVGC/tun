@@ -14,7 +14,7 @@ use crate::peers::database::{manage_peers_db, PeerDbAction};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
-use crate::{DISCOVERY_PORT, MULTICAST};
+use crate::DISCOVERY_PORT;
 
 /// Number of copies for each of the produced `Hello` messages (each of the copies must have its own timestamp anyway).
 const RETRIES: u64 = 4;
@@ -22,7 +22,7 @@ const RETRIES: u64 = 4;
 /// Time to live before a peer is removed from the local list (seconds).
 const TTL: u64 = 60; // * 60;
 
-/// Retransmission period of multicast `Hello` messages (seconds).
+/// Retransmission period of broadcast `Hello` messages (seconds).
 const RETRANSMISSION_PERIOD: u64 = TTL / 4;
 
 /// Period between the forward of two consecutive `Hello` message copies (seconds).
@@ -30,10 +30,10 @@ const RETRIES_DELTA: u64 = 1;
 
 /// Peers discovery mechanism; it consists of different tasks:
 /// - update the peers database
-/// - listen for multicast `Hello` messages
+/// - listen for broadcast `Hello` messages
 /// - listen for (and produces) unicast `Hello` responses
 /// - remove inactive peers when their TTL expires
-/// - periodically send out multicast `Hello` messages
+/// - periodically send out broadcast `Hello` messages
 pub async fn discover_peers(
     endpoints: LocalEndpoints,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
@@ -43,7 +43,7 @@ pub async fn discover_peers(
     let socket_3 = socket.clone();
     let socket_4 = socket.clone();
 
-    let multicast_socket = endpoints.sockets.discovery_multicast;
+    let broadcast_socket = endpoints.sockets.discovery_broadcast;
 
     let local_ips = endpoints.ips;
 
@@ -59,9 +59,9 @@ pub async fn discover_peers(
         manage_peers_db(rx).await;
     });
 
-    // listen for multicast hello messages
+    // listen for broadcast hello messages
     tokio::spawn(async move {
-        listen(multicast_socket, socket, local_ips, peers, tx).await;
+        listen(broadcast_socket, socket, local_ips, peers, tx).await;
     });
 
     // listen for unicast hello responses
@@ -74,11 +74,11 @@ pub async fn discover_peers(
         remove_inactive_peers(peers_3, tx_3).await;
     });
 
-    // periodically send out multicast hello messages
-    greet_multicast(socket_4, local_ips).await;
+    // periodically send out broadcast hello messages
+    greet_broadcast(socket_4, local_ips).await;
 }
 
-/// Listens to hello messages (unicast or multicast), and invokes `greet_unicast` when needed.
+/// Listens to hello messages (unicast or broadcast), and invokes `greet_unicast` when needed.
 async fn listen(
     listen_socket: Arc<UdpSocket>,
     unicast_socket: Arc<UdpSocket>,
@@ -99,11 +99,6 @@ async fn listen(
 
         let now = Utc::now();
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
-
-        println!(
-            "Received a Hello from {from} — is_unicast: {:?}",
-            hello.is_unicast
-        );
 
         if !hello.is_valid(&from, &local_ips) {
             continue;
@@ -213,12 +208,12 @@ async fn remove_inactive_peers(
 }
 
 /// Periodically sends out messages to let all other peers know that this device is up.
-async fn greet_multicast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
+async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(MULTICAST, DISCOVERY_PORT);
+    let dest = SocketAddr::new(local_ips.broadcast, DISCOVERY_PORT);
     loop {
-        greet(&socket, dest, &local_ips, is_setup, true).await;
+        greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
@@ -231,21 +226,22 @@ async fn greet_unicast(
     local_ips: LocalIps,
     should_retry: bool,
 ) {
-    greet(&socket, dest, &local_ips, false, should_retry).await;
+    greet(&socket, dest, &local_ips, false, should_retry, true).await;
 }
 
-/// Sends out replicated hello messages to multicast or to a specific peer.
+/// Sends out replicated hello messages to broadcast or to a specific peer.
 async fn greet(
     socket: &Arc<UdpSocket>,
     dest: SocketAddr,
     local_ips: &LocalIps,
     is_setup: bool,
     should_retry: bool,
+    is_unicast: bool,
 ) {
     for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
-                Hello::with_details(local_ips, is_setup, !dest.ip().is_multicast())
+                Hello::with_details(local_ips, is_setup, is_unicast)
                     .to_toml_string()
                     .as_bytes(),
                 dest,

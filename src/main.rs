@@ -29,7 +29,6 @@ mod peers;
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
-pub const MULTICAST: IpAddr = IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1));
 
 #[tokio::main]
 async fn main() {
@@ -158,16 +157,16 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
     let netmask = &local_endpoints.ips.netmask;
     let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
     let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
-    let discovery_multicast_socket = &local_endpoints
+    let discovery_broadcast_socket = &local_endpoints
         .sockets
-        .discovery_multicast
+        .discovery_broadcast
         .local_addr()
         .unwrap();
     println!("\n{}", "=".repeat(40));
     println!("UDP sockets bound successfully:");
     println!("    - forward:   {forward_socket}");
     println!("    - discovery: {discovery_socket}");
-    println!("    - multicast: {discovery_multicast_socket}\n");
+    println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TUN device created successfully:");
     println!("    - address:   {tun_ip}");
     println!("    - netmask:   {netmask}");
@@ -210,7 +209,7 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
     watcher
-        .watch(&firewall_directory, RecursiveMode::NonRecursive)
+        .watch(&firewall_directory, RecursiveMode::Recursive)
         .unwrap();
 
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));

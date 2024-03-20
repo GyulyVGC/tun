@@ -38,10 +38,10 @@ async fn insert_peer(connection: &Connection, peer: Peer) {
     connection
         .call(move |c| {
             c.execute(
-                "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_multicast, last_seen, processes)
+                "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
-                val.num_seen_unicast, val.num_seen_multicast, val.last_seen.to_string(), val.processes),
+                 val.num_seen_unicast, val.num_seen_broadcast, val.last_seen.to_string(), val.processes),
             ).expect("Failed to insert peer");
             Ok(())
         })
@@ -59,7 +59,7 @@ async fn modify_peer(connection: &Connection, peer: Peer) {
                     SET eth_ip = ?1,
                         avg_delay = ?2,
                         num_seen_unicast = ?3,
-                        num_seen_multicast = ?4,
+                        num_seen_broadcast = ?4,
                         last_seen = ?5,
                         processes = ?6
                     WHERE tun_ip = ?7",
@@ -67,7 +67,7 @@ async fn modify_peer(connection: &Connection, peer: Peer) {
                     val.eth_ip.to_string(),
                     val.avg_delay_as_seconds(),
                     val.num_seen_unicast,
-                    val.num_seen_multicast,
+                    val.num_seen_broadcast,
                     val.last_seen.to_string(),
                     val.processes,
                     key.tun_ip.to_string(),
@@ -125,7 +125,7 @@ async fn create_table(connection: &Connection) {
                         eth_ip             TEXT NOT NULL,
                         avg_delay          REAL NOT NULL,
                         num_seen_unicast   INTEGER NOT NULL,
-                        num_seen_multicast INTEGER NOT NULL,
+                        num_seen_broadcast INTEGER NOT NULL,
                         last_seen          TEXT NOT NULL,
                         processes          TEXT NOT NULL
                     )",

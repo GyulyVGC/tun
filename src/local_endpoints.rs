@@ -1,5 +1,3 @@
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
-use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,7 +6,7 @@ use tokio::net::UdpSocket;
 
 use crate::peers::eth_addr::EthAddr;
 use crate::peers::local_ips::{IntoIpv4, LocalIps};
-use crate::{DISCOVERY_PORT, FORWARD_PORT, MULTICAST, NETWORK};
+use crate::{DISCOVERY_PORT, FORWARD_PORT, NETWORK};
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -21,40 +19,43 @@ pub struct LocalEndpoints {
 pub struct LocalSockets {
     pub forward: Arc<UdpSocket>,
     pub discovery: Arc<UdpSocket>,
-    pub discovery_multicast: Arc<UdpSocket>,
+    pub discovery_broadcast: Arc<UdpSocket>,
 }
 
 impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Self {
         loop {
-            if let Some(eth_addr) = get_eth_addr() {
-                let eth_ip = eth_addr.ip;
+            if let Some(eth_addr) = EthAddr::find_suitable() {
+                let ip = eth_addr.ip;
                 let netmask = eth_addr.netmask;
-                println!("Local IP address found: {eth_ip}");
-                let forward_socket_addr = SocketAddr::new(eth_ip, FORWARD_PORT);
+                let broadcast = eth_addr.broadcast;
+                println!("Local IP address found: {ip}");
+                let forward_socket_addr = SocketAddr::new(ip, FORWARD_PORT);
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
                     let forward_shared = Arc::new(forward);
                     println!("Forward socket bound successfully");
-                    let discovery_socket_addr = SocketAddr::new(eth_ip, DISCOVERY_PORT);
+                    let discovery_socket_addr = SocketAddr::new(ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
+                        discovery.set_broadcast(true).unwrap();
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
-                        if let Ok(discovery_multicast_shared) =
-                            get_discovery_multicast_shared(&discovery_shared).await
+                        if let Ok(discovery_broadcast_shared) =
+                            get_discovery_broadcast_shared(broadcast, &discovery_shared).await
                         {
-                            println!("Discovery multicast socket bound successfully");
+                            println!("Discovery broadcast socket bound successfully");
 
                             return Self {
                                 ips: LocalIps {
-                                    eth: eth_ip,
-                                    tun: get_tun_ip(&eth_ip, &netmask),
+                                    eth: ip,
+                                    tun: get_tun_ip(&ip, &netmask),
                                     netmask,
+                                    broadcast,
                                 },
                                 sockets: LocalSockets {
                                     forward: forward_shared,
                                     discovery: discovery_shared,
-                                    discovery_multicast: discovery_multicast_shared,
+                                    discovery_broadcast: discovery_broadcast_shared,
                                 },
                             };
                         }
@@ -65,60 +66,6 @@ impl LocalEndpoints {
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }
-}
-
-/// Checks the available network devices and returns IP address and netmask of the first "suitable" interface.
-///
-/// A "suitable" interface satisfies the following:
-/// - it has a netmask that:
-///   - is IP version 4
-///   - is not 0.0.0.0
-/// - it has an IP address that:
-///   - is IP version 4
-///   - is a private address (defined by IETF RFC 1918)
-#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
-fn get_eth_addr() -> Option<EthAddr> {
-    if let Ok(devices) = NetworkInterface::show() {
-        for device in devices {
-            for address in device.addr {
-                if let Some(netmask) = address.netmask() {
-                    let ip = address.ip();
-                    if netmask.is_ipv4()
-                        && !netmask.is_unspecified()
-                        && ip.is_ipv4()
-                        && ip.into_ipv4().unwrap().is_private()
-                    {
-                        return Some(EthAddr { ip, netmask });
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-#[cfg(all(
-    not(target_os = "linux"),
-    not(target_os = "macos"),
-    not(target_os = "windows")
-))]
-fn get_eth_addr() -> Option<EthAddr> {
-    if let Ok(devices) = nix::ifaddrs::getifaddrs() {
-        for device in devices {
-            if let Some(sockaddr_storage) = device.address {
-                if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
-                    let ip = IpAddr::from(sockaddr_in.ip());
-                    if let Some(sockaddr_storage) = device.netmask {
-                        if let Some(sockaddr_in) = sockaddr_storage.as_sockaddr_in() {
-                            let netmask = IpAddr::from(sockaddr_in.ip());
-                            return Some(EthAddr { ip, netmask });
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
 }
 
 /// Returns an IP address for the TUN device.
@@ -135,29 +82,20 @@ fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
     IpAddr::from(tun_ip_octets)
 }
 
-/// Returns the multicast socket to use for discovery.
+/// Returns the broadcast socket to use for discovery.
 #[allow(clippy::unused_async, clippy::no_effect_underscore_binding)]
-async fn get_discovery_multicast_shared(
+async fn get_discovery_broadcast_shared(
+    _broadcast: IpAddr,
     _discovery_socket: &Arc<UdpSocket>,
 ) -> io::Result<Arc<UdpSocket>> {
     #[cfg(not(target_os = "windows"))]
-    {
-        UdpSocket::bind(SocketAddr::new(MULTICAST, DISCOVERY_PORT))
-            .await
-            .map(Arc::new)
-    }
+    return UdpSocket::bind(SocketAddr::new(_broadcast, DISCOVERY_PORT))
+        .await
+        .map(Arc::new);
 
-    // on Windows multicast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
+    // on Windows broadcast cannot be bound directly (https://issues.apache.org/jira/browse/HBASE-9961)
     #[cfg(target_os = "windows")]
-    {
-        _discovery_socket
-            .join_multicast_v4(
-                MULTICAST.into_ipv4().unwrap(),
-                std::net::Ipv4Addr::UNSPECIFIED,
-            )
-            .unwrap();
-        Ok(_discovery_socket.to_owned())
-    }
+    return Ok(_discovery_socket.to_owned());
 }
 
 #[cfg(test)]

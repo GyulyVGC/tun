@@ -40,8 +40,8 @@ pub struct PeerVal {
     pub(crate) eth_ip: IpAddr,
     /// Number of unicast hello messages received from this peer.
     pub(crate) num_seen_unicast: u64,
-    /// Number of multicast hello messages received from this peer.
-    pub(crate) num_seen_multicast: u64,
+    /// Number of broadcast hello messages received from this peer.
+    pub(crate) num_seen_broadcast: u64,
     /// Average delay of all hello messages received from this peer (microseconds).
     pub(crate) avg_delay: u64,
     /// Timestamp of the last hello message received from this peer.
@@ -56,7 +56,7 @@ impl PeerVal {
         Self {
             eth_ip: hello.ips.eth,
             num_seen_unicast: u64::from(hello.is_unicast),
-            num_seen_multicast: u64::from(!hello.is_unicast),
+            num_seen_broadcast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
             last_seen: hello.timestamp,
             processes: hello.processes,
@@ -65,11 +65,11 @@ impl PeerVal {
 
     /// Updates this peer attributes after receiving a `Hello` message.
     pub fn refresh(&mut self, delay: i64, hello: &Hello) {
-        let tot_seen_prev = self.num_seen_unicast + self.num_seen_multicast;
+        let tot_seen_prev = self.num_seen_unicast + self.num_seen_broadcast;
         self.avg_delay =
             (tot_seen_prev * self.avg_delay + delay.unsigned_abs()) / (tot_seen_prev + 1); // TODO: timestamps must be monotonic!
         self.num_seen_unicast += u64::from(hello.is_unicast);
-        self.num_seen_multicast += u64::from(!hello.is_unicast);
+        self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
