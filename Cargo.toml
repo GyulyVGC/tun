@@ -22,7 +22,7 @@ tokio-rusqlite = "0.5.1"
 rusqlite = "0.31.0"
 
 [target.'cfg(not(target_os = "freebsd"))'.dependencies]
-network-interface = "1.1.1"
+network-interface = "1.1.2"
 
 [target.'cfg(target_os = "freebsd")'.dependencies]
 nix = { version = "0.28.0", features = ["net"] }
