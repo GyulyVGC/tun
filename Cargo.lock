@@ -502,9 +502,9 @@ checksum = "01cda141df6706de531b6c46c3a33ecca755538219bd484262fa09410c13539c"
 
 [[package]]
 name = "listeners"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "962f6a0b31b473b77069a7cd4ea978066e3519fe62004419268caec6c5b2e500"
+checksum = "5a39914dea16238b6c6fdec6a1d98a4c4c6e4a5f030ae10cc454170c143a90f4"
 dependencies = [
  "byteorder",
  "once_cell",
