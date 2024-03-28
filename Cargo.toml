@@ -15,7 +15,7 @@ tun2 = { version = "1.2.3", features = ["async"] }
 clap = { version = "4.5.3", features = ["derive"] }
 tokio = { version = "1.35.1", features = ["net", "sync", "rt-multi-thread", "macros", "io-util", "time"] }
 notify = "6.1.1"
-chrono = { version = "0.4.35", default-features = false }
+chrono = { version = "0.4.37", default-features = false }
 serde = { version = "1.0.197", default_features = false, features = ["derive", "alloc"] }
 toml = "0.8.12"
 tokio-rusqlite = "0.5.1"
