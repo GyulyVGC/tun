@@ -953,9 +953,9 @@ dependencies = [
 
 [[package]]
 name = "tun2"
-version = "1.2.3"
+version = "1.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0fdabd4855ef6e8a27bce19f1c424493ec742a331db7ccc82bec7ed877ba383"
+checksum = "d177e07e02cb81ccf638557ceb3f1f1dd5049f6377f8f3ace956805982726c54"
 dependencies = [
  "bytes",
  "cfg-if",
