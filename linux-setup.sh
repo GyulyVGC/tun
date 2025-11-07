@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Update nullnet.service file
-sudo cp nullnet.service /etc/systemd/system/ && \
-sudo systemctl enable nullnet && \
+# Update tun.service file
+sudo cp tun.service /etc/systemd/system/ && \
+sudo systemctl enable tun && \
 git checkout main && \
 git pull && \
 cargo b --release && \
