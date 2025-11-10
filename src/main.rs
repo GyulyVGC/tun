@@ -12,7 +12,7 @@ use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use tokio::sync::{Mutex, RwLock};
-use tun2::{AbstractDevice, Configuration};
+use tun::Configuration;
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
@@ -65,7 +65,7 @@ async fn main() {
     config.mtu(mtu).address(tun_ip).netmask(netmask).up();
 
     // create the asynchronous TUN device, and split it into reader & writer halves
-    let device = tun2::create_as_async(&config).expect("Failed to create TUN device");
+    let device = tun::create_as_async(&config).expect("Failed to create TUN device");
     let tun_name = device.as_ref().tun_name().unwrap_or_default();
     let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(Mutex::new(read_half));

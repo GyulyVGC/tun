@@ -44,13 +44,13 @@ impl EthAddr {
         if let Ok(devices) = NetworkInterface::show() {
             for device in devices {
                 for address in device.addr {
-                    if let Some(netmask) = address.netmask() {
-                        if let Some(broadcast) = address.broadcast() {
-                            let ip = address.ip();
-                            let eth_addr = EthAddr::new(ip, netmask, broadcast);
-                            if eth_addr.is_suitable() {
-                                return Some(eth_addr);
-                            }
+                    if let Some(netmask) = address.netmask()
+                        && let Some(broadcast) = address.broadcast()
+                    {
+                        let ip = address.ip();
+                        let eth_addr = EthAddr::new(ip, netmask, broadcast);
+                        if eth_addr.is_suitable() {
+                            return Some(eth_addr);
                         }
                     }
                 }

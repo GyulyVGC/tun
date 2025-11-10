@@ -7,14 +7,14 @@ use std::time::Duration;
 use chrono::Utc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 
+use crate::DISCOVERY_PORT;
 use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::{manage_peers_db, PeerDbAction};
+use crate::peers::database::{PeerDbAction, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
-use crate::DISCOVERY_PORT;
 
 /// Number of copies for each of the produced `Hello` messages (each of the copies must have its own timestamp anyway).
 const RETRIES: u64 = 4;
@@ -151,13 +151,13 @@ async fn listen(
                 peer_val
             });
 
-        if let Some(dest_socket_addr) = should_respond_to {
-            if !hello_is_unicast {
-                let source = unicast_socket.clone();
-                tokio::spawn(async move {
-                    greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
-                });
-            }
+        if let Some(dest_socket_addr) = should_respond_to
+            && !hello_is_unicast
+        {
+            let source = unicast_socket.clone();
+            tokio::spawn(async move {
+                greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
+            });
         }
     }
 }

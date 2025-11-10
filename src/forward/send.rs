@@ -6,7 +6,7 @@ use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, RwLock};
-use tun2::AsyncDevice;
+use tun::AsyncDevice;
 
 use crate::forward::frame::Frame;
 use crate::peers::peer::{PeerKey, PeerVal};
@@ -44,7 +44,7 @@ pub async fn send(
                     socket.send_to(pkt_data, dst_socket).await.unwrap_or(0);
                 }
                 FirewallAction::DENY | FirewallAction::REJECT => {}
-            };
+            }
         }
     }
 }

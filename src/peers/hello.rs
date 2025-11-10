@@ -125,7 +125,7 @@ mod tests {
 
     use chrono::{DateTime, Utc};
     use listeners::Listener;
-    use serde_test::{assert_tokens, Token};
+    use serde_test::{Token, assert_tokens};
 
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;

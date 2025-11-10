@@ -7,8 +7,8 @@ use std::str::FromStr;
 use listeners::Listener;
 use serde::de::Error;
 use serde::{Deserialize, Serialize};
-use tokio_rusqlite::types::ToSqlOutput;
 use tokio_rusqlite::ToSql;
+use tokio_rusqlite::types::ToSqlOutput;
 
 #[derive(PartialEq, Debug, Default, Clone)]
 /// The set of processes listening on a TCP port.
@@ -97,8 +97,8 @@ struct Process {
 impl Process {
     fn from_listener(listener: Listener) -> Self {
         Self {
-            pid: listener.pid,
-            name: listener.name,
+            pid: listener.process.pid,
+            name: listener.process.name,
             port: listener.socket.port(),
         }
     }
