@@ -1,14 +1,14 @@
 /// Representation of a network packet transiting on sockets.
 /// All packets of this kind are raw IP.
 pub struct Frame {
-    pub frame: [u8; u16::MAX as usize],
+    pub frame: Box<[u8]>,
     pub size: usize,
 }
 
 impl Frame {
     pub fn new() -> Self {
         Self {
-            frame: [0; u16::MAX as usize],
+            frame: vec![0; u16::MAX as usize].into_boxed_slice(),
             size: 0,
         }
     }

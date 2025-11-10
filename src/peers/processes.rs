@@ -81,9 +81,7 @@ impl<'de> Deserialize<'de> for Processes {
         D: serde::de::Deserializer<'de>,
     {
         let string = String::deserialize(deserializer)?;
-        let processes = string
-            .parse()
-            .map_err(|e: String| Error::custom(e.to_string()))?;
+        let processes = string.parse().map_err(|e: String| Error::custom(e))?;
         Ok(processes)
     }
 }

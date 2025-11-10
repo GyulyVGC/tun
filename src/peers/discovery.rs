@@ -102,7 +102,7 @@ async fn listen(
 
         if !hello.is_valid(&from, &local_ips) {
             continue;
-        };
+        }
 
         let hello_is_unicast = hello.is_unicast;
         let hello_is_setup = hello.is_setup;

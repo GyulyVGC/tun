@@ -104,7 +104,7 @@ async fn setup_db(connection: &Connection) {
 }
 
 /// Drops the peers table.
-async fn drop_table<'a>(connection: &Connection) {
+async fn drop_table(connection: &Connection) {
     connection
         .call(|c| {
             c.execute("DROP TABLE IF EXISTS peers", ())

@@ -29,7 +29,7 @@ pub async fn send_termination_message(
             // host unreachable
             send_destination_unreachable(packet, tun_ip, socket, 1, remote_socket).await;
         }
-    };
+    }
 }
 
 async fn send_destination_unreachable(
