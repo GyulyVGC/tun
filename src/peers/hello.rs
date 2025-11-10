@@ -124,7 +124,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, Utc};
-    use listeners::Listener;
+    use listeners::{Listener, Process, Protocol};
     use serde_test::{Token, assert_tokens};
 
     use crate::peers::hello::Hello;
@@ -137,14 +137,22 @@ mod tests {
         Processes::from_listeners(
             HashSet::from([
                 Listener {
-                    pid: 1234,
-                    name: "sshd".to_string(),
+                    process: Process {
+                        pid: 1234,
+                        name: "sshd".to_string(),
+                        path: String::new(),
+                    },
                     socket: SocketAddr::new(IpAddr::from_str("10.0.0.9").unwrap(), 22),
+                    protocol: Protocol::TCP,
                 },
                 Listener {
-                    pid: 999,
-                    name: "nullnetd".to_string(),
+                    process: Process {
+                        pid: 999,
+                        name: "nullnetd".to_string(),
+                        path: String::new(),
+                    },
                     socket: SocketAddr::new(IpAddr::from_str("10.0.0.9").unwrap(), 875),
+                    protocol: Protocol::TCP,
                 },
             ]),
             IpAddr::from_str("10.0.0.9").unwrap(),

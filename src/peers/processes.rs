@@ -141,31 +141,47 @@ mod tests {
     use std::collections::{BTreeSet, HashSet};
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-    use listeners::Listener;
+    use listeners::{Listener, Protocol};
 
     use crate::peers::processes::{Process, Processes};
 
     fn listeners_for_tests() -> HashSet<Listener> {
         let mut listeners = HashSet::new();
         listeners.insert(Listener {
-            pid: 1,
-            name: "nullnet".to_string(),
+            process: listeners::Process {
+                pid: 1,
+                name: "nullnet".to_string(),
+                path: String::new(),
+            },
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 10),
+            protocol: Protocol::TCP,
         });
         listeners.insert(Listener {
-            pid: 2,
-            name: "tun".to_string(),
+            process: listeners::Process {
+                pid: 2,
+                name: "tun".to_string(),
+                path: String::new(),
+            },
             socket: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 20),
+            protocol: Protocol::TCP,
         });
         listeners.insert(Listener {
-            pid: 3,
-            name: "sshd".to_string(),
+            process: listeners::Process {
+                pid: 3,
+                name: "sshd".to_string(),
+                path: String::new(),
+            },
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 30),
+            protocol: Protocol::TCP,
         });
         listeners.insert(Listener {
-            pid: 4,
-            name: "tun".to_string(),
+            process: listeners::Process {
+                pid: 4,
+                name: "tun".to_string(),
+                path: String::new(),
+            },
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)), 40),
+            protocol: Protocol::TCP,
         });
         listeners
     }
@@ -173,9 +189,13 @@ mod tests {
     #[test]
     fn test_process_from_listener() {
         let listener = Listener {
-            pid: 1234,
-            name: "nullnet".to_string(),
+            process: listeners::Process {
+                pid: 1234,
+                name: "nullnet".to_string(),
+                path: String::new(),
+            },
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80),
+            protocol: Protocol::TCP,
         };
         let process = Process::from_listener(listener);
         assert_eq!(
