@@ -57,8 +57,9 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     let Peer { key, val } = peer;
     connection
         .call(move |c| {
-            let _ = c.execute(
-                "UPDATE peers
+            let _ = c
+                .execute(
+                    "UPDATE peers
                     SET eth_ip = ?1,
                         avg_delay = ?2,
                         num_seen_unicast = ?3,
@@ -66,17 +67,17 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
                         last_seen = ?5,
                         processes = ?6
                     WHERE tun_ip = ?7",
-                (
-                    val.eth_ip.to_string(),
-                    val.avg_delay_as_seconds(),
-                    val.num_seen_unicast,
-                    val.num_seen_broadcast,
-                    val.last_seen.to_string(),
-                    val.processes,
-                    key.tun_ip.to_string(),
-                ),
-            )
-            .handle_err(location!());
+                    (
+                        val.eth_ip.to_string(),
+                        val.avg_delay_as_seconds(),
+                        val.num_seen_unicast,
+                        val.num_seen_broadcast,
+                        val.last_seen.to_string(),
+                        val.processes,
+                        key.tun_ip.to_string(),
+                    ),
+                )
+                .handle_err(location!());
             Ok(())
         })
         .await
@@ -90,12 +91,13 @@ async fn remove_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     let Peer { key, val: _ } = peer;
     connection
         .call(move |c| {
-            let _ = c.execute(
-                "DELETE FROM peers
+            let _ = c
+                .execute(
+                    "DELETE FROM peers
                     WHERE tun_ip = ?1",
-                [key.tun_ip.to_string()],
-            )
-            .handle_err(location!());
+                    [key.tun_ip.to_string()],
+                )
+                .handle_err(location!());
             Ok(())
         })
         .await
@@ -116,7 +118,8 @@ async fn setup_db(connection: &Connection) -> Result<(), Error> {
 async fn drop_table(connection: &Connection) -> Result<(), Error> {
     connection
         .call(|c| {
-            let _ = c.execute("DROP TABLE IF EXISTS peers", ())
+            let _ = c
+                .execute("DROP TABLE IF EXISTS peers", ())
                 .handle_err(location!());
             Ok(())
         })
@@ -130,8 +133,9 @@ async fn drop_table(connection: &Connection) -> Result<(), Error> {
 async fn create_table(connection: &Connection) -> Result<(), Error> {
     connection
         .call(|c| {
-            let _ = c.execute(
-                "CREATE TABLE IF NOT EXISTS peers (
+            let _ = c
+                .execute(
+                    "CREATE TABLE IF NOT EXISTS peers (
                         tun_ip             TEXT PRIMARY KEY NOT NULL,
                         eth_ip             TEXT NOT NULL,
                         avg_delay          REAL NOT NULL,
@@ -140,9 +144,9 @@ async fn create_table(connection: &Connection) -> Result<(), Error> {
                         last_seen          TEXT NOT NULL,
                         processes          TEXT NOT NULL
                     )",
-                (),
-            )
-            .handle_err(location!());
+                    (),
+                )
+                .handle_err(location!());
             Ok(())
         })
         .await

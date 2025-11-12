@@ -56,7 +56,9 @@ pub async fn discover_peers(
 
     // update peers database
     tokio::spawn(async move {
-        manage_peers_db(rx).await.expect("Managing peers database failed");
+        manage_peers_db(rx)
+            .await
+            .expect("Managing peers database failed");
     });
 
     // listen for broadcast hello messages
