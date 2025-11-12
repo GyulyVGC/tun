@@ -66,7 +66,7 @@ async fn main() -> Result<(), Error> {
     config.mtu(mtu).address(tun_ip).netmask(netmask).up();
 
     // create the asynchronous TUN device, and split it into reader & writer halves
-    let device = tun::create_as_async(&config).expect("Failed to create TUN device");
+    let device = tun::create_as_async(&config).handle_err(location!())?;
     let tun_name = device.tun_name().unwrap_or_default();
     let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(Mutex::new(read_half));
