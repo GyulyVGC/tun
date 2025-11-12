@@ -116,28 +116,40 @@ mod tests {
     fn test_get_tun_ip_netmask_28() {
         let netmask = IpAddr::from([255, 255, 255, 240]);
         let eth_ip = IpAddr::from([192, 168, 1, 109]);
-        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 0, 13]));
+        assert_eq!(
+            get_tun_ip(&eth_ip, &netmask),
+            Some(IpAddr::from([10, 0, 0, 13]))
+        );
     }
 
     #[test]
     fn test_get_tun_ip_netmask_24() {
         let netmask = IpAddr::from([255, 255, 255, 0]);
         let eth_ip = IpAddr::from([192, 168, 1, 109]);
-        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 0, 109]));
+        assert_eq!(
+            get_tun_ip(&eth_ip, &netmask),
+            Some(IpAddr::from([10, 0, 0, 109]))
+        );
     }
 
     #[test]
     fn test_get_tun_ip_netmask_20() {
         let netmask = IpAddr::from([255, 255, 240, 0]);
         let eth_ip = IpAddr::from([192, 168, 1, 109]);
-        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 1, 109]));
+        assert_eq!(
+            get_tun_ip(&eth_ip, &netmask),
+            Some(IpAddr::from([10, 0, 1, 109]))
+        );
     }
 
     #[test]
     fn test_get_tun_ip_netmask_16() {
         let netmask = IpAddr::from([255, 255, 0, 0]);
         let eth_ip = IpAddr::from([192, 168, 1, 109]);
-        assert_eq!(get_tun_ip(&eth_ip, &netmask), IpAddr::from([10, 0, 1, 109]));
+        assert_eq!(
+            get_tun_ip(&eth_ip, &netmask),
+            Some(IpAddr::from([10, 0, 1, 109]))
+        );
     }
 
     #[test]
@@ -146,7 +158,7 @@ mod tests {
         let eth_ip = IpAddr::from([192, 168, 1, 109]);
         assert_eq!(
             get_tun_ip(&eth_ip, &netmask),
-            IpAddr::from([10, 168, 1, 109])
+            Some(IpAddr::from([10, 168, 1, 109]))
         );
     }
 }
