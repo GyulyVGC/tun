@@ -22,7 +22,11 @@ impl EthAddr {
             && self.broadcast.is_ipv4()
             && !self.broadcast.is_unspecified()
             && self.ip.is_ipv4()
-            && self.ip.into_ipv4().unwrap().is_private()
+            && self
+                .ip
+                .into_ipv4()
+                .map(|ip| ip.is_private())
+                .unwrap_or(false)
     }
 
     /// Checks the available network devices and returns IP address, netmask, and broadcast of the first "suitable" interface.

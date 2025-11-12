@@ -11,6 +11,7 @@ use std::{panic, process};
 use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
+use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::{Mutex, RwLock};
 use tun::{AbstractDevice, Configuration};
 
@@ -31,7 +32,7 @@ pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     // kill the main thread as soon as a secondary thread panics
     let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
@@ -50,7 +51,7 @@ async fn main() {
     } = Args::parse();
 
     // set up the local environment
-    let endpoints = LocalEndpoints::setup().await;
+    let endpoints = LocalEndpoints::setup().await?;
     let tun_ip = endpoints.ips.tun;
     let netmask = endpoints.ips.netmask;
     let forward_socket = endpoints.sockets.forward.clone();
@@ -78,7 +79,7 @@ async fn main() {
     let mut firewall = Firewall::new();
     firewall.data_link(DataLink::RawIP);
     let firewall_shared = Arc::new(RwLock::new(firewall));
-    set_firewall_rules(&firewall_shared, &firewall_path, true).await;
+    set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
     // spawn a number of asynchronous tasks to handle incoming and outgoing network traffic
     for _ in 0..num_tasks / 2 {
@@ -110,7 +111,9 @@ async fn main() {
     });
 
     // watch the file defining rules and update the firewall accordingly
-    set_firewall_rules(&firewall_shared, &firewall_path, false).await;
+    set_firewall_rules(&firewall_shared, &firewall_path, false).await?;
+
+    Ok(())
 }
 
 // /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
@@ -119,8 +122,8 @@ async fn main() {
 fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
     // #[cfg(not(target_os = "macos"))]
     // {
-    //     let tun_ip_octets = _tun_ip.into_address().unwrap().octets();
-    //     let netmask_octets = _netmask.into_address().unwrap().octets();
+    //     let tun_ip_octets = _tun_ip.into_address().octets();
+    //     let netmask_octets = _netmask.into_address().octets();
     //
     //     let mut host_octets = [0; 4];
     //     for i in 0..4 {
@@ -155,13 +158,16 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
-    let forward_socket = &local_endpoints.sockets.forward.local_addr().unwrap();
-    let discovery_socket = &local_endpoints.sockets.discovery.local_addr().unwrap();
-    let discovery_broadcast_socket = &local_endpoints
-        .sockets
-        .discovery_broadcast
-        .local_addr()
-        .unwrap();
+    let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
+        return;
+    };
+    let Ok(discovery_socket) = &local_endpoints.sockets.discovery.local_addr() else {
+        return;
+    };
+    let Ok(discovery_broadcast_socket) = &local_endpoints.sockets.discovery_broadcast.local_addr()
+    else {
+        return;
+    };
     println!("\n{}", "=".repeat(40));
     println!("UDP sockets bound successfully:");
     println!("    - forward:   {forward_socket}");
@@ -176,7 +182,11 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
 }
 
 /// Loads and refreshes firewall rules whenever the corresponding file is updated.
-async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &str, is_init: bool) {
+async fn set_firewall_rules(
+    firewall: &Arc<RwLock<Firewall>>,
+    firewall_path: &str,
+    is_init: bool,
+) -> Result<(), Error> {
     let print_info = |result: &Result<(), FirewallError>, is_init: bool| match result {
         Err(err) => {
             println!("{err}");
@@ -199,7 +209,7 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
         let result = firewall.write().await.set_rules(firewall_path);
         print_info(&result, is_init);
         if result.is_ok() {
-            return;
+            return Ok(());
         }
     }
 
@@ -207,10 +217,10 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
     firewall_directory.pop();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut watcher = RecommendedWatcher::new(tx, Config::default()).unwrap();
+    let mut watcher = RecommendedWatcher::new(tx, Config::default()).handle_err(location!())?;
     watcher
         .watch(&firewall_directory, RecursiveMode::Recursive)
-        .unwrap();
+        .handle_err(location!())?;
 
     let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
 
@@ -228,7 +238,7 @@ async fn set_firewall_rules(firewall: &Arc<RwLock<Firewall>>, firewall_path: &st
                 let result = firewall.write().await.set_rules(firewall_path);
                 print_info(&result, is_init);
                 if result.is_ok() && is_init {
-                    return;
+                    return Ok(());
                 }
                 last_update_time = Instant::now();
             }

@@ -56,7 +56,9 @@ async fn get_dst_socket(
     if pkt_data.len() < 20 {
         None
     } else {
-        let dest_ip_slice: [u8; 4] = pkt_data[16..20].try_into().unwrap();
+        let Ok(dest_ip_slice) = pkt_data[16..20].try_into() else {
+            return None;
+        };
         peers
             .read()
             .await

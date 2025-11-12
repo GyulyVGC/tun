@@ -163,7 +163,7 @@ async fn send_tcp_rst(
     } else {
         // SYN wasn't set in the rejected packet
         let rejected_payload_len =
-            u32::try_from(packet.len()).unwrap() - 20 - (u32::from(packet[32]) >> 4) * 4;
+            u32::try_from(packet.len()).unwrap_or_default() - 20 - (u32::from(packet[32]) >> 4) * 4;
         ack = ack.wrapping_add(rejected_payload_len);
     }
     pkt_response[28..32].clone_from_slice(&ack.to_be_bytes());

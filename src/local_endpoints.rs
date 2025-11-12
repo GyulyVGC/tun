@@ -1,3 +1,4 @@
+use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,7 +25,7 @@ pub struct LocalSockets {
 
 impl LocalEndpoints {
     /// Tries to discover a local IP and bind needed UDP sockets, retrying every 10 seconds in case of problems.
-    pub async fn setup() -> Self {
+    pub async fn setup() -> Result<Self, Error> {
         loop {
             if let Some(eth_addr) = EthAddr::find_suitable() {
                 let ip = eth_addr.ip;
@@ -37,7 +38,7 @@ impl LocalEndpoints {
                     println!("Forward socket bound successfully");
                     let discovery_socket_addr = SocketAddr::new(ip, DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
-                        discovery.set_broadcast(true).unwrap();
+                        discovery.set_broadcast(true).handle_err(location!())?;
                         let discovery_shared = Arc::new(discovery);
                         println!("Discovery socket bound successfully");
                         if let Ok(discovery_broadcast_shared) =
@@ -45,10 +46,17 @@ impl LocalEndpoints {
                         {
                             println!("Discovery broadcast socket bound successfully");
 
-                            return Self {
+                            let Some(tun) = get_tun_ip(&ip, &netmask) else {
+                                return Err(
+                                    "Could not compute TUN IP address from Ethernet IP and netmask",
+                                )
+                                .handle_err(location!());
+                            };
+
+                            return Ok(Self {
                                 ips: LocalIps {
                                     eth: ip,
-                                    tun: get_tun_ip(&ip, &netmask),
+                                    tun,
                                     netmask,
                                     broadcast,
                                 },
@@ -57,7 +65,7 @@ impl LocalEndpoints {
                                     discovery: discovery_shared,
                                     discovery_broadcast: discovery_broadcast_shared,
                                 },
-                            };
+                            });
                         }
                     }
                 }
@@ -69,17 +77,17 @@ impl LocalEndpoints {
 }
 
 /// Returns an IP address for the TUN device.
-fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> IpAddr {
-    let eth_ip_octets = eth_ip.into_ipv4().unwrap().octets();
-    let netmask_octets = netmask.into_ipv4().unwrap().octets();
-    let tun_net_octets = NETWORK.into_ipv4().unwrap().octets();
+fn get_tun_ip(eth_ip: &IpAddr, netmask: &IpAddr) -> Option<IpAddr> {
+    let eth_ip_octets = eth_ip.into_ipv4()?.octets();
+    let netmask_octets = netmask.into_ipv4()?.octets();
+    let tun_net_octets = NETWORK.into_ipv4()?.octets();
     let mut tun_ip_octets = [0; 4];
 
     for i in 0..4 {
         tun_ip_octets[i] = tun_net_octets[i] | (eth_ip_octets[i] & !netmask_octets[i]);
     }
 
-    IpAddr::from(tun_ip_octets)
+    Some(IpAddr::from(tun_ip_octets))
 }
 
 /// Returns the broadcast socket to use for discovery.

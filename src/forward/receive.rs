@@ -1,5 +1,4 @@
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
@@ -23,10 +22,10 @@ pub async fn receive(
     let mut remote_socket;
     loop {
         // wait until there is an incoming packet on the socket (packets on the socket are raw IP)
-        (frame.size, remote_socket) = socket
-            .recv_from(&mut frame.frame)
-            .await
-            .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+        let Ok((s, r)) = socket.recv_from(&mut frame.frame).await else {
+            continue;
+        };
+        (frame.size, remote_socket) = (s, r);
 
         if frame.size > 0 {
             let pkt_data = frame.pkt_data();

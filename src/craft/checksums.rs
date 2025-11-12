@@ -12,7 +12,7 @@ pub fn ipv4_checksum(ipv4_header: &[u8]) -> u16 {
             checksum = (checksum & 0xffff) + 1;
         }
     }
-    !u16::try_from(checksum).unwrap()
+    !u16::try_from(checksum).unwrap_or_default()
 }
 
 /// Computes the ICMP header checksum.
@@ -29,7 +29,7 @@ pub fn icmp_checksum(icmp_data: &[u8]) -> u16 {
             checksum = (checksum & 0xffff) + 1;
         }
     }
-    !u16::try_from(checksum).unwrap()
+    !u16::try_from(checksum).unwrap_or_default()
 }
 
 /// Computes the TCP checksum.
@@ -47,5 +47,5 @@ pub fn tcp_checksum(ip_tcp_headers: &[u8]) -> u16 {
             checksum = (checksum & 0xffff) + 1;
         }
     }
-    !u16::try_from(checksum).unwrap()
+    !u16::try_from(checksum).unwrap_or_default()
 }

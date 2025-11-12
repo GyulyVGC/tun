@@ -20,6 +20,7 @@ serde = { version = "1.0.228", default-features = false, features = ["derive", "
 toml = "0.9.8"
 tokio-rusqlite = "0.6.0"
 rusqlite = "0.32.1"
+nullnet-liberror = "0.1.1"
 
 [target.'cfg(not(target_os = "freebsd"))'.dependencies]
 network-interface = "2.0.3"

@@ -722,6 +722,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nullnet-liberror"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7770b13c8488366e2a7fd4680dde340b79d23f10576aa3c4031fc4aa2ae03b4"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1061,6 +1070,7 @@ dependencies = [
  "nix",
  "notify",
  "nullnet-firewall",
+ "nullnet-liberror",
  "rusqlite",
  "serde",
  "serde_test",

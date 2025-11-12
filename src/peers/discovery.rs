@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
+use nullnet_liberror::{ErrorHandler, Location, location};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, mpsc};
@@ -92,10 +92,9 @@ async fn listen(
     loop {
         should_respond_to = None;
 
-        let (msg_len, from) = listen_socket
-            .recv_from(&mut msg)
-            .await
-            .unwrap_or_else(|_| (0, SocketAddr::from_str("0.0.0.0:0").unwrap()));
+        let Ok((msg_len, from)) = listen_socket.recv_from(&mut msg).await else {
+            continue;
+        };
 
         let now = Utc::now();
         let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
@@ -124,14 +123,15 @@ async fn listen(
                 }
 
                 // update peer db
-                tx.send((
-                    Peer {
-                        key: peer_key,
-                        val: peer_val.to_owned(),
-                    },
-                    PeerDbAction::Modify,
-                ))
-                .unwrap();
+                let _ = tx
+                    .send((
+                        Peer {
+                            key: peer_key,
+                            val: peer_val.to_owned(),
+                        },
+                        PeerDbAction::Modify,
+                    ))
+                    .handle_err(location!());
             })
             .or_insert_with(|| {
                 let peer_val = PeerVal::with_details(delay, hello);
@@ -139,14 +139,15 @@ async fn listen(
                 should_respond_to = Some(peer_val.discovery_socket_addr());
 
                 // update peer db
-                tx.send((
-                    Peer {
-                        key: peer_key,
-                        val: peer_val.clone(),
-                    },
-                    PeerDbAction::Insert,
-                ))
-                .unwrap();
+                let _ = tx
+                    .send((
+                        Peer {
+                            key: peer_key,
+                            val: peer_val.clone(),
+                        },
+                        PeerDbAction::Insert,
+                    ))
+                    .handle_err(location!());
 
                 peer_val
             });
@@ -192,14 +193,15 @@ async fn remove_inactive_peers(
 
             // update peer db
             if !retain {
-                tx.send((
-                    Peer {
-                        key: *peer_key,
-                        val: peer_val.to_owned(),
-                    },
-                    PeerDbAction::Remove,
-                ))
-                .unwrap();
+                let _ = tx
+                    .send((
+                        Peer {
+                            key: *peer_key,
+                            val: peer_val.to_owned(),
+                        },
+                        PeerDbAction::Remove,
+                    ))
+                    .handle_err(location!());
             }
 
             retain

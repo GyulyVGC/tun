@@ -34,9 +34,15 @@ impl LocalIps {
             return false;
         }
 
-        let netmask = self.netmask.into_ipv4().unwrap().octets();
-        let eth_1 = self.eth.into_ipv4().unwrap().octets();
-        let eth_2 = other.eth.into_ipv4().unwrap().octets();
+        let Some(netmask) = self.netmask.into_ipv4().map(|ip| ip.octets()) else {
+            return false;
+        };
+        let Some(eth_1) = self.eth.into_ipv4().map(|ip| ip.octets()) else {
+            return false;
+        };
+        let Some(eth_2) = other.eth.into_ipv4().map(|ip| ip.octets()) else {
+            return false;
+        };
 
         for i in 0..4 {
             if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
