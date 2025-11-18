@@ -76,7 +76,7 @@ async fn main() -> Result<(), Error> {
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
     config
-        .layer(Layer::L2)
+        // .layer(Layer::L2)
         .mtu(mtu)
         .address(tun_ip)
         .netmask(netmask)
