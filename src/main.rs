@@ -1,3 +1,15 @@
+// Open vSwitch x Nullnet
+// we want to use TAPs over TUNs for layer 2 networking as done by Open vSwitch
+// our main TAP should be a "trunk" port (i.e. an interface that carries traffic for multiple VLANs)
+// each service should have its own TAP configured as an "access" port (i.e. an interface assigned to a single VLAN)
+// this way, we can isolate traffic for different services while using a "central" TAP interface for overall connectivity
+// this idea works under the assumption that incoming packets are already VLAN-tagged
+// if this isn't the case, we need to use OVS rules to tag packets based on their IPs' subnet
+// -------------------------------------------------------------------------------------------------
+// $ ovs-vsctl add-br br0
+// $ ovs-vsctl add-port br0 tap0
+// $ ovs-vsctl add-port br0 vethx tag=x
+
 #![allow(clippy::used_underscore_binding)]
 
 use std::collections::HashMap;
@@ -13,7 +25,7 @@ use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watche
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::{Mutex, RwLock};
-use tun::{AbstractDevice, Configuration};
+use tun::{AbstractDevice, Configuration, Layer};
 
 use crate::cli::Args;
 use crate::forward::receive::receive;
@@ -63,7 +75,12 @@ async fn main() -> Result<(), Error> {
     // configure TUN device
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
-    config.mtu(mtu).address(tun_ip).netmask(netmask).up();
+    config
+        .layer(Layer::L2)
+        .mtu(mtu)
+        .address(tun_ip)
+        .netmask(netmask)
+        .up();
 
     // create the asynchronous TUN device, and split it into reader & writer halves
     let device = tun::create_as_async(&config).handle_err(location!())?;
