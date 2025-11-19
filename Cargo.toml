@@ -11,7 +11,8 @@ strip = true
 [dependencies]
 nullnet-firewall = { git = "https://github.com/GyulyVGC/nullnet-firewall.git" }
 listeners = "0.3.0"
-tun = { version = "0.8.4", features = ["async"] }
+tun-rs = { version = "2.7.5", features = ["async_tokio"] }
+#tun = { version = "0.8.4", features = ["async"] }
 clap = { version = "4.5.51", features = ["derive"] }
 tokio = { version = "1.48.0", features = ["net", "sync", "rt-multi-thread", "macros", "io-util", "time"] }
 notify = "8.2.0"

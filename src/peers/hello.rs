@@ -31,8 +31,10 @@ pub struct Hello {
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let processes =
-            Processes::from_listeners(listeners::get_all().unwrap_or_default(), local_ips.tun);
+        let processes = Processes::from_listeners(
+            listeners::get_all().unwrap_or_default(),
+            IpAddr::V4(local_ips.tun),
+        );
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
@@ -81,10 +83,10 @@ impl Default for Hello {
     fn default() -> Self {
         Self {
             ips: LocalIps {
-                eth: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                tun: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                netmask: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                broadcast: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                eth: Ipv4Addr::UNSPECIFIED,
+                tun: Ipv4Addr::UNSPECIFIED,
+                netmask: Ipv4Addr::UNSPECIFIED,
+                broadcast: Ipv4Addr::UNSPECIFIED,
             },
             timestamp: DateTime::default(),
             is_setup: false,

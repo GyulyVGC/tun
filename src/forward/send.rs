@@ -3,10 +3,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
-use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::UdpSocket;
-use tokio::sync::{Mutex, RwLock};
-use tun::AsyncDevice;
+use tokio::sync::RwLock;
+use tun_rs::AsyncDevice;
 
 use crate::forward::frame::Frame;
 use crate::peers::peer::{PeerKey, PeerVal};
@@ -14,7 +13,7 @@ use crate::peers::peer::{PeerKey, PeerVal};
 /// Handles outgoing network packets (receives packets from the TUN interface and sends them to the socket),
 /// ensuring the firewall rules are correctly observed.
 pub async fn send(
-    device: &Arc<Mutex<ReadHalf<AsyncDevice>>>,
+    device: &Arc<AsyncDevice>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
@@ -22,12 +21,7 @@ pub async fn send(
     let mut frame = Frame::new();
     loop {
         // wait until there is a packet outgoing from kernel
-        frame.size = device
-            .lock()
-            .await
-            .read(&mut frame.frame)
-            .await
-            .unwrap_or(0);
+        frame.size = device.recv(&mut frame.frame).await.unwrap_or(0);
 
         if frame.size > 0 {
             // send the packet to the socket

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -215,7 +215,7 @@ async fn remove_inactive_peers(
 async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(local_ips.broadcast, DISCOVERY_PORT);
+    let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
     loop {
         greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;
