@@ -42,6 +42,7 @@ impl LocalIps {
     }
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_ip<S>(ip: &Ipv4Addr, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

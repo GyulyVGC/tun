@@ -39,8 +39,8 @@ impl EthAddr {
         if let Ok(devices) = NetworkInterface::show() {
             for device in devices {
                 for address in device.addr {
-                    if let Some(netmask) = address.netmask().and_then(|n| n.into_ipv4())
-                        && let Some(broadcast) = address.broadcast().and_then(|b| b.into_ipv4())
+                    if let Some(netmask) = address.netmask().and_then(IntoIpv4::into_ipv4)
+                        && let Some(broadcast) = address.broadcast().and_then(IntoIpv4::into_ipv4)
                     {
                         let ip = address.ip().into_ipv4()?;
                         let eth_addr = EthAddr::new(ip, netmask, broadcast);

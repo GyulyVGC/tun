@@ -122,7 +122,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::net::{IpAddr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
 
     use chrono::{DateTime, Utc};
@@ -164,10 +164,10 @@ mod tests {
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
             ips: LocalIps {
-                eth: IpAddr::from_str("8.8.8.8").unwrap(),
-                tun: IpAddr::from_str("10.11.12.134").unwrap(),
-                netmask: IpAddr::from_str("255.255.255.0").unwrap(),
-                broadcast: IpAddr::from_str("8.8.8.255").unwrap(),
+                eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
+                tun: Ipv4Addr::from_str("10.11.12.134").unwrap(),
+                netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
+                broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
             },
             timestamp,
             is_setup: false,
@@ -228,12 +228,12 @@ mod tests {
     fn test_default_hello_message_not_valid() {
         let default = Hello::default();
         let local_ips = LocalIps {
-            eth: IpAddr::from([192, 168, 1, 113]),
-            tun: IpAddr::from([10, 0, 0, 113]),
-            netmask: IpAddr::from([255, 255, 255, 0]),
-            broadcast: IpAddr::from([192, 168, 1, 255]),
+            eth: Ipv4Addr::from([192, 168, 1, 113]),
+            tun: Ipv4Addr::from([10, 0, 0, 113]),
+            netmask: Ipv4Addr::from([255, 255, 255, 0]),
+            broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
-        assert!(!default.is_valid(&SocketAddr::new(default.ips.eth, 0), &local_ips));
+        assert!(!default.is_valid(&SocketAddr::new(IpAddr::V4(default.ips.eth), 0), &local_ips));
     }
 
     #[test]
