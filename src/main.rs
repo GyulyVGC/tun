@@ -76,7 +76,7 @@ async fn main() -> Result<(), Error> {
     let mut config = Configuration::default();
     set_tun_name(&tun_ip, &netmask, &mut config);
     config
-        // .layer(Layer::L2)
+        .layer(Layer::L2)
         .mtu(mtu)
         .address(tun_ip)
         .netmask(netmask)
@@ -94,7 +94,7 @@ async fn main() -> Result<(), Error> {
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
-    firewall.data_link(DataLink::RawIP);
+    firewall.data_link(DataLink::Ethernet);
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
