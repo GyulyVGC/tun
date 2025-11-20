@@ -1,8 +1,8 @@
+use etherparse::{LaxPacketHeaders, NetHeaders};
+use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-
-use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tun_rs::AsyncDevice;
@@ -47,16 +47,15 @@ async fn get_dst_socket(
     pkt_data: &[u8],
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
-    if pkt_data.len() < 20 {
-        None
-    } else {
-        let Ok(dest_ip_slice) = pkt_data[16..20].try_into() else {
-            return None;
-        };
+    let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
+    if let Some(NetHeaders::Ipv4(ipv4_header, _)) = headers.net {
+        let dest_ip_slice = ipv4_header.destination;
         peers
             .read()
             .await
             .get(&PeerKey::from_slice(dest_ip_slice))
             .map(PeerVal::forward_socket_addr)
+    } else {
+        None
     }
 }
