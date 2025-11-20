@@ -91,7 +91,7 @@ async fn main() -> Result<(), Error> {
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
-    firewall.data_link(DataLink::RawIP);
+    firewall.data_link(DataLink::Ethernet);
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
