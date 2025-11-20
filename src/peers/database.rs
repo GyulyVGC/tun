@@ -139,6 +139,7 @@ async fn create_table(connection: &Connection) -> Result<(), Error> {
                 .execute(
                     "CREATE TABLE IF NOT EXISTS peers (
                         tun_ip             TEXT PRIMARY KEY NOT NULL,
+                        tun_mac            TEXT NOT NULL,
                         eth_ip             TEXT NOT NULL,
                         avg_delay          REAL NOT NULL,
                         num_seen_unicast   INTEGER NOT NULL,
