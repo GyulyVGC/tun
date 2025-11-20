@@ -66,6 +66,7 @@ async fn main() -> Result<(), Error> {
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
     let tun_ip = endpoints.ips.tun;
+    let tun_mac = [0x02, 0x00, 0x00, 0x00, 0x00, tun_ip.octets()[3]];
     let netmask = endpoints.ips.netmask;
     let forward_socket = endpoints.sockets.forward.clone();
 
@@ -77,12 +78,12 @@ async fn main() -> Result<(), Error> {
     let device = DeviceBuilder::new()
         .name("nullnet0")
         .layer(Layer::L2)
+        .mac_addr(tun_mac)
         .ipv4(tun_ip, netmask, None)
         // TODO: MTU? GSO?
         .build_async()
         .handle_err(location!())?;
     let tun_name = device.name().unwrap_or_default();
-    let tun_mac = device.mac_address().unwrap_or_default();
     // let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(device);
     let writer_shared = reader_shared.clone();
