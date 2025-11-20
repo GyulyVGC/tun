@@ -1,8 +1,8 @@
+use crate::craft::mac_from_dec_to_hex;
+use crate::peers::peer::Peer;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_rusqlite::Connection;
-
-use crate::peers::peer::Peer;
 
 const SQLITE_PATH: &str = "./peers.sqlite";
 
@@ -39,9 +39,9 @@ async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     connection
         .call(move |c| {
             let _ = c.execute(
-                "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
+                "INSERT INTO peers (tun_ip, tun_mac, eth_ip, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                (key.tun_ip.to_string(), mac_from_dec_to_hex(val.tun_mac), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
                  val.num_seen_unicast, val.num_seen_broadcast, val.last_seen.to_string(), val.processes),
             ).handle_err(location!());
             Ok(())
@@ -60,14 +60,16 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
             let _ = c
                 .execute(
                     "UPDATE peers
-                    SET eth_ip = ?1,
-                        avg_delay = ?2,
-                        num_seen_unicast = ?3,
-                        num_seen_broadcast = ?4,
-                        last_seen = ?5,
-                        processes = ?6
-                    WHERE tun_ip = ?7",
+                    SET tun_mac = ?1,
+                        eth_ip = ?2,
+                        avg_delay = ?3,
+                        num_seen_unicast = ?4,
+                        num_seen_broadcast = ?5,
+                        last_seen = ?6,
+                        processes = ?7
+                    WHERE tun_ip = ?8",
                     (
+                        mac_from_dec_to_hex(val.tun_mac),
                         val.eth_ip.to_string(),
                         val.avg_delay_as_seconds(),
                         val.num_seen_unicast,

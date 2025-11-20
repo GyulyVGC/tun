@@ -1,20 +1,21 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
-use nullnet_liberror::{ErrorHandler, Location, location};
-use tokio::net::UdpSocket;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{RwLock, mpsc};
-
 use crate::DISCOVERY_PORT;
+use crate::craft::mac_from_dec_to_hex;
 use crate::local_endpoints::LocalEndpoints;
 use crate::peers::database::{PeerDbAction, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{Peer, PeerKey, PeerVal};
+use chrono::Utc;
+use nullnet_liberror::{ErrorHandler, Location, location};
+use tokio::net::UdpSocket;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{RwLock, mpsc};
 
 /// Number of copies for each of the produced `Hello` messages (each of the copies must have its own timestamp anyway).
 const RETRIES: u64 = 4;
@@ -35,6 +36,7 @@ const RETRIES_DELTA: u64 = 1;
 /// - remove inactive peers when their TTL expires
 /// - periodically send out broadcast `Hello` messages
 pub async fn discover_peers(
+    tun_mac: [u8; 6],
     endpoints: LocalEndpoints,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) {
@@ -63,12 +65,12 @@ pub async fn discover_peers(
 
     // listen for broadcast hello messages
     tokio::spawn(async move {
-        listen(broadcast_socket, socket, local_ips, peers, tx).await;
+        listen(broadcast_socket, socket, tun_mac, local_ips, peers, tx).await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(socket_2, socket_3, local_ips, peers_2, tx_2).await;
+        listen(socket_2, socket_3, tun_mac, local_ips, peers_2, tx_2).await;
     });
 
     // remove inactive peers
@@ -77,13 +79,14 @@ pub async fn discover_peers(
     });
 
     // periodically send out broadcast hello messages
-    greet_broadcast(socket_4, local_ips).await;
+    greet_broadcast(socket_4, tun_mac, local_ips).await;
 }
 
 /// Listens to hello messages (unicast or broadcast), and invokes `greet_unicast` when needed.
 async fn listen(
     listen_socket: Arc<UdpSocket>,
     unicast_socket: Arc<UdpSocket>,
+    tun_mac: [u8; 6],
     local_ips: LocalIps,
     peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
     tx: UnboundedSender<(Peer, PeerDbAction)>,
@@ -104,6 +107,9 @@ async fn listen(
         if !hello.is_valid(&from, &local_ips) {
             continue;
         }
+
+        // update ARP table of the TUNs
+        update_arp_table(hello.ips.tun, hello.tun_mac);
 
         let hello_is_unicast = hello.is_unicast;
         let hello_is_setup = hello.is_setup;
@@ -159,7 +165,14 @@ async fn listen(
         {
             let source = unicast_socket.clone();
             tokio::spawn(async move {
-                greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
+                greet_unicast(
+                    source,
+                    dest_socket_addr,
+                    tun_mac,
+                    local_ips,
+                    !hello_is_setup,
+                )
+                .await;
             });
         }
     }
@@ -212,12 +225,12 @@ async fn remove_inactive_peers(
 }
 
 /// Periodically sends out messages to let all other peers know that this device is up.
-async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
+async fn greet_broadcast(socket: Arc<UdpSocket>, tun_mac: [u8; 6], local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
     let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
     loop {
-        greet(&socket, dest, &local_ips, is_setup, true, false).await;
+        greet(&socket, dest, tun_mac, &local_ips, is_setup, true, false).await;
         is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
@@ -227,16 +240,27 @@ async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
 async fn greet_unicast(
     socket: Arc<UdpSocket>,
     dest: SocketAddr,
+    tun_mac: [u8; 6],
     local_ips: LocalIps,
     should_retry: bool,
 ) {
-    greet(&socket, dest, &local_ips, false, should_retry, true).await;
+    greet(
+        &socket,
+        dest,
+        tun_mac,
+        &local_ips,
+        false,
+        should_retry,
+        true,
+    )
+    .await;
 }
 
 /// Sends out replicated hello messages to broadcast or to a specific peer.
 async fn greet(
     socket: &Arc<UdpSocket>,
     dest: SocketAddr,
+    tun_mac: [u8; 6],
     local_ips: &LocalIps,
     is_setup: bool,
     should_retry: bool,
@@ -245,7 +269,7 @@ async fn greet(
     for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
-                Hello::with_details(local_ips, is_setup, is_unicast)
+                Hello::with_details(tun_mac, local_ips, is_setup, is_unicast)
                     .to_toml_string()
                     .as_bytes(),
                 dest,
@@ -254,4 +278,27 @@ async fn greet(
             .unwrap_or_default();
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
+}
+
+/// Updates the ARP table for the TUN interface.
+fn update_arp_table(tun_ip: Ipv4Addr, tun_mac: [u8; 6]) {
+    let tun_mac_str = mac_from_dec_to_hex(tun_mac);
+
+    let Ok(mut child) = Command::new("ip")
+        .args([
+            "neigh",
+            "replace",
+            &tun_ip.to_string(),
+            "lladdr",
+            &tun_mac_str,
+            "dev",
+            "nullnet0",
+        ])
+        .spawn()
+        .handle_err(location!())
+    else {
+        return;
+    };
+
+    child.wait().unwrap_or_default();
 }

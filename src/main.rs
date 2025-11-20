@@ -74,12 +74,14 @@ async fn main() -> Result<(), Error> {
 
     // create the asynchronous TUN device, and split it into reader & writer halves
     let device = DeviceBuilder::new()
+        .name("nullnet0")
         .layer(Layer::L2)
         .ipv4(tun_ip, netmask, None)
         // MTU? GSO?
         .build_async()
         .handle_err(location!())?;
     let tun_name = device.name().unwrap_or_default();
+    let tun_mac = device.mac_address().unwrap_or_default();
     // let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(device);
     let writer_shared = reader_shared.clone();
@@ -121,7 +123,7 @@ async fn main() -> Result<(), Error> {
 
     // discover peers in the same area network
     tokio::spawn(async move {
-        discover_peers(endpoints, peers_2).await;
+        discover_peers(tun_mac, endpoints, peers_2).await;
     });
 
     // watch the file defining rules and update the firewall accordingly

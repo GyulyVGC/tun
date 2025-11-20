@@ -36,6 +36,8 @@ impl PeerKey {
 /// Struct including relevant attributes of a peer.
 #[derive(Clone)]
 pub struct PeerVal {
+    /// MAC address of this peer.
+    pub(crate) tun_mac: [u8; 6],
     /// Ethernet IP address of this peer.
     pub(crate) eth_ip: Ipv4Addr,
     /// Number of unicast hello messages received from this peer.
@@ -54,6 +56,7 @@ impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
     pub fn with_details(delay: i64, hello: Hello) -> Self {
         Self {
+            tun_mac: hello.tun_mac,
             eth_ip: hello.ips.eth,
             num_seen_unicast: u64::from(hello.is_unicast),
             num_seen_broadcast: u64::from(!hello.is_unicast),
@@ -71,6 +74,7 @@ impl PeerVal {
         self.num_seen_unicast += u64::from(hello.is_unicast);
         self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
+        self.tun_mac = hello.tun_mac;
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
