@@ -28,6 +28,7 @@ use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
+use crate::craft::mac_from_dec_to_hex;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Error> {
         .name("nullnet0")
         .layer(Layer::L2)
         .ipv4(tun_ip, netmask, None)
-        // MTU? GSO?
+        // TODO: MTU? GSO?
         .build_async()
         .handle_err(location!())?;
     let tun_name = device.name().unwrap_or_default();
@@ -119,7 +120,7 @@ async fn main() -> Result<(), Error> {
     }
 
     // print information about the overall setup
-    print_info(&endpoints, &tun_name, mtu);
+    print_info(&endpoints, &tun_name, mtu, tun_mac);
 
     // discover peers in the same area network
     tokio::spawn(async move {
@@ -171,7 +172,10 @@ async fn main() -> Result<(), Error> {
 // }
 
 /// Prints useful info about the local environment and the created interface.
-fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
+fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16, tun_mac: [u8; 6]) {
+    println!("{tun_mac:?}");
+
+    let tun_mac_str = mac_from_dec_to_hex(tun_mac);
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
     let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
@@ -190,7 +194,8 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
     println!("    - discovery: {discovery_socket}");
     println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TUN device created successfully:");
-    println!("    - address:   {tun_ip}");
+    println!("    - MAC:       {tun_mac_str}");
+    println!("    - IP:        {tun_ip}");
     println!("    - netmask:   {netmask}");
     println!("    - name:      {tun_name}");
     println!("    - MTU:       {mtu} B");
