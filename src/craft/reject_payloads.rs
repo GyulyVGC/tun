@@ -10,6 +10,7 @@ use crate::craft::checksums::{icmp_checksum, ipv4_checksum, tcp_checksum};
 /// - in case of TCP, a packet with RST and ACK flag is sent
 /// - in case of UDP, an ICMP port unreachable message is sent
 /// - in case of other protocols, an ICMP host unreachable message is sent
+// TODO: support Ethernet frames!!!
 pub async fn send_termination_message(
     packet: &[u8],
     tun_ip: &IpAddr,

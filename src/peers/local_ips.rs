@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 use serde::de::Unexpected;
@@ -9,40 +9,28 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub struct LocalIps {
     /// Ethernet IP address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub eth: IpAddr,
+    pub eth: Ipv4Addr,
     /// TUN IP address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub tun: IpAddr,
+    pub tun: Ipv4Addr,
     /// Netmask of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub netmask: IpAddr,
+    pub netmask: Ipv4Addr,
     /// Broadcast address of the peer.
     #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub broadcast: IpAddr,
+    pub broadcast: Ipv4Addr,
 }
 
 impl LocalIps {
     /// Checks that Ethernet addresses are in the same local network.
     pub fn is_same_ipv4_ethernet_network_of(&self, other: &Self) -> bool {
-        if self.netmask != other.netmask
-            || self.broadcast != other.broadcast
-            || !self.netmask.is_ipv4()
-            || !self.broadcast.is_ipv4()
-            || !self.eth.is_ipv4()
-            || !other.eth.is_ipv4()
-        {
+        if self.netmask != other.netmask || self.broadcast != other.broadcast {
             return false;
         }
 
-        let Some(netmask) = self.netmask.into_ipv4().map(|ip| ip.octets()) else {
-            return false;
-        };
-        let Some(eth_1) = self.eth.into_ipv4().map(|ip| ip.octets()) else {
-            return false;
-        };
-        let Some(eth_2) = other.eth.into_ipv4().map(|ip| ip.octets()) else {
-            return false;
-        };
+        let netmask = self.netmask.octets();
+        let eth_1 = self.eth.octets();
+        let eth_2 = other.eth.octets();
 
         for i in 0..4 {
             if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
@@ -54,38 +42,21 @@ impl LocalIps {
     }
 }
 
-fn serialize_ip<S>(ip: &IpAddr, serializer: S) -> Result<S::Ok, S::Error>
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn serialize_ip<S>(ip: &Ipv4Addr, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     serializer.serialize_str(&ip.to_string())
 }
 
-fn deserialize_ip<'de, D>(deserializer: D) -> Result<IpAddr, D::Error>
+fn deserialize_ip<'de, D>(deserializer: D) -> Result<Ipv4Addr, D::Error>
 where
     D: Deserializer<'de>,
 {
     let ip_string = String::deserialize(deserializer)?;
 
-    if let Ok(ipv4) = Ipv4Addr::from_str(&ip_string) {
-        Ok(IpAddr::V4(ipv4))
-    } else {
-        Err(serde::de::Error::invalid_value(
-            Unexpected::Str(&ip_string),
-            &"Valid IP address",
-        ))
-    }
-}
-
-pub trait IntoIpv4 {
-    fn into_ipv4(self) -> Option<Ipv4Addr>;
-}
-
-impl IntoIpv4 for IpAddr {
-    fn into_ipv4(self) -> Option<Ipv4Addr> {
-        match self {
-            IpAddr::V4(ipv4) => Some(ipv4),
-            IpAddr::V6(_) => None,
-        }
-    }
+    Ipv4Addr::from_str(&ip_string).map_err(|_| {
+        serde::de::Error::invalid_value(Unexpected::Str(&ip_string), &"Valid IP address")
+    })
 }
