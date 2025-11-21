@@ -174,8 +174,6 @@ async fn main() -> Result<(), Error> {
 
 /// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16, tun_mac: [u8; 6]) {
-    println!("{tun_mac:?}");
-
     let tun_mac_str = mac_from_dec_to_hex(tun_mac);
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
