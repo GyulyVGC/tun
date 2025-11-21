@@ -1,15 +1,3 @@
-// Open vSwitch x Nullnet
-// we want to use TAPs over TUNs for layer 2 networking as done by Open vSwitch
-// our main TAP should be a "trunk" port (i.e. an interface that carries traffic for multiple VLANs)
-// each service should have its own TAP configured as an "access" port (i.e. an interface assigned to a single VLAN)
-// this way, we can isolate traffic for different services while using a "central" TAP interface for overall connectivity
-// this idea works under the assumption that incoming packets are already VLAN-tagged
-// if this isn't the case, we need to use OVS rules to tag packets based on their IPs' subnet
-// -------------------------------------------------------------------------------------------------
-// $ ovs-vsctl add-br br0
-// $ ovs-vsctl add-port br0 tap0
-// $ ovs-vsctl add-port br0 vethx tag=x
-
 #![allow(clippy::used_underscore_binding)]
 
 use std::collections::HashMap;
@@ -84,11 +72,8 @@ async fn main() -> Result<(), Error> {
         .build_async()
         .handle_err(location!())?;
     let tun_name = device.name().unwrap_or_default();
-    // let (read_half, write_half) = tokio::io::split(device);
     let reader_shared = Arc::new(device);
     let writer_shared = reader_shared.clone();
-    // let reader_shared = Arc::new(Mutex::new(read_half));
-    // let writer_shared = Arc::new(Mutex::new(write_half));
 
     // properly setup routing tables
     // configure_routing(&tun_ip, &netmask);
