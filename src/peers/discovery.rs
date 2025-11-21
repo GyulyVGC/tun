@@ -108,11 +108,13 @@ async fn listen(
             continue;
         }
 
-        // update ARP table of the TUNs
-        update_arp_table(hello.ips.tun, hello.tun_mac);
-
         let hello_is_unicast = hello.is_unicast;
         let hello_is_setup = hello.is_setup;
+
+        // update ARP table of the TUNs
+        if hello_is_unicast || hello_is_setup {
+            update_arp_table(hello.ips.tun, hello.tun_mac);
+        }
 
         let delay = (now - hello.timestamp)
             .num_microseconds()
