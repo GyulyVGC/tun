@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 use serde::de::Unexpected;
@@ -59,17 +59,4 @@ where
     Ipv4Addr::from_str(&ip_string).map_err(|_| {
         serde::de::Error::invalid_value(Unexpected::Str(&ip_string), &"Valid IP address")
     })
-}
-
-pub trait IntoIpv4 {
-    fn into_ipv4(self) -> Option<Ipv4Addr>;
-}
-
-impl IntoIpv4 for IpAddr {
-    fn into_ipv4(self) -> Option<Ipv4Addr> {
-        match self {
-            IpAddr::V4(ipv4) => Some(ipv4),
-            IpAddr::V6(_) => None,
-        }
-    }
 }

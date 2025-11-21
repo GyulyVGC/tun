@@ -1,5 +1,4 @@
-use crate::peers::local_ips::IntoIpv4;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 
 pub struct EthAddr {
     pub ip: Ipv4Addr,
@@ -39,10 +38,12 @@ impl EthAddr {
         if let Ok(devices) = NetworkInterface::show() {
             for device in devices {
                 for address in device.addr {
-                    if let Some(netmask) = address.netmask().and_then(IntoIpv4::into_ipv4)
-                        && let Some(broadcast) = address.broadcast().and_then(IntoIpv4::into_ipv4)
+                    if let Some(IpAddr::V4(netmask)) = address.netmask()
+                        && let Some(IpAddr::V4(broadcast)) = address.broadcast()
                     {
-                        let ip = address.ip().into_ipv4()?;
+                        let IpAddr::V4(ip) = address.ip() else {
+                            continue;
+                        };
                         let eth_addr = EthAddr::new(ip, netmask, broadcast);
                         if eth_addr.is_suitable() {
                             return Some(eth_addr);
