@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
@@ -38,8 +38,7 @@ pub async fn receive(
                     device.send(pkt_data).await.unwrap_or(0);
                 }
                 FirewallAction::REJECT => {
-                    send_termination_message(pkt_data, &IpAddr::V4(*tun_ip), socket, remote_socket)
-                        .await;
+                    send_termination_message(pkt_data, &tun_ip, socket, remote_socket).await;
                 }
                 FirewallAction::DENY => {}
             }
