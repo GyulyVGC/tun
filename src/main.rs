@@ -96,7 +96,7 @@ async fn main() -> Result<(), Error> {
 
         // handle incoming traffic
         tokio::spawn(async move {
-            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
+            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_mac, &tun_ip)).await;
         });
 
         // handle outgoing traffic
