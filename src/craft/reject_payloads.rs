@@ -7,8 +7,6 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
-use crate::craft::checksums::tcp_checksum;
-
 /// Sends a proper message to gracefully acknowledge a peer that a packet was rejected,
 /// based on the observed protocol:
 /// - in case of TCP, a packet with RST and ACK flag is sent
@@ -30,12 +28,11 @@ pub async fn send_termination_message(
     let IpNumber(proto) = ip_header.protocol;
 
     match proto {
-        6 => send_tcp_rst(packet, headers, tun_mac, tun_ip, socket, remote_socket).await,
+        6 => send_tcp_rst(headers, tun_mac, tun_ip, socket, remote_socket).await,
         17 => {
             // port unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Port);
             send_destination_unreachable(
-                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -49,7 +46,6 @@ pub async fn send_termination_message(
             // host unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Host);
             send_destination_unreachable(
-                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -63,7 +59,6 @@ pub async fn send_termination_message(
 }
 
 async fn send_destination_unreachable(
-    packet: &[u8],
     headers: LaxPacketHeaders<'_>,
     tun_mac: &[u8; 6],
     tun_ip: &Ipv4Addr,
@@ -116,7 +111,6 @@ async fn send_destination_unreachable(
 }
 
 async fn send_tcp_rst(
-    packet: &[u8],
     headers: LaxPacketHeaders<'_>,
     tun_mac: &[u8; 6],
     tun_ip: &Ipv4Addr,
@@ -153,10 +147,15 @@ async fn send_tcp_rst(
         return;
     };
     let src_port_orig = tcp_header.source_port;
+    let seq_num_orig = tcp_header.sequence_number;
     tcp_header.source_port = tcp_header.destination_port;
     tcp_header.destination_port = src_port_orig;
     tcp_header.sequence_number = tcp_header.acknowledgment_number;
-    // tcp_header.acknowledgment_number TODO
+    tcp_header.acknowledgment_number = if tcp_header.syn {
+        seq_num_orig.wrapping_add(1)
+    } else {
+        seq_num_orig.wrapping_add(headers.payload.slice().len() as u32)
+    };
     tcp_header.ack = true;
     tcp_header.rst = true;
     tcp_header.cwr = false;
@@ -172,35 +171,12 @@ async fn send_tcp_rst(
     let tcp_header_bytes = tcp_header.to_bytes();
 
     #[rustfmt::skip]
-    let mut pkt_response = [
-
-        // TCP header
-        0x00, 0x00,                         // src port (will be set later)
-        0x00, 0x00,                         // dst port (will be set later)
-        0x00, 0x00, 0x00, 0x00,             // sequence number (will be set later)
-        0x00, 0x00, 0x00, 0x00,     // ACK number (will be set later)
-        0x50,                               // data offset & reserved bits
-        0b_0001_0100,                       // flags: ACK, RST
-        0x00, 0x00,                         // window size (will be set later)
-        0x00, 0x00,                         // checksum (will be set later)
-        0x00, 0x00,                         // urgent pointer
-    ];
-
-    // ACK number
-    let mut ack = (u32::from(packet[24]) << 24)
-        + (u32::from(packet[25]) << 16)
-        + (u32::from(packet[26]) << 8)
-        + u32::from(packet[27]);
-    if packet[33] & 0b_0000_0010 == 0b_0000_0010 {
-        // SYN was set in the rejected packet
-        ack = ack.wrapping_add(1);
-    } else {
-        // SYN wasn't set in the rejected packet
-        let rejected_payload_len =
-            u32::try_from(packet.len()).unwrap_or_default() - 20 - (u32::from(packet[32]) >> 4) * 4;
-        ack = ack.wrapping_add(rejected_payload_len);
-    }
-    pkt_response[28..32].clone_from_slice(&ack.to_be_bytes());
+    let pkt_response = [
+        &ethernet_header_bytes[..],
+        &link_exts_bytes[..],
+        &ip_header_bytes[..],
+        &tcp_header_bytes[..],
+    ].concat();
 
     socket
         .send_to(&pkt_response, remote_socket)
