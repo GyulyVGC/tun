@@ -71,7 +71,6 @@ async fn send_destination_unreachable(
     };
     ethernet_header.destination = ethernet_header.source;
     ethernet_header.source = *tun_mac;
-    ethernet_header.source = ethernet_header.destination;
     let ethernet_header_bytes = ethernet_header.to_bytes();
 
     let link_exts = &headers.link_exts;
