@@ -1,8 +1,5 @@
 use etherparse::icmpv4::DestUnreachableHeader;
-use etherparse::{
-    Icmpv4Header, Icmpv4Type, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader, NetHeaders,
-    TransportHeader,
-};
+use etherparse::{Icmpv4Header, Icmpv4Type, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader, NetHeaders, TcpOptions, TransportHeader};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -173,6 +170,7 @@ async fn send_tcp_rst(
     tcp_header.checksum = tcp_header
         .calc_checksum_ipv4(&ip_header, &[])
         .unwrap_or_default();
+    tcp_header.options = TcpOptions::new();
     let tcp_header_bytes = tcp_header.to_bytes();
 
     #[rustfmt::skip]
