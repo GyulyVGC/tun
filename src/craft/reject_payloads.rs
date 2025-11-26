@@ -33,6 +33,7 @@ pub async fn send_termination_message(
             // port unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Port);
             send_destination_unreachable(
+                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -46,6 +47,7 @@ pub async fn send_termination_message(
             // host unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Host);
             send_destination_unreachable(
+                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -59,6 +61,7 @@ pub async fn send_termination_message(
 }
 
 async fn send_destination_unreachable(
+    packet: &[u8],
     headers: LaxPacketHeaders<'_>,
     tun_mac: &[u8; 6],
     tun_ip: &Ipv4Addr,
@@ -66,6 +69,8 @@ async fn send_destination_unreachable(
     icmp_type: Icmpv4Type,
     remote_socket: SocketAddr,
 ) {
+    let original_first_28_bytes = &packet[..std::cmp::min(28, packet.len())];
+
     let Some(LinkHeader::Ethernet2(mut ethernet_header)) = headers.link else {
         return;
     };
@@ -87,7 +92,7 @@ async fn send_destination_unreachable(
     };
     ip_header.destination = ip_header.source;
     ip_header.source = tun_ip.octets();
-    ip_header.total_len = 28; // TODO??? 56 = 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
+    ip_header.total_len = 56; // 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
     ip_header.header_checksum = ip_header.calc_header_checksum();
     let ip_header_bytes = ip_header.to_bytes();
 
@@ -101,6 +106,7 @@ async fn send_destination_unreachable(
         &link_exts_bytes[..],
         &ip_header_bytes[..],
         &icmp_header_bytes[..],
+        &original_first_28_bytes[..],
     ].concat();
 
     socket
