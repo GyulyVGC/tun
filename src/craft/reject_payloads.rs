@@ -167,10 +167,10 @@ async fn send_tcp_rst(
     tcp_header.fin = false;
     tcp_header.urg = false;
     tcp_header.urgent_pointer = 0;
+    tcp_header.options = TcpOptions::new();
     tcp_header.checksum = tcp_header
         .calc_checksum_ipv4(&ip_header, &[])
         .unwrap_or_default();
-    tcp_header.options = TcpOptions::new();
     let tcp_header_bytes = tcp_header.to_bytes();
 
     #[rustfmt::skip]
