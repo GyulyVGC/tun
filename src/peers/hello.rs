@@ -11,6 +11,8 @@ use crate::peers::processes::Processes;
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
+    /// MAC address of the peer sending the message.
+    pub tun_mac: [u8; 6],
     /// Ethernet IP, TUN IP, and netmask of the peer sending the message.
     #[serde(flatten)]
     pub ips: LocalIps,
@@ -30,10 +32,18 @@ pub struct Hello {
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
-    pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let processes =
-            Processes::from_listeners(listeners::get_all().unwrap_or_default(), local_ips.tun);
+    pub fn with_details(
+        tun_mac: [u8; 6],
+        local_ips: &LocalIps,
+        is_setup: bool,
+        is_unicast: bool,
+    ) -> Self {
+        let processes = Processes::from_listeners(
+            listeners::get_all().unwrap_or_default(),
+            IpAddr::V4(local_ips.tun),
+        );
         Self {
+            tun_mac,
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
             is_setup,
@@ -80,11 +90,12 @@ impl Hello {
 impl Default for Hello {
     fn default() -> Self {
         Self {
+            tun_mac: [0; 6],
             ips: LocalIps {
-                eth: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                tun: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                netmask: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-                broadcast: IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                eth: Ipv4Addr::UNSPECIFIED,
+                tun: Ipv4Addr::UNSPECIFIED,
+                netmask: Ipv4Addr::UNSPECIFIED,
+                broadcast: Ipv4Addr::UNSPECIFIED,
             },
             timestamp: DateTime::default(),
             is_setup: false,
@@ -120,7 +131,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::net::{IpAddr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
 
     use chrono::{DateTime, Utc};
@@ -161,11 +172,12 @@ mod tests {
 
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
+            tun_mac: [0; 6],
             ips: LocalIps {
-                eth: IpAddr::from_str("8.8.8.8").unwrap(),
-                tun: IpAddr::from_str("10.11.12.134").unwrap(),
-                netmask: IpAddr::from_str("255.255.255.0").unwrap(),
-                broadcast: IpAddr::from_str("8.8.8.255").unwrap(),
+                eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
+                tun: Ipv4Addr::from_str("10.11.12.134").unwrap(),
+                netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
+                broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
             },
             timestamp,
             is_setup: false,
@@ -183,6 +195,15 @@ mod tests {
             &hello,
             &[
                 Token::Map { len: None },
+                Token::Str("tun_mac"),
+                Token::Tuple { len: 6 },
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::TupleEnd,
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("tun"),
@@ -211,7 +232,8 @@ mod tests {
 
         assert_eq!(
             hello.to_toml_string(),
-            "eth = \"8.8.8.8\"\n\
+            "tun_mac = [0, 0, 0, 0, 0, 0]\n\
+             eth = \"8.8.8.8\"\n\
              tun = \"10.11.12.134\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
@@ -226,12 +248,12 @@ mod tests {
     fn test_default_hello_message_not_valid() {
         let default = Hello::default();
         let local_ips = LocalIps {
-            eth: IpAddr::from([192, 168, 1, 113]),
-            tun: IpAddr::from([10, 0, 0, 113]),
-            netmask: IpAddr::from([255, 255, 255, 0]),
-            broadcast: IpAddr::from([192, 168, 1, 255]),
+            eth: Ipv4Addr::from([192, 168, 1, 113]),
+            tun: Ipv4Addr::from([10, 0, 0, 113]),
+            netmask: Ipv4Addr::from([255, 255, 255, 0]),
+            broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
-        assert!(!default.is_valid(&SocketAddr::new(default.ips.eth, 0), &local_ips));
+        assert!(!default.is_valid(&SocketAddr::new(IpAddr::V4(default.ips.eth), 0), &local_ips));
     }
 
     #[test]
@@ -244,6 +266,15 @@ mod tests {
             &hello,
             &[
                 Token::Map { len: None },
+                Token::Str("tun_mac"),
+                Token::Tuple { len: 6 },
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::TupleEnd,
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("tun"),
