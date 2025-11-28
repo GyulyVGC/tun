@@ -7,6 +7,8 @@ if [ $# -eq 0 ]
 fi
 
 # set OVS bridge up
+sudo ovs-vsctl del-br br0
+sudo ovs-vsctl add-br br0
 sudo ip link set ovs-system up
 sudo ip link set br0 up
 
@@ -19,7 +21,7 @@ sudo ip link set veth10 up
 sudo ip link set veth10p up
 sudo ip addr add "$1" dev veth10p
 sudo ovs-vsctl add-port br0 veth10 tag=10
-sudo ip link set dev veth10p arp off
+# TODO: populate ARP table for veth10p
 
 # delete existing OpenFlow rules
 sudo ovs-ofctl -O OpenFlow13 del-flows br0
