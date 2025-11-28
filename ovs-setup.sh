@@ -3,11 +3,15 @@
 if [ $# -eq 0 ]
   then
     echo "No IP address supplied"
+    exit 1
 fi
 
 # set OVS bridge up
 sudo ip link set ovs-system up
 sudo ip link set br0 up
+
+# nullnet0 for VLAN 10 (trunk port)
+sudo ovs-vsctl add-port br0 nullnet0 trunks=10
 
 # veth pair for VLAN 10 (access port)
 sudo ip link add veth10 type veth peer name veth10p
@@ -15,9 +19,7 @@ sudo ip link set veth10 up
 sudo ip link set veth10p up
 sudo ip addr add "$1" dev veth10p
 sudo ovs-vsctl add-port br0 veth10 tag=10
-
-# nullnet0 for VLAN 10 (trunk port)
-sudo ovs-vsctl add-port br0 nullnet0 trunks=10
+sudo ip link set dev veth10p arp off
 
 # delete existing OpenFlow rules
 sudo ovs-ofctl -O OpenFlow13 del-flows br0

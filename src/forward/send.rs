@@ -49,12 +49,19 @@ async fn get_dst_socket(
 ) -> Option<SocketAddr> {
     let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
     if let Some(NetHeaders::Ipv4(ipv4_header, _)) = headers.net {
-        let dest_ip_slice = ipv4_header.destination;
+        // TODO fix this
+        // let dest_ip_slice = ipv4_header.destination;
+        // peers
+        //     .read()
+        //     .await
+        //     .get(&PeerKey::from_slice(dest_ip_slice))
+        //     .map(PeerVal::forward_socket_addr)
         peers
             .read()
             .await
-            .get(&PeerKey::from_slice(dest_ip_slice))
-            .map(PeerVal::forward_socket_addr)
+            .iter()
+            .next()
+            .map(|(_, v)| v.forward_socket_addr())
     } else {
         None
     }
