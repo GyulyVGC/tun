@@ -2,12 +2,12 @@
 
 if [ $# -eq 0 ]
   then
-    echo "No IP address supplied"
+    echo "No IP address supplied for the veth10p interface"
     exit 1
 fi
 
 # set OVS bridge up
-sudo ovs-vsctl del-br br0
+sudo ovs-vsctl del-br br0 >/dev/null 2>&1
 sudo ovs-vsctl add-br br0
 sudo ip link set ovs-system up
 sudo ip link set br0 up
@@ -16,12 +16,13 @@ sudo ip link set br0 up
 sudo ovs-vsctl add-port br0 nullnet0
 
 # veth pair for VLAN 10 (access port)
-sudo ip link del veth10
+sudo ip link del veth10 >/dev/null 2>&1
 sudo ip link add veth10 type veth peer name veth10p
 sudo ip link set veth10 up
 sudo ip link set veth10p up
 sudo ip addr add "$1" dev veth10p
 sudo ovs-vsctl add-port br0 veth10 tag=10
+
 # TODO: populate ARP table for veth10p
 
 # delete existing OpenFlow rules
