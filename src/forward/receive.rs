@@ -1,11 +1,9 @@
-use std::net::IpAddr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
-use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::UdpSocket;
-use tokio::sync::{Mutex, RwLock};
-use tun::AsyncDevice;
+use tokio::sync::RwLock;
+use tun_rs::AsyncDevice;
 
 use crate::craft::reject_payloads::send_termination_message;
 use crate::forward::frame::Frame;
@@ -13,10 +11,9 @@ use crate::forward::frame::Frame;
 /// Handles incoming network packets (receives packets from the socket and sends them to the TUN interface),
 /// ensuring the firewall rules are correctly observed.
 pub async fn receive(
-    device: &Arc<Mutex<WriteHalf<AsyncDevice>>>,
+    device: &Arc<AsyncDevice>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
-    tun_ip: &IpAddr,
 ) {
     let mut frame = Frame::new();
     let mut remote_socket;
@@ -36,10 +33,10 @@ pub async fn receive(
             {
                 FirewallAction::ACCEPT => {
                     // write packet to the kernel
-                    device.lock().await.write_all(pkt_data).await.unwrap_or(());
+                    device.send(pkt_data).await.unwrap_or(0);
                 }
                 FirewallAction::REJECT => {
-                    send_termination_message(pkt_data, tun_ip, socket, remote_socket).await;
+                    send_termination_message(pkt_data, socket, remote_socket).await;
                 }
                 FirewallAction::DENY => {}
             }

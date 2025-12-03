@@ -1,19 +1,7 @@
-// Open vSwitch x Nullnet
-// we want to use TAPs over TUNs for layer 2 networking as done by Open vSwitch
-// our main TAP should be a "trunk" port (i.e. an interface that carries traffic for multiple VLANs)
-// each service should have its own TAP configured as an "access" port (i.e. an interface assigned to a single VLAN)
-// this way, we can isolate traffic for different services while using a "central" TAP interface for overall connectivity
-// this idea works under the assumption that incoming packets are already VLAN-tagged
-// if this isn't the case, we need to use OVS rules to tag packets based on their IPs' subnet
-// -------------------------------------------------------------------------------------------------
-// $ ovs-vsctl add-br br0
-// $ ovs-vsctl add-port br0 tap0
-// $ ovs-vsctl add-port br0 vethx tag=x
-
 #![allow(clippy::used_underscore_binding)]
 
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::Ipv4Addr;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,10 +12,11 @@ use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use tokio::sync::{Mutex, RwLock};
-use tun::{AbstractDevice, Configuration, Layer};
+use tokio::sync::RwLock;
+use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
+use crate::craft::mac_from_dec_to_hex;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
@@ -41,7 +30,7 @@ mod peers;
 
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
-pub const NETWORK: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
+pub const NETWORK: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 0);
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -65,6 +54,7 @@ async fn main() -> Result<(), Error> {
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
     let tun_ip = endpoints.ips.tun;
+    let tun_mac = [0x02, 0x00, 0x00, 0x00, 0x00, tun_ip.octets()[3]];
     let netmask = endpoints.ips.netmask;
     let forward_socket = endpoints.sockets.forward.clone();
 
@@ -72,22 +62,18 @@ async fn main() -> Result<(), Error> {
     let peers = Arc::new(RwLock::new(HashMap::new()));
     let peers_2 = peers.clone();
 
-    // configure TUN device
-    let mut config = Configuration::default();
-    set_tun_name(&tun_ip, &netmask, &mut config);
-    config
-        .layer(Layer::L2)
-        .mtu(mtu)
-        .address(tun_ip)
-        .netmask(netmask)
-        .up();
-
     // create the asynchronous TUN device, and split it into reader & writer halves
-    let device = tun::create_as_async(&config).handle_err(location!())?;
-    let tun_name = device.tun_name().unwrap_or_default();
-    let (read_half, write_half) = tokio::io::split(device);
-    let reader_shared = Arc::new(Mutex::new(read_half));
-    let writer_shared = Arc::new(Mutex::new(write_half));
+    let device = DeviceBuilder::new()
+        .name("nullnet0")
+        .layer(Layer::L2)
+        .mac_addr(tun_mac)
+        .ipv4(tun_ip, netmask, None)
+        // TODO: MTU? GSO?
+        .build_async()
+        .handle_err(location!())?;
+    let tun_name = device.name().unwrap_or_default();
+    let reader_shared = Arc::new(device);
+    let writer_shared = reader_shared.clone();
 
     // properly setup routing tables
     // configure_routing(&tun_ip, &netmask);
@@ -110,7 +96,7 @@ async fn main() -> Result<(), Error> {
 
         // handle incoming traffic
         tokio::spawn(async move {
-            Box::pin(receive(&writer, &socket_1, &firewall_1, &tun_ip)).await;
+            Box::pin(receive(&writer, &socket_1, &firewall_1)).await;
         });
 
         // handle outgoing traffic
@@ -120,11 +106,11 @@ async fn main() -> Result<(), Error> {
     }
 
     // print information about the overall setup
-    print_info(&endpoints, &tun_name, mtu);
+    print_info(&endpoints, &tun_name, mtu, tun_mac);
 
     // discover peers in the same area network
     tokio::spawn(async move {
-        discover_peers(endpoints, peers_2).await;
+        discover_peers(tun_mac, endpoints, peers_2).await;
     });
 
     // watch the file defining rules and update the firewall accordingly
@@ -136,21 +122,21 @@ async fn main() -> Result<(), Error> {
 // /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
 // ///
 // /// Example: the TUN with address 10.0.0.1 will be called nullnet1.
-fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
-    // #[cfg(not(target_os = "macos"))]
-    // {
-    //     let tun_ip_octets = _tun_ip.into_address().octets();
-    //     let netmask_octets = _netmask.into_address().octets();
-    //
-    //     let mut host_octets = [0; 4];
-    //     for i in 0..4 {
-    //         host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
-    //     }
-    //
-    //     let host_num = u32::from_be_bytes(host_octets);
-    //     _config.name(format!("nullnet{host_num}"));
-    // }
-}
+// fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
+// #[cfg(not(target_os = "macos"))]
+// {
+//     let tun_ip_octets = _tun_ip.into_address().octets();
+//     let netmask_octets = _netmask.into_address().octets();
+//
+//     let mut host_octets = [0; 4];
+//     for i in 0..4 {
+//         host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
+//     }
+//
+//     let host_num = u32::from_be_bytes(host_octets);
+//     _config.name(format!("nullnet{host_num}"));
+// }
+// }
 
 // /// Manually setup routing on macOS (to be done after TUN creation).
 // fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
@@ -172,7 +158,8 @@ fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration
 // }
 
 /// Prints useful info about the local environment and the created interface.
-fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
+fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16, tun_mac: [u8; 6]) {
+    let tun_mac_str = mac_from_dec_to_hex(tun_mac);
     let tun_ip = &local_endpoints.ips.tun;
     let netmask = &local_endpoints.ips.netmask;
     let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
@@ -191,7 +178,8 @@ fn print_info(local_endpoints: &LocalEndpoints, tun_name: &str, mtu: u16) {
     println!("    - discovery: {discovery_socket}");
     println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TUN device created successfully:");
-    println!("    - address:   {tun_ip}");
+    println!("    - MAC:       {tun_mac_str}");
+    println!("    - IP:        {tun_ip}");
     println!("    - netmask:   {netmask}");
     println!("    - name:      {tun_name}");
     println!("    - MTU:       {mtu} B");

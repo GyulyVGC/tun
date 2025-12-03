@@ -1,14 +1,13 @@
-use crate::peers::local_ips::IntoIpv4;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
 pub struct EthAddr {
-    pub ip: IpAddr,
-    pub netmask: IpAddr,
-    pub broadcast: IpAddr,
+    pub ip: Ipv4Addr,
+    pub netmask: Ipv4Addr,
+    pub broadcast: Ipv4Addr,
 }
 
 impl EthAddr {
-    fn new(ip: IpAddr, netmask: IpAddr, broadcast: IpAddr) -> Self {
+    fn new(ip: Ipv4Addr, netmask: Ipv4Addr, broadcast: Ipv4Addr) -> Self {
         Self {
             ip,
             netmask,
@@ -17,12 +16,7 @@ impl EthAddr {
     }
 
     fn is_suitable(&self) -> bool {
-        self.netmask.is_ipv4()
-            && !self.netmask.is_unspecified()
-            && self.broadcast.is_ipv4()
-            && !self.broadcast.is_unspecified()
-            && self.ip.is_ipv4()
-            && self.ip.into_ipv4().is_some_and(|ip| ip.is_private())
+        !self.netmask.is_unspecified() && !self.broadcast.is_unspecified() && self.ip.is_private()
     }
 
     /// Checks the available network devices and returns IP address, netmask, and broadcast of the first "suitable" interface.
@@ -44,10 +38,12 @@ impl EthAddr {
         if let Ok(devices) = NetworkInterface::show() {
             for device in devices {
                 for address in device.addr {
-                    if let Some(netmask) = address.netmask()
-                        && let Some(broadcast) = address.broadcast()
+                    if let Some(IpAddr::V4(netmask)) = address.netmask()
+                        && let Some(IpAddr::V4(broadcast)) = address.broadcast()
                     {
-                        let ip = address.ip();
+                        let IpAddr::V4(ip) = address.ip() else {
+                            continue;
+                        };
                         let eth_addr = EthAddr::new(ip, netmask, broadcast);
                         if eth_addr.is_suitable() {
                             return Some(eth_addr);

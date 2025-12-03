@@ -1,6 +1,6 @@
 #![allow(clippy::module_name_repetitions)]
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use chrono::{DateTime, Utc};
 
@@ -18,17 +18,17 @@ pub struct Peer {
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct PeerKey {
     /// TUN IP address of the peer.
-    pub(crate) tun_ip: IpAddr,
+    pub(crate) tun_ip: Ipv4Addr,
 }
 
 impl PeerKey {
-    pub fn from_slice(slice: [u8; 4]) -> Self {
-        Self {
-            tun_ip: IpAddr::from(slice),
-        }
-    }
+    // pub fn from_slice(slice: [u8; 4]) -> Self {
+    //     Self {
+    //         tun_ip: Ipv4Addr::from(slice),
+    //     }
+    // }
 
-    pub fn from_ip_addr(ip_addr: IpAddr) -> Self {
+    pub fn from_ip_addr(ip_addr: Ipv4Addr) -> Self {
         Self { tun_ip: ip_addr }
     }
 }
@@ -36,8 +36,10 @@ impl PeerKey {
 /// Struct including relevant attributes of a peer.
 #[derive(Clone)]
 pub struct PeerVal {
+    /// MAC address of this peer.
+    pub(crate) tun_mac: [u8; 6],
     /// Ethernet IP address of this peer.
-    pub(crate) eth_ip: IpAddr,
+    pub(crate) eth_ip: Ipv4Addr,
     /// Number of unicast hello messages received from this peer.
     pub(crate) num_seen_unicast: u64,
     /// Number of broadcast hello messages received from this peer.
@@ -54,6 +56,7 @@ impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
     pub fn with_details(delay: i64, hello: Hello) -> Self {
         Self {
+            tun_mac: hello.tun_mac,
             eth_ip: hello.ips.eth,
             num_seen_unicast: u64::from(hello.is_unicast),
             num_seen_broadcast: u64::from(!hello.is_unicast),
@@ -71,6 +74,7 @@ impl PeerVal {
         self.num_seen_unicast += u64::from(hello.is_unicast);
         self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
+        self.tun_mac = hello.tun_mac;
         self.eth_ip = hello.ips.eth;
         self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
@@ -78,12 +82,12 @@ impl PeerVal {
 
     /// Socket address for normal network operations.
     pub fn forward_socket_addr(&self) -> SocketAddr {
-        SocketAddr::new(self.eth_ip, FORWARD_PORT)
+        SocketAddr::new(IpAddr::V4(self.eth_ip), FORWARD_PORT)
     }
 
     /// Socket address for discovery.
     pub fn discovery_socket_addr(&self) -> SocketAddr {
-        SocketAddr::new(self.eth_ip, DISCOVERY_PORT)
+        SocketAddr::new(IpAddr::V4(self.eth_ip), DISCOVERY_PORT)
     }
 
     /// Returns the average delay of messages from this peer, expressed as seconds.
