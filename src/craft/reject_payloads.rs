@@ -98,6 +98,8 @@ async fn send_destination_unreachable(
             .unwrap_or(&[]),
     ]
     .concat();
+    ip_header.identification = 0;
+    ip_header.fragment_offset = 0;
     ip_header.destination = ip_header.source;
     ip_header.source = tun_ip.octets();
     ip_header.total_len = 56; // 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
@@ -149,6 +151,8 @@ async fn send_tcp_rst(
     let Some(NetHeaders::Ipv4(mut ip_header, _)) = headers.net else {
         return;
     };
+    ip_header.identification = 0;
+    ip_header.fragment_offset = 0;
     ip_header.destination = ip_header.source;
     ip_header.source = tun_ip.octets();
     ip_header.total_len = 40;
