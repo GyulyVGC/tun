@@ -22,11 +22,11 @@ pub struct PeerKey {
 }
 
 impl PeerKey {
-    // pub fn from_slice(slice: [u8; 4]) -> Self {
-    //     Self {
-    //         tun_ip: Ipv4Addr::from(slice),
-    //     }
-    // }
+    pub fn from_slice(slice: [u8; 4]) -> Self {
+        Self {
+            tun_ip: Ipv4Addr::from(slice),
+        }
+    }
 
     pub fn from_ip_addr(ip_addr: Ipv4Addr) -> Self {
         Self { tun_ip: ip_addr }

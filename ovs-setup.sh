@@ -18,10 +18,14 @@ sudo ovs-vsctl add-br br0
 sudo ip link set ovs-system up
 sudo ip link set br0 up
 
+# delete existing OpenFlow rules on the bridge and use the built-in switching logic
+sudo ovs-ofctl del-flows br0
+sudo ovs-ofctl add-flow br0 "priority=0,actions=normal"
+
 # set nullnet0 as a trunk port
 sudo ovs-vsctl add-port br0 nullnet0
 
-# set veth pair as access port for VLAN 10
+# create and set veth pair as access port for VLAN 10
 sudo ip link del veth10 >/dev/null 2>&1
 sudo ip link add veth10 type veth peer name veth10p
 sudo ip link set veth10 up
@@ -29,14 +33,6 @@ sudo ip link set veth10p up
 sudo ip addr add "$1" dev veth10p
 sudo ovs-vsctl add-port br0 veth10 tag=10
 
-# delete existing OpenFlow rules
-sudo ovs-ofctl del-flows br0
-# use the built-in switching logic
-sudo ovs-ofctl add-flow br0 "priority=0,actions=normal"
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-# TODO: populate ARP table for veth10p
 # ----------------------------------------------------------------------------------------------------------------------
 # OpenFlow rule: veth10 --> nullnet0 with VLAN 10 tagging
 #sudo ovs-ofctl -O OpenFlow13 add-flow br0 "in_port=2,actions=push_vlan:0x8100,set_vlan_vid:10,output:1"

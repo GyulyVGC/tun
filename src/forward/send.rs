@@ -1,9 +1,8 @@
-use etherparse::{LaxPacketHeaders, NetHeaders};
+use etherparse::{EtherType, LaxPacketHeaders, NetHeaders};
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::io::AsyncReadExt;
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tun_rs::AsyncDevice;
@@ -48,23 +47,29 @@ async fn get_dst_socket(
     pkt_data: &[u8],
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
-    peers
-        .read()
-        .await
-        .iter()
-        .next()
-        .map(|(_, v)| v.forward_socket_addr())
-
-    // TODO fix this
-    // let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
-    // if let Some(NetHeaders::Ipv4(_ipv4_header, _)) = headers.net {
-        // let dest_ip_slice = ipv4_header.destination;
-        // peers
-        //     .read()
-        //     .await
-        //     .get(&PeerKey::from_slice(dest_ip_slice))
-        //     .map(PeerVal::forward_socket_addr)
-    // } else {
-    //     None
-    // }
+    // TODO: add VLAN IPs in the peers map
+    let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
+    match headers.net {
+        Some(NetHeaders::Ipv4(ipv4_header, _)) => {
+            let dest_ip_slice = ipv4_header.destination;
+            peers
+                .read()
+                .await
+                .get(&PeerKey::from_slice(dest_ip_slice))
+                .map(PeerVal::forward_socket_addr)
+        }
+        Some(NetHeaders::Arp(arp_packet)) => match arp_packet.proto_addr_type {
+            EtherType::IPV4 => {
+                let dest_ip_slice =
+                    TryInto::<[u8; 4]>::try_into(arp_packet.target_protocol_addr()).ok()?;
+                peers
+                    .read()
+                    .await
+                    .get(&PeerKey::from_slice(dest_ip_slice))
+                    .map(PeerVal::forward_socket_addr)
+            }
+            _ => None,
+        },
+        _ => None,
+    }
 }
