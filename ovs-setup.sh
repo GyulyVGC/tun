@@ -13,9 +13,10 @@ sudo ip link set ovs-system up
 sudo ip link set br0 up
 
 # nullnet0 for VLAN 10 (trunk port)
-sudo ovs-vsctl add-port br0 nullnet0 trunks=10
+sudo ovs-vsctl add-port br0 nullnet0
 
 # veth pair for VLAN 10 (access port)
+sudo ip link del veth10
 sudo ip link add veth10 type veth peer name veth10p
 sudo ip link set veth10 up
 sudo ip link set veth10p up
