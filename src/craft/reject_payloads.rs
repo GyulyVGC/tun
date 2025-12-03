@@ -1,8 +1,5 @@
 use etherparse::icmpv4::DestUnreachableHeader;
-use etherparse::{
-    Icmpv4Header, Icmpv4Type, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader, NetHeaders,
-    TcpOptions, TransportHeader,
-};
+use etherparse::{Icmpv4Header, Icmpv4Type, IpFragOffset, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader, NetHeaders, TcpOptions, TransportHeader};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -99,7 +96,7 @@ async fn send_destination_unreachable(
     ]
     .concat();
     ip_header.identification = 0;
-    ip_header.fragment_offset = 0;
+    ip_header.fragment_offset = IpFragOffset::ZERO;
     ip_header.destination = ip_header.source;
     ip_header.source = tun_ip.octets();
     ip_header.total_len = 56; // 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
@@ -152,7 +149,7 @@ async fn send_tcp_rst(
         return;
     };
     ip_header.identification = 0;
-    ip_header.fragment_offset = 0;
+    ip_header.fragment_offset = IpFragOffset::ZERO;
     ip_header.destination = ip_header.source;
     ip_header.source = tun_ip.octets();
     ip_header.total_len = 40;
