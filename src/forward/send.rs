@@ -47,7 +47,15 @@ async fn get_dst_socket(
     pkt_data: &[u8],
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
-    // TODO: add VLAN IPs in the peers map
+    // TODO: temporary code to test forwarding without IP parsing
+    return peers
+        .read()
+        .await
+        .iter()
+        .next()
+        .map(|x| x.1.forward_socket_addr());
+
+    // TODO: add VLAN IPs in the peers map, and use the following code
     let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
     match headers.net {
         Some(NetHeaders::Ipv4(ipv4_header, _)) => {
