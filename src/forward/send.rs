@@ -48,7 +48,7 @@ async fn get_dst_socket(
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
     let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
-    if let Some(NetHeaders::Ipv4(ipv4_header, _)) = headers.net {
+    if let Some(NetHeaders::Ipv4(_ipv4_header, _)) = headers.net {
         // TODO fix this
         // let dest_ip_slice = ipv4_header.destination;
         // peers

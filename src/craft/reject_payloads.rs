@@ -26,16 +26,30 @@ pub async fn send_termination_message(
     let IpNumber(proto) = ip_header.protocol;
 
     match proto {
-        6 => send_tcp_rst(headers, socket, remote_socket).await,
+        6 => Box::pin(send_tcp_rst(headers, socket, remote_socket)).await,
         17 => {
             // port unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Port);
-            send_destination_unreachable(packet, headers, socket, icmp_type, remote_socket).await;
+            Box::pin(send_destination_unreachable(
+                packet,
+                headers,
+                socket,
+                icmp_type,
+                remote_socket,
+            ))
+            .await;
         }
         _ => {
             // host unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Host);
-            send_destination_unreachable(packet, headers, socket, icmp_type, remote_socket).await;
+            Box::pin(send_destination_unreachable(
+                packet,
+                headers,
+                socket,
+                icmp_type,
+                remote_socket,
+            ))
+            .await;
         }
     }
 }
@@ -50,9 +64,10 @@ async fn send_destination_unreachable(
     let Some(LinkHeader::Ethernet2(mut ethernet_header)) = headers.link else {
         return;
     };
-    let source_mac_orig = ethernet_header.source;
-    ethernet_header.source = ethernet_header.destination;
-    ethernet_header.destination = source_mac_orig;
+    std::mem::swap(
+        &mut ethernet_header.source,
+        &mut ethernet_header.destination,
+    );
     let ethernet_header_bytes = ethernet_header.to_bytes();
 
     let link_exts = &headers.link_exts;
@@ -79,15 +94,13 @@ async fn send_destination_unreachable(
     .concat();
     ip_header.identification = 0;
     ip_header.fragment_offset = IpFragOffset::ZERO;
-    let source_ip_orig = ip_header.source;
-    ip_header.source = ip_header.destination;
-    ip_header.destination = source_ip_orig;
+    std::mem::swap(&mut ip_header.source, &mut ip_header.destination);
     ip_header.total_len = 56; // 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
     ip_header.header_checksum = ip_header.calc_header_checksum();
     let ip_header_bytes = ip_header.to_bytes();
 
     let mut icmp_header = Icmpv4Header::new(icmp_type);
-    let _ = icmp_header.update_checksum(&icmp_payload);
+    icmp_header.update_checksum(&icmp_payload);
     let icmp_header_bytes = icmp_header.to_bytes();
 
     #[rustfmt::skip]
@@ -113,9 +126,10 @@ async fn send_tcp_rst(
     let Some(LinkHeader::Ethernet2(mut ethernet_header)) = headers.link else {
         return;
     };
-    let source_mac_orig = ethernet_header.source;
-    ethernet_header.source = ethernet_header.destination;
-    ethernet_header.destination = source_mac_orig;
+    std::mem::swap(
+        &mut ethernet_header.source,
+        &mut ethernet_header.destination,
+    );
     let ethernet_header_bytes = ethernet_header.to_bytes();
 
     let link_exts = &headers.link_exts;
@@ -132,9 +146,7 @@ async fn send_tcp_rst(
     };
     ip_header.identification = 0;
     ip_header.fragment_offset = IpFragOffset::ZERO;
-    let source_ip_orig = ip_header.source;
-    ip_header.source = ip_header.destination;
-    ip_header.destination = source_ip_orig;
+    std::mem::swap(&mut ip_header.source, &mut ip_header.destination);
     ip_header.total_len = 40;
     ip_header.header_checksum = ip_header.calc_header_checksum();
     let ip_header_bytes = ip_header.to_bytes();
@@ -150,7 +162,7 @@ async fn send_tcp_rst(
     tcp_header.acknowledgment_number = if tcp_header.syn {
         seq_num_orig.wrapping_add(1)
     } else {
-        seq_num_orig.wrapping_add(headers.payload.slice().len() as u32)
+        seq_num_orig.wrapping_add(u32::try_from(headers.payload.slice().len()).unwrap_or(0))
     };
     tcp_header.ack = true;
     tcp_header.rst = true;
