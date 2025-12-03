@@ -33,6 +33,7 @@ pub async fn send_termination_message(
             // port unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Port);
             send_destination_unreachable(
+                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -46,6 +47,7 @@ pub async fn send_termination_message(
             // host unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Host);
             send_destination_unreachable(
+                packet,
                 headers,
                 tun_mac,
                 tun_ip,
@@ -59,6 +61,7 @@ pub async fn send_termination_message(
 }
 
 async fn send_destination_unreachable(
+    packet: &[u8],
     headers: LaxPacketHeaders<'_>,
     tun_mac: &[u8; 6],
     tun_ip: &Ipv4Addr,
@@ -86,9 +89,13 @@ async fn send_destination_unreachable(
         return;
     };
     let original_ip_header_bytes = ip_header.to_bytes();
+    let size_up_to_ip_header =
+        ethernet_header_bytes.len() + link_exts_bytes.len() + original_ip_header_bytes.len();
     let icmp_payload = [
         original_ip_header_bytes.as_slice(),
-        headers.payload.slice().get(0..8).unwrap_or(&[]),
+        packet
+            .get(size_up_to_ip_header..size_up_to_ip_header + 8)
+            .unwrap_or(&[]),
     ]
     .concat();
     ip_header.destination = ip_header.source;
