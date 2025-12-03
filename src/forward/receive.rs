@@ -1,4 +1,3 @@
-use std::net::Ipv4Addr;
 use std::sync::Arc;
 
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
@@ -15,8 +14,6 @@ pub async fn receive(
     device: &Arc<AsyncDevice>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
-    tun_mac: &[u8; 6],
-    tun_ip: &Ipv4Addr,
 ) {
     let mut frame = Frame::new();
     let mut remote_socket;
@@ -39,8 +36,7 @@ pub async fn receive(
                     device.send(pkt_data).await.unwrap_or(0);
                 }
                 FirewallAction::REJECT => {
-                    send_termination_message(pkt_data, tun_mac, tun_ip, socket, remote_socket)
-                        .await;
+                    send_termination_message(pkt_data, socket, remote_socket).await;
                 }
                 FirewallAction::DENY => {}
             }

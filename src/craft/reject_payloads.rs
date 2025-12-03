@@ -1,6 +1,9 @@
 use etherparse::icmpv4::DestUnreachableHeader;
-use etherparse::{Icmpv4Header, Icmpv4Type, IpFragOffset, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader, NetHeaders, TcpOptions, TransportHeader};
-use std::net::{Ipv4Addr, SocketAddr};
+use etherparse::{
+    Icmpv4Header, Icmpv4Type, IpFragOffset, IpNumber, LaxPacketHeaders, LinkExtHeader, LinkHeader,
+    NetHeaders, TcpOptions, TransportHeader,
+};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 
@@ -11,8 +14,6 @@ use tokio::net::UdpSocket;
 /// - in case of other protocols, an ICMP host unreachable message is sent
 pub async fn send_termination_message(
     packet: &[u8],
-    tun_mac: &[u8; 6],
-    tun_ip: &Ipv4Addr,
     socket: &Arc<UdpSocket>,
     remote_socket: SocketAddr,
 ) {
@@ -25,34 +26,16 @@ pub async fn send_termination_message(
     let IpNumber(proto) = ip_header.protocol;
 
     match proto {
-        6 => send_tcp_rst(headers, tun_mac, tun_ip, socket, remote_socket).await,
+        6 => send_tcp_rst(headers, socket, remote_socket).await,
         17 => {
             // port unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Port);
-            send_destination_unreachable(
-                packet,
-                headers,
-                tun_mac,
-                tun_ip,
-                socket,
-                icmp_type,
-                remote_socket,
-            )
-            .await;
+            send_destination_unreachable(packet, headers, socket, icmp_type, remote_socket).await;
         }
         _ => {
             // host unreachable
             let icmp_type = Icmpv4Type::DestinationUnreachable(DestUnreachableHeader::Host);
-            send_destination_unreachable(
-                packet,
-                headers,
-                tun_mac,
-                tun_ip,
-                socket,
-                icmp_type,
-                remote_socket,
-            )
-            .await;
+            send_destination_unreachable(packet, headers, socket, icmp_type, remote_socket).await;
         }
     }
 }
@@ -60,8 +43,6 @@ pub async fn send_termination_message(
 async fn send_destination_unreachable(
     packet: &[u8],
     headers: LaxPacketHeaders<'_>,
-    tun_mac: &[u8; 6],
-    tun_ip: &Ipv4Addr,
     socket: &Arc<UdpSocket>,
     icmp_type: Icmpv4Type,
     remote_socket: SocketAddr,
@@ -69,8 +50,9 @@ async fn send_destination_unreachable(
     let Some(LinkHeader::Ethernet2(mut ethernet_header)) = headers.link else {
         return;
     };
-    ethernet_header.destination = ethernet_header.source;
-    ethernet_header.source = *tun_mac;
+    let source_mac_orig = ethernet_header.source;
+    ethernet_header.source = ethernet_header.destination;
+    ethernet_header.destination = source_mac_orig;
     let ethernet_header_bytes = ethernet_header.to_bytes();
 
     let link_exts = &headers.link_exts;
@@ -97,8 +79,9 @@ async fn send_destination_unreachable(
     .concat();
     ip_header.identification = 0;
     ip_header.fragment_offset = IpFragOffset::ZERO;
-    ip_header.destination = ip_header.source;
-    ip_header.source = tun_ip.octets();
+    let source_ip_orig = ip_header.source;
+    ip_header.source = ip_header.destination;
+    ip_header.destination = source_ip_orig;
     ip_header.total_len = 56; // 20 (ip header) + 8 (icmp header) + 28 (original ip header + first 8 bytes of data)
     ip_header.header_checksum = ip_header.calc_header_checksum();
     let ip_header_bytes = ip_header.to_bytes();
@@ -124,16 +107,15 @@ async fn send_destination_unreachable(
 
 async fn send_tcp_rst(
     headers: LaxPacketHeaders<'_>,
-    tun_mac: &[u8; 6],
-    tun_ip: &Ipv4Addr,
     socket: &Arc<UdpSocket>,
     remote_socket: SocketAddr,
 ) {
     let Some(LinkHeader::Ethernet2(mut ethernet_header)) = headers.link else {
         return;
     };
-    ethernet_header.destination = ethernet_header.source;
-    ethernet_header.source = *tun_mac;
+    let source_mac_orig = ethernet_header.source;
+    ethernet_header.source = ethernet_header.destination;
+    ethernet_header.destination = source_mac_orig;
     let ethernet_header_bytes = ethernet_header.to_bytes();
 
     let link_exts = &headers.link_exts;
@@ -150,8 +132,9 @@ async fn send_tcp_rst(
     };
     ip_header.identification = 0;
     ip_header.fragment_offset = IpFragOffset::ZERO;
-    ip_header.destination = ip_header.source;
-    ip_header.source = tun_ip.octets();
+    let source_ip_orig = ip_header.source;
+    ip_header.source = ip_header.destination;
+    ip_header.destination = source_ip_orig;
     ip_header.total_len = 40;
     ip_header.header_checksum = ip_header.calc_header_checksum();
     let ip_header_bytes = ip_header.to_bytes();

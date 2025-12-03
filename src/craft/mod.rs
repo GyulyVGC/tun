@@ -1,4 +1,3 @@
-mod checksums;
 pub mod reject_payloads;
 use std::fmt::Write;
 
