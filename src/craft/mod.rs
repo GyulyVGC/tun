@@ -10,3 +10,26 @@ pub fn mac_from_dec_to_hex(mac_dec: [u8; 6]) -> String {
     mac_hex.pop();
     mac_hex
 }
+
+// /// Updates the ARP table for the TUN interface.
+// fn update_arp_table(tun_ip: Ipv4Addr, tun_mac: [u8; 6]) {
+//     let tun_mac_str = mac_from_dec_to_hex(tun_mac);
+//
+//     let Ok(mut child) = Command::new("ip")
+//         .args([
+//             "neigh",
+//             "replace",
+//             &tun_ip.to_string(),
+//             "lladdr",
+//             &tun_mac_str,
+//             "dev",
+//             "nullnet0",
+//         ])
+//         .spawn()
+//         .handle_err(location!())
+//     else {
+//         return;
+//     };
+//
+//     child.wait().unwrap_or_default();
+// }

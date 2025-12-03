@@ -11,8 +11,6 @@ use crate::peers::processes::Processes;
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
-    /// MAC address of the peer sending the message.
-    pub tun_mac: [u8; 6],
     /// Ethernet IP, TUN IP, and netmask of the peer sending the message.
     #[serde(flatten)]
     pub ips: LocalIps,
@@ -32,18 +30,12 @@ pub struct Hello {
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
-    pub fn with_details(
-        tun_mac: [u8; 6],
-        local_ips: &LocalIps,
-        is_setup: bool,
-        is_unicast: bool,
-    ) -> Self {
+    pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
         let processes = Processes::from_listeners(
             listeners::get_all().unwrap_or_default(),
             IpAddr::V4(local_ips.tun),
         );
         Self {
-            tun_mac,
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
             is_setup,
@@ -90,7 +82,6 @@ impl Hello {
 impl Default for Hello {
     fn default() -> Self {
         Self {
-            tun_mac: [0; 6],
             ips: LocalIps {
                 eth: Ipv4Addr::UNSPECIFIED,
                 tun: Ipv4Addr::UNSPECIFIED,
@@ -172,7 +163,6 @@ mod tests {
 
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
-            tun_mac: [0; 6],
             ips: LocalIps {
                 eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
                 tun: Ipv4Addr::from_str("10.11.12.134").unwrap(),
@@ -195,15 +185,6 @@ mod tests {
             &hello,
             &[
                 Token::Map { len: None },
-                Token::Str("tun_mac"),
-                Token::Tuple { len: 6 },
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::TupleEnd,
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("tun"),
@@ -232,8 +213,7 @@ mod tests {
 
         assert_eq!(
             hello.to_toml_string(),
-            "tun_mac = [0, 0, 0, 0, 0, 0]\n\
-             eth = \"8.8.8.8\"\n\
+            "eth = \"8.8.8.8\"\n\
              tun = \"10.11.12.134\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
@@ -266,15 +246,6 @@ mod tests {
             &hello,
             &[
                 Token::Map { len: None },
-                Token::Str("tun_mac"),
-                Token::Tuple { len: 6 },
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::U8(0),
-                Token::TupleEnd,
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("tun"),

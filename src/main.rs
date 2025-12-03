@@ -110,7 +110,7 @@ async fn main() -> Result<(), Error> {
 
     // discover peers in the same area network
     tokio::spawn(async move {
-        discover_peers(tun_mac, endpoints, peers_2).await;
+        discover_peers(endpoints, peers_2).await;
     });
 
     // watch the file defining rules and update the firewall accordingly
