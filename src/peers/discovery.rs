@@ -45,6 +45,8 @@ pub async fn discover_peers(
     let broadcast_socket = endpoints.sockets.discovery_broadcast;
 
     let local_ips = endpoints.ips;
+    let local_ips_2 = local_ips.clone();
+    let local_ips_3 = local_ips.clone();
 
     let peers_2 = peers.clone();
     let peers_3 = peers.clone();
@@ -67,7 +69,7 @@ pub async fn discover_peers(
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(socket_2, socket_3, local_ips, peers_2, tx_2).await;
+        listen(socket_2, socket_3, local_ips_2, peers_2, tx_2).await;
     });
 
     // remove inactive peers
@@ -76,7 +78,7 @@ pub async fn discover_peers(
     });
 
     // periodically send out broadcast hello messages
-    greet_broadcast(socket_4, local_ips).await;
+    greet_broadcast(socket_4, local_ips_3).await;
 }
 
 /// Listens to hello messages (unicast or broadcast), and invokes `greet_unicast` when needed.
@@ -111,7 +113,7 @@ async fn listen(
             .num_microseconds()
             .unwrap_or_default();
 
-        let peer_key = PeerKey::from_ip_addr(hello.ips.tun);
+        let peer_key = PeerKey::from_ip_addr(hello.ips.eth);
         peers
             .write()
             .await
@@ -120,7 +122,7 @@ async fn listen(
                 peer_val.refresh(delay, &hello);
 
                 if hello_is_setup {
-                    should_respond_to = Some(peer_val.discovery_socket_addr());
+                    should_respond_to = Some(peer_key.discovery_socket_addr());
                 }
 
                 // update peer db
@@ -137,7 +139,7 @@ async fn listen(
             .or_insert_with(|| {
                 let peer_val = PeerVal::with_details(delay, hello);
 
-                should_respond_to = Some(peer_val.discovery_socket_addr());
+                should_respond_to = Some(peer_key.discovery_socket_addr());
 
                 // update peer db
                 let _ = tx
@@ -157,6 +159,7 @@ async fn listen(
             && !hello_is_unicast
         {
             let source = unicast_socket.clone();
+            let local_ips = local_ips.clone();
             tokio::spawn(async move {
                 greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
             });

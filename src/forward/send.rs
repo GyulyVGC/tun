@@ -1,7 +1,7 @@
 use etherparse::{EtherType, LaxPacketHeaders, NetHeaders};
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
@@ -47,37 +47,22 @@ async fn get_dst_socket(
     pkt_data: &[u8],
     peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
 ) -> Option<SocketAddr> {
-    // TODO: temporary code to test forwarding without IP parsing
-    return peers
-        .read()
-        .await
-        .iter()
-        .next()
-        .map(|x| x.1.forward_socket_addr());
-
-    // TODO: add VLAN IPs in the peers map, and use the following code
+    // TODO: make this more efficient!!!
     let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
-    match headers.net {
-        Some(NetHeaders::Ipv4(ipv4_header, _)) => {
-            let dest_ip_slice = ipv4_header.destination;
-            peers
-                .read()
-                .await
-                .get(&PeerKey::from_slice(dest_ip_slice))
-                .map(PeerVal::forward_socket_addr)
-        }
+    let dest_ip_slice = match headers.net {
+        Some(NetHeaders::Ipv4(ipv4_header, _)) => Some(ipv4_header.destination),
         Some(NetHeaders::Arp(arp_packet)) => match arp_packet.proto_addr_type {
-            EtherType::IPV4 => {
-                let dest_ip_slice =
-                    TryInto::<[u8; 4]>::try_into(arp_packet.target_protocol_addr()).ok()?;
-                peers
-                    .read()
-                    .await
-                    .get(&PeerKey::from_slice(dest_ip_slice))
-                    .map(PeerVal::forward_socket_addr)
-            }
+            EtherType::IPV4 => TryInto::<[u8; 4]>::try_into(arp_packet.target_protocol_addr()).ok(),
             _ => None,
         },
         _ => None,
+    }?;
+    let dest_ip = Ipv4Addr::from(dest_ip_slice);
+
+    for (k, v) in &*peers.read().await {
+        if v.veths.contains(&dest_ip) {
+            return Some(k.forward_socket_addr());
+        }
     }
+    None
 }

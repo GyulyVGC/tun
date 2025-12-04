@@ -30,8 +30,8 @@ sudo ip link del veth10 >/dev/null 2>&1
 sudo ip link add veth10 type veth peer name veth10p
 sudo ip link set veth10 up
 sudo ip link set veth10p up
-sudo ip addr add "$1" dev veth10p
-sudo ovs-vsctl add-port br0 veth10 tag=10
+sudo ip addr add "$1" dev veth10
+sudo ovs-vsctl add-port br0 veth10p tag=10
 
 # ----------------------------------------------------------------------------------------------------------------------
 # OpenFlow rule: veth10 --> nullnet0 with VLAN 10 tagging

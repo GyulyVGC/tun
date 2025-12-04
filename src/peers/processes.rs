@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 use std::fmt::{Display, Formatter};
-use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
@@ -15,13 +15,13 @@ use tokio_rusqlite::types::ToSqlOutput;
 pub struct Processes(BTreeSet<Process>);
 
 impl Processes {
-    pub fn from_listeners(listeners: HashSet<Listener>, addr: IpAddr) -> Self {
+    pub fn from_listeners(listeners: HashSet<Listener>, addrs: &Vec<Ipv4Addr>) -> Self {
         Self(
             listeners
                 .into_iter()
                 .filter(|listener| {
                     let ip = listener.socket.ip();
-                    ip.is_ipv4() && (ip == addr || ip.is_unspecified())
+                    ip.is_ipv4() && (addrs.into_iter().any(|a| *a == ip) || ip.is_unspecified())
                 })
                 .map(Process::from_listener)
                 .collect(),
@@ -269,8 +269,7 @@ mod tests {
     #[test]
     fn test_processes_from_listeners_1() {
         let listeners = listeners_for_tests();
-        let processes =
-            Processes::from_listeners(listeners, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)));
+        let processes = Processes::from_listeners(listeners, &vec![Ipv4Addr::new(10, 0, 0, 1)]);
         assert_eq!(
             processes,
             Processes(BTreeSet::from([
@@ -291,8 +290,7 @@ mod tests {
     #[test]
     fn test_processes_from_listeners_2() {
         let listeners = listeners_for_tests();
-        let processes =
-            Processes::from_listeners(listeners, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)));
+        let processes = Processes::from_listeners(listeners, &vec![Ipv4Addr::new(10, 0, 0, 2)]);
         assert_eq!(
             processes,
             Processes(BTreeSet::from([

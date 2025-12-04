@@ -38,9 +38,9 @@ async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     connection
         .call(move |c| {
             let _ = c.execute(
-                "INSERT INTO peers (tun_ip, eth_ip, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
+                "INSERT INTO peers (eth_ip, veths, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                (key.tun_ip.to_string(), val.eth_ip.to_string(), val.avg_delay_as_seconds(),
+                (key.eth_ip.to_string(), serde_json::to_string(&val.veths).unwrap_or("[]".to_string()), val.avg_delay_as_seconds(),
                  val.num_seen_unicast, val.num_seen_broadcast, val.last_seen.to_string(), val.processes),
             ).handle_err(location!());
             Ok(())
@@ -59,21 +59,21 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
             let _ = c
                 .execute(
                     "UPDATE peers
-                    SET eth_ip = ?1,
+                    SET veths = ?1,
                         avg_delay = ?2,
                         num_seen_unicast = ?3,
                         num_seen_broadcast = ?4,
                         last_seen = ?5,
                         processes = ?6
-                    WHERE tun_ip = ?7",
+                    WHERE eth_ip = ?7",
                     (
-                        val.eth_ip.to_string(),
+                        serde_json::to_string(&val.veths).unwrap_or("[]".to_string()),
                         val.avg_delay_as_seconds(),
                         val.num_seen_unicast,
                         val.num_seen_broadcast,
                         val.last_seen.to_string(),
                         val.processes,
-                        key.tun_ip.to_string(),
+                        key.eth_ip.to_string(),
                     ),
                 )
                 .handle_err(location!());
@@ -93,8 +93,8 @@ async fn remove_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
             let _ = c
                 .execute(
                     "DELETE FROM peers
-                    WHERE tun_ip = ?1",
-                    [key.tun_ip.to_string()],
+                    WHERE eth_ip = ?1",
+                    [key.eth_ip.to_string()],
                 )
                 .handle_err(location!());
             Ok(())
@@ -135,8 +135,8 @@ async fn create_table(connection: &Connection) -> Result<(), Error> {
             let _ = c
                 .execute(
                     "CREATE TABLE IF NOT EXISTS peers (
-                        tun_ip             TEXT PRIMARY KEY NOT NULL,
-                        eth_ip             TEXT NOT NULL,
+                        eth_ip             TEXT PRIMARY KEY NOT NULL,
+                        veths              TEXT NOT NULL,
                         avg_delay          REAL NOT NULL,
                         num_seen_unicast   INTEGER NOT NULL,
                         num_seen_broadcast INTEGER NOT NULL,

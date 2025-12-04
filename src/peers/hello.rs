@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -31,10 +31,8 @@ pub struct Hello {
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let processes = Processes::from_listeners(
-            listeners::get_all().unwrap_or_default(),
-            IpAddr::V4(local_ips.tun),
-        );
+        let processes =
+            Processes::from_listeners(listeners::get_all().unwrap_or_default(), &local_ips.veths);
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
@@ -61,7 +59,7 @@ impl Hello {
             // hello was not sent from this machine
             && remote_ips.eth != local_ips.eth
             // has not same TUN address of this machine
-            && remote_ips.tun != local_ips.tun
+            // && remote_ips.tun != local_ips.tun
             // are in the same Ethernet IPv4 network
             && remote_ips.is_same_ipv4_ethernet_network_of(local_ips)
         // delay is non negative TODO: timestamps must be monotonic!
@@ -84,7 +82,7 @@ impl Default for Hello {
         Self {
             ips: LocalIps {
                 eth: Ipv4Addr::UNSPECIFIED,
-                tun: Ipv4Addr::UNSPECIFIED,
+                veths: Vec::new(),
                 netmask: Ipv4Addr::UNSPECIFIED,
                 broadcast: Ipv4Addr::UNSPECIFIED,
             },
@@ -157,7 +155,7 @@ mod tests {
                     protocol: Protocol::TCP,
                 },
             ]),
-            IpAddr::from_str("10.0.0.9").unwrap(),
+            &vec![Ipv4Addr::from_str("10.0.0.9").unwrap()],
         )
     }
 
@@ -165,7 +163,7 @@ mod tests {
         Hello {
             ips: LocalIps {
                 eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
-                tun: Ipv4Addr::from_str("10.11.12.134").unwrap(),
+                veths: vec![Ipv4Addr::from_str("10.11.12.134").unwrap()],
                 netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
                 broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
             },
@@ -187,8 +185,8 @@ mod tests {
                 Token::Map { len: None },
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
-                Token::Str("tun"),
-                Token::Str("10.11.12.134"),
+                Token::Str("veths"),
+                Token::Str("[10.11.12.134]"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
                 Token::Str("broadcast"),
@@ -214,7 +212,7 @@ mod tests {
         assert_eq!(
             hello.to_toml_string(),
             "eth = \"8.8.8.8\"\n\
-             tun = \"10.11.12.134\"\n\
+             veths = \"[10.11.12.134]\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
@@ -229,7 +227,7 @@ mod tests {
         let default = Hello::default();
         let local_ips = LocalIps {
             eth: Ipv4Addr::from([192, 168, 1, 113]),
-            tun: Ipv4Addr::from([10, 0, 0, 113]),
+            veths: vec![Ipv4Addr::from([10, 0, 0, 113])],
             netmask: Ipv4Addr::from([255, 255, 255, 0]),
             broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
@@ -248,8 +246,8 @@ mod tests {
                 Token::Map { len: None },
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
-                Token::Str("tun"),
-                Token::Str("10.11.12.134"),
+                Token::Str("veths"),
+                Token::Str("[10.11.12.134]"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
                 Token::Str("broadcast"),
