@@ -41,8 +41,8 @@ pub(super) fn setup_br0() {
 
 pub(super) fn configure_access_port(vlan_id: u16, net: &Ipv4Network) {
     let ip = net.ip();
-    let veth_name = format!("veth_{}", ip.to_bits());
-    let veth_peer_name = format!("{veth_name}_p");
+    let veth_name = format!("veth{}", ip.to_bits());
+    let veth_peer_name = format!("{veth_name}p");
 
     // delete existing veth pair if any
     let res = Command::new("ip")
