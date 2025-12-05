@@ -28,7 +28,7 @@ impl LocalEndpoints {
     /// Parses and handles OVS configuration,
     /// tries to discover a local IP, and binds needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Result<Self, Error> {
-        let ovs_json = std::fs::read_to_string("/ovs/conf.json").handle_err(location!())?;
+        let ovs_json = std::fs::read_to_string("ovs/conf.json").handle_err(location!())?;
         let ovs_conf: OvsConfig = serde_json::from_str(&ovs_json).handle_err(location!())?;
         ovs_conf.activate();
         let veths = ovs_conf.get_veths_ips();
