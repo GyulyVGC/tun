@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,9 +7,8 @@ use crate::local_endpoints::LocalEndpoints;
 use crate::peers::database::{PeerDbAction, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::{Peer, PeerKey, PeerVal};
+use crate::peers::peer::{Peer, PeerKey, Peers};
 use chrono::Utc;
-use nullnet_liberror::{ErrorHandler, Location, location};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, mpsc};
@@ -19,10 +17,10 @@ use tokio::sync::{RwLock, mpsc};
 const RETRIES: u64 = 4;
 
 /// Time to live before a peer is removed from the local list (seconds).
-const TTL: u64 = 60; // * 60;
+pub(crate) const TTL: u64 = 60;
 
 /// Retransmission period of broadcast `Hello` messages (seconds).
-const RETRANSMISSION_PERIOD: u64 = TTL / 4;
+const RETRANSMISSION_PERIOD: u64 = TTL / 2 - 1;
 
 /// Period between the forward of two consecutive `Hello` message copies (seconds).
 const RETRIES_DELTA: u64 = 1;
@@ -33,10 +31,7 @@ const RETRIES_DELTA: u64 = 1;
 /// - listen for (and produces) unicast `Hello` responses
 /// - remove inactive peers when their TTL expires
 /// - periodically send out broadcast `Hello` messages
-pub async fn discover_peers(
-    endpoints: LocalEndpoints,
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-) {
+pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<Peers>>) {
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
     let socket_3 = socket.clone();
@@ -86,15 +81,11 @@ async fn listen(
     listen_socket: Arc<UdpSocket>,
     unicast_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
+    peers: Arc<RwLock<Peers>>,
     tx: UnboundedSender<(Peer, PeerDbAction)>,
 ) {
-    // used to determine whether an unicast response is required
-    let mut should_respond_to;
     let mut msg = [0; 1024];
     loop {
-        should_respond_to = None;
-
         let Ok((msg_len, from)) = listen_socket.recv_from(&mut msg).await else {
             continue;
         };
@@ -114,46 +105,7 @@ async fn listen(
             .unwrap_or_default();
 
         let peer_key = PeerKey::from_ip_addr(hello.ips.eth);
-        peers
-            .write()
-            .await
-            .entry(peer_key)
-            .and_modify(|peer_val| {
-                peer_val.refresh(delay, &hello);
-
-                if hello_is_setup {
-                    should_respond_to = Some(peer_key.discovery_socket_addr());
-                }
-
-                // update peer db
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Modify,
-                    ))
-                    .handle_err(location!());
-            })
-            .or_insert_with(|| {
-                let peer_val = PeerVal::with_details(delay, hello);
-
-                should_respond_to = Some(peer_key.discovery_socket_addr());
-
-                // update peer db
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.clone(),
-                        },
-                        PeerDbAction::Insert,
-                    ))
-                    .handle_err(location!());
-
-                peer_val
-            });
+        let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
 
         if let Some(dest_socket_addr) = should_respond_to
             && !hello_is_unicast
@@ -169,19 +121,14 @@ async fn listen(
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
 async fn remove_inactive_peers(
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
+    peers: Arc<RwLock<Peers>>,
     tx: UnboundedSender<(Peer, PeerDbAction)>,
 ) {
     loop {
-        let oldest_peer_val = peers
-            .read()
-            .await
-            .values()
-            .min_by(|p1, p2| p1.last_seen.cmp(&p2.last_seen))
-            .cloned();
-        let sleep_time = if let Some(p) = oldest_peer_val {
+        let oldest_last_seen = peers.read().await.get_oldest_last_seen();
+        let sleep_time = if let Some(ols) = oldest_last_seen {
             // TODO: timestamps must be monotonic!
-            let since_oldest = (Utc::now() - p.last_seen).num_seconds().unsigned_abs();
+            let since_oldest = (Utc::now() - ols).num_seconds().unsigned_abs();
             TTL.checked_sub(since_oldest).unwrap_or_default()
         } else {
             TTL
@@ -189,27 +136,7 @@ async fn remove_inactive_peers(
 
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
 
-        peers.write().await.retain(|peer_key, peer_val| {
-            let retain = (Utc::now() - peer_val.last_seen)
-                .num_seconds()
-                .unsigned_abs()
-                < TTL;
-
-            // update peer db
-            if !retain {
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: *peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Remove,
-                    ))
-                    .handle_err(location!());
-            }
-
-            retain
-        });
+        peers.write().await.remove_inactive_peers(&tx);
     }
 }
 

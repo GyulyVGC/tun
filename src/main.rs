@@ -1,6 +1,5 @@
 #![allow(clippy::used_underscore_binding)]
 
-use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::ops::Sub;
 use std::path::PathBuf;
@@ -21,6 +20,7 @@ use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
 use crate::ovs::helpers::configure_trunk_port;
 use crate::peers::discovery::discover_peers;
+use crate::peers::peer::Peers;
 
 mod cli;
 mod craft;
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Error> {
     let forward_socket = endpoints.sockets.forward.clone();
 
     // maps of all the peers
-    let peers = Arc::new(RwLock::new(HashMap::new()));
+    let peers = Arc::new(RwLock::new(Peers::default()));
     let peers_2 = peers.clone();
 
     // create the asynchronous TUN device, and split it into reader & writer halves

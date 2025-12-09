@@ -45,6 +45,7 @@ impl Display for Processes {
 impl FromStr for Processes {
     type Err = String;
 
+    // TODO: improve ser/de (as struct, not string)
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let err_str = "Wrong format for processes collection";
         let processes = s

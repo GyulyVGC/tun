@@ -1,7 +1,7 @@
 use crate::ovs::helpers::{configure_access_port, setup_br0};
+use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
 use serde::{Deserialize, Serialize};
-use std::net::Ipv4Addr;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OvsConfig {
@@ -28,10 +28,10 @@ impl OvsConfig {
         }
     }
 
-    pub fn get_veths_ips(&self) -> Vec<Ipv4Addr> {
+    pub fn get_veths(&self) -> Vec<VethKey> {
         self.vlans
             .iter()
-            .flat_map(|vlan| vlan.ports.iter().map(|net| net.ip()))
+            .flat_map(|vlan| vlan.ports.iter().map(|net| VethKey::new(net.ip(), vlan.id)))
             .collect()
     }
 }

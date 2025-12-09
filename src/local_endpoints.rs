@@ -31,7 +31,7 @@ impl LocalEndpoints {
         let ovs_json = std::fs::read_to_string("ovs/conf.json").handle_err(location!())?;
         let ovs_conf: OvsConfig = serde_json::from_str(&ovs_json).handle_err(location!())?;
         ovs_conf.activate();
-        let veths = ovs_conf.get_veths_ips();
+        let veths = ovs_conf.get_veths();
 
         loop {
             if let Some(eth_addr) = EthAddr::find_suitable() {

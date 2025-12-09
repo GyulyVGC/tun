@@ -1,6 +1,5 @@
 use etherparse::{EtherType, LaxPacketHeaders, NetHeaders};
 use nullnet_firewall::{Firewall, FirewallAction, FirewallDirection};
-use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
@@ -8,7 +7,7 @@ use tokio::sync::RwLock;
 use tun_rs::AsyncDevice;
 
 use crate::forward::frame::Frame;
-use crate::peers::peer::{PeerKey, PeerVal};
+use crate::peers::peer::{Peers, VethKey};
 
 /// Handles outgoing network packets (receives packets from the TUN interface and sends them to the socket),
 /// ensuring the firewall rules are correctly observed.
@@ -16,7 +15,7 @@ pub async fn send(
     device: &Arc<AsyncDevice>,
     socket: &Arc<UdpSocket>,
     firewall: &Arc<RwLock<Firewall>>,
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
+    peers: Arc<RwLock<Peers>>,
 ) {
     let mut frame = Frame::new();
     loop {
@@ -43,12 +42,9 @@ pub async fn send(
     }
 }
 
-async fn get_dst_socket(
-    pkt_data: &[u8],
-    peers: &Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-) -> Option<SocketAddr> {
-    // TODO: make this more efficient!!!
+async fn get_dst_socket(pkt_data: &[u8], peers: &Arc<RwLock<Peers>>) -> Option<SocketAddr> {
     let headers = LaxPacketHeaders::from_ethernet(pkt_data).ok()?;
+    let vlan_id = headers.vlan_ids().first().map(|v| v.value())?;
     let dest_ip_slice = match headers.net {
         Some(NetHeaders::Ipv4(ipv4_header, _)) => Some(ipv4_header.destination),
         Some(NetHeaders::Arp(arp_packet)) => match arp_packet.proto_addr_type {
@@ -58,11 +54,7 @@ async fn get_dst_socket(
         _ => None,
     }?;
     let dest_ip = Ipv4Addr::from(dest_ip_slice);
+    let veth_key = VethKey::new(dest_ip, vlan_id);
 
-    for (k, v) in &*peers.read().await {
-        if v.veths.contains(&dest_ip) {
-            return Some(k.forward_socket_addr());
-        }
-    }
-    None
+    peers.read().await.get_socket_by_veth(&veth_key)
 }

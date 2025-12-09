@@ -31,8 +31,9 @@ pub struct Hello {
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
+        let veth_ips = &local_ips.veths.iter().map(|v| v.veth_ip).collect();
         let processes =
-            Processes::from_listeners(listeners::get_all().unwrap_or_default(), &local_ips.veths);
+            Processes::from_listeners(listeners::get_all().unwrap_or_default(), &veth_ips);
         Self {
             ips: local_ips.to_owned(),
             timestamp: Utc::now(),
@@ -129,6 +130,7 @@ mod tests {
 
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
+    use crate::peers::peer::VethKey;
     use crate::peers::processes::Processes;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
@@ -163,7 +165,10 @@ mod tests {
         Hello {
             ips: LocalIps {
                 eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
-                veths: vec![Ipv4Addr::from_str("10.11.12.134").unwrap()],
+                veths: vec![VethKey::new(
+                    Ipv4Addr::from_str("10.11.12.134").unwrap(),
+                    10,
+                )],
                 netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
                 broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
             },
@@ -186,7 +191,17 @@ mod tests {
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("veths"),
-                Token::Str("[10.11.12.134]"),
+                Token::Seq { len: Some(1) },
+                Token::Struct {
+                    name: "veth",
+                    len: 2,
+                },
+                Token::Str("ip"),
+                Token::Str("10.11.12.134"),
+                Token::Str("vlan_id"),
+                Token::U16(10),
+                Token::StructEnd,
+                Token::SeqEnd,
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
                 Token::Str("broadcast"),
@@ -212,13 +227,15 @@ mod tests {
         assert_eq!(
             hello.to_toml_string(),
             "eth = \"8.8.8.8\"\n\
-             veths = \"[10.11.12.134]\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
              is_setup = false\n\
              is_unicast = true\n\
-             processes = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n"
+             processes = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n\n\
+             [[veths]]\n\
+             ip = \"10.11.12.134\"\n\
+             vlan_id = 10\n"
         );
     }
 
@@ -227,7 +244,7 @@ mod tests {
         let default = Hello::default();
         let local_ips = LocalIps {
             eth: Ipv4Addr::from([192, 168, 1, 113]),
-            veths: vec![Ipv4Addr::from([10, 0, 0, 113])],
+            veths: vec![VethKey::new(Ipv4Addr::from([10, 0, 0, 113]), 20)],
             netmask: Ipv4Addr::from([255, 255, 255, 0]),
             broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
@@ -247,7 +264,17 @@ mod tests {
                 Token::Str("eth"),
                 Token::Str("8.8.8.8"),
                 Token::Str("veths"),
-                Token::Str("[10.11.12.134]"),
+                Token::Seq { len: Some(1) },
+                Token::Struct {
+                    name: "veth",
+                    len: 2,
+                },
+                Token::Str("ip"),
+                Token::Str("10.11.12.134"),
+                Token::Str("vlan_id"),
+                Token::U16(10),
+                Token::StructEnd,
+                Token::SeqEnd,
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
                 Token::Str("broadcast"),
