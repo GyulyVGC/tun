@@ -32,12 +32,16 @@ impl OvsConfig {
 
     pub fn activate(&self) {
         setup_br0();
+        self.configure_access_ports();
+        configure_trunk_port();
+    }
+
+    fn configure_access_ports(&self) {
         for vlan in &self.vlans {
             for port in &vlan.ports {
                 configure_access_port(vlan.id, port);
             }
         }
-        configure_trunk_port();
     }
 
     pub fn get_veths(&self) -> Vec<VethKey> {
@@ -73,7 +77,7 @@ impl OvsConfig {
                     let Ok(ovs_conf) = Self::load() else {
                         continue;
                     };
-                    ovs_conf.activate();
+                    ovs_conf.configure_access_ports();
                     *veths.write().await = ovs_conf.get_veths();
                     last_update_time = Instant::now();
                 }
