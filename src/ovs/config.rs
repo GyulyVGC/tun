@@ -30,11 +30,8 @@ impl OvsConfig {
         Ok(ovs_conf)
     }
 
-    pub fn setup_br0(&self) {
-        setup_br0();
-    }
-
     pub fn configure_access_ports(&self) {
+        setup_br0();
         for vlan in &self.vlans {
             for port in &vlan.ports {
                 configure_access_port(vlan.id, port);

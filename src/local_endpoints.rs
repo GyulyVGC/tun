@@ -29,7 +29,6 @@ impl LocalEndpoints {
     /// tries to discover a local IP, and binds needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Result<Self, Error> {
         let ovs_conf = OvsConfig::load()?;
-        ovs_conf.setup_br0();
         ovs_conf.configure_access_ports();
         let veths = Arc::new(RwLock::new(ovs_conf.get_veths()));
 

@@ -130,18 +130,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::str::FromStr;
-    use std::sync::Arc;
-    use chrono::{DateTime, Utc};
-    use listeners::{Listener, Process, Protocol};
-    use serde_test::{Token, assert_tokens, Configure};
-    use tokio::sync::RwLock;
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
     use crate::peers::peer::VethKey;
     use crate::peers::processes::Processes;
+    use chrono::{DateTime, Utc};
+    use listeners::{Listener, Process, Protocol};
+    use serde_test::{Configure, Token, assert_tokens};
+    use std::collections::HashSet;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 
@@ -195,7 +195,10 @@ mod tests {
         assert_tokens(
             &hello.readable(),
             &[
-                Token::Struct { name: "Hello", len: 8 },
+                Token::Struct {
+                    name: "Hello",
+                    len: 8,
+                },
                 Token::Str("ethernet"),
                 Token::Str("8.8.8.8"),
                 Token::Str("netmask"),
@@ -252,11 +255,17 @@ mod tests {
         let default = Hello::default();
         let local_ips = LocalIps {
             ethernet: Ipv4Addr::from([192, 168, 1, 113]),
-            veths: Arc::new(RwLock::new(vec![VethKey::new(Ipv4Addr::from([10, 0, 0, 113]), 20)])),
+            veths: Arc::new(RwLock::new(vec![VethKey::new(
+                Ipv4Addr::from([10, 0, 0, 113]),
+                20,
+            )])),
             netmask: Ipv4Addr::from([255, 255, 255, 0]),
             broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
-        assert!(!default.is_valid(&SocketAddr::new(IpAddr::V4(default.ethernet), 0), &local_ips));
+        assert!(!default.is_valid(
+            &SocketAddr::new(IpAddr::V4(default.ethernet), 0),
+            &local_ips
+        ));
     }
 
     #[test]
@@ -268,7 +277,10 @@ mod tests {
         assert_tokens(
             &hello.readable(),
             &[
-                Token::Struct { name: "Hello", len: 8 },
+                Token::Struct {
+                    name: "Hello",
+                    len: 8,
+                },
                 Token::Str("ethernet"),
                 Token::Str("8.8.8.8"),
                 Token::Str("netmask"),
