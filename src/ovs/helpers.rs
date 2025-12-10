@@ -121,9 +121,7 @@ pub(crate) fn delete_all_veths() {
         for device in devices {
             let name = &device.name;
             if name.starts_with("veth") {
-                let res = Command::new("ip")
-                    .args(&["link", "del", name])
-                    .spawn();
+                let res = Command::new("ip").args(&["link", "del", name]).spawn();
                 if let Ok(mut child) = res {
                     let _ = child.wait();
                 }

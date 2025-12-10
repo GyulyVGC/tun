@@ -1,6 +1,4 @@
-use crate::ovs::helpers::{
-    configure_access_port, configure_trunk_port, delete_all_veths, setup_br0,
-};
+use crate::ovs::helpers::{configure_access_port, delete_all_veths, setup_br0};
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
