@@ -70,7 +70,9 @@ impl OvsConfig {
                 if last_update_time.elapsed().as_millis() > 100 {
                     // ensure file changes are propagated
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    let ovs_conf = Self::load()?;
+                    let Ok(ovs_conf) = Self::load() else {
+                        continue;
+                    };
                     ovs_conf.activate();
                     *veths.write().await = ovs_conf.get_veths();
                     last_update_time = Instant::now();

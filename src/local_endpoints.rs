@@ -31,6 +31,14 @@ impl LocalEndpoints {
         let ovs_conf = OvsConfig::load()?;
         ovs_conf.activate();
         let veths = Arc::new(RwLock::new(ovs_conf.get_veths()));
+        let veths_2 = veths.clone();
+
+        // watch the file defining OVS config and update the local veths accordingly
+        tokio::spawn(async move {
+            OvsConfig::watch(&veths_2)
+                .await
+                .expect("Watching OVS config failed");
+        });
 
         loop {
             if let Some(eth_addr) = EthAddr::find_suitable() {
