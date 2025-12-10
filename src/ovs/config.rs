@@ -1,14 +1,16 @@
+use crate::DISCOVERY_PORT;
+use crate::local_endpoints::LocalEndpoints;
 use crate::ovs::helpers::{configure_access_port, delete_all_veths, setup_br0};
+use crate::peers::discovery::greet;
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, SocketAddr};
 use std::ops::Sub;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OvsConfig {
@@ -47,7 +49,7 @@ impl OvsConfig {
             .collect()
     }
 
-    pub async fn watch(veths: &Arc<RwLock<Vec<VethKey>>>) -> Result<(), Error> {
+    pub async fn watch(endpoints: &LocalEndpoints) -> Result<(), Error> {
         let mut ovs_directory = PathBuf::from(Self::FILE_PATH);
         ovs_directory.pop();
 
@@ -69,12 +71,24 @@ impl OvsConfig {
                 // debounce duplicated events
                 if last_update_time.elapsed().as_millis() > 100 {
                     // ensure file changes are propagated
-                    // tokio::time::sleep(Duration::from_millis(100)).await; // TODO why this causes issues?
+                    // TODO why this causes issues?
+                    // tokio::time::sleep(Duration::from_millis(100)).await;
+
+                    // reload and activate OVS config
                     let Ok(ovs_conf) = Self::load() else {
                         continue;
                     };
                     ovs_conf.activate();
-                    *veths.write().await = ovs_conf.get_veths();
+
+                    // send broadcast updates
+                    *endpoints.ips.veths.write().await = ovs_conf.get_veths();
+                    let socket = endpoints.sockets.discovery.clone();
+                    let local_ips = endpoints.ips.clone();
+                    let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
+                    tokio::spawn(async move {
+                        greet(&socket, dest, &local_ips, false, true, false).await;
+                    });
+
                     last_update_time = Instant::now();
                 }
             }

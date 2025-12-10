@@ -163,7 +163,7 @@ async fn greet_unicast(
 }
 
 /// Sends out replicated hello messages to broadcast or to a specific peer.
-async fn greet(
+pub(crate) async fn greet(
     socket: &Arc<UdpSocket>,
     dest: SocketAddr,
     local_ips: &LocalIps,

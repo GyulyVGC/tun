@@ -18,6 +18,7 @@ use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
+use crate::ovs::config::OvsConfig;
 use crate::peers::discovery::discover_peers;
 use crate::peers::peer::Peers;
 
@@ -65,6 +66,14 @@ async fn main() -> Result<(), Error> {
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
     let forward_socket = endpoints.sockets.forward.clone();
+
+    // watch the file defining OVS config and update the local veths accordingly
+    let endpoints_2 = endpoints.clone();
+    tokio::spawn(async move {
+        OvsConfig::watch(&endpoints_2)
+            .await
+            .expect("Watching OVS config failed");
+    });
 
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
