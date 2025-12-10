@@ -133,11 +133,11 @@ mod tests {
     use std::collections::HashSet;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
-
+    use std::sync::Arc;
     use chrono::{DateTime, Utc};
     use listeners::{Listener, Process, Protocol};
-    use serde_test::{Token, assert_tokens};
-
+    use serde_test::{Token, assert_tokens, Configure};
+    use tokio::sync::RwLock;
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
     use crate::peers::peer::VethKey;
@@ -173,15 +173,13 @@ mod tests {
 
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
-            ips: LocalIps {
-                ethernet: Ipv4Addr::from_str("8.8.8.8").unwrap(),
-                veths: vec![VethKey::new(
-                    Ipv4Addr::from_str("10.11.12.134").unwrap(),
-                    10,
-                )],
-                netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
-                broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
-            },
+            ethernet: Ipv4Addr::from_str("8.8.8.8").unwrap(),
+            netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
+            broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
+            veths: vec![VethKey::new(
+                Ipv4Addr::from_str("10.11.12.134").unwrap(),
+                10,
+            )],
             timestamp,
             is_setup: false,
             is_unicast: true,
@@ -195,27 +193,27 @@ mod tests {
         let hello = hello_for_tests(timestamp);
 
         assert_tokens(
-            &hello,
+            &hello.readable(),
             &[
-                Token::Map { len: None },
-                Token::Str("eth"),
+                Token::Struct { name: "Hello", len: 8 },
+                Token::Str("ethernet"),
                 Token::Str("8.8.8.8"),
+                Token::Str("netmask"),
+                Token::Str("255.255.255.0"),
+                Token::Str("broadcast"),
+                Token::Str("8.8.8.255"),
                 Token::Str("veths"),
                 Token::Seq { len: Some(1) },
                 Token::Struct {
                     name: "veth",
                     len: 2,
                 },
-                Token::Str("ip"),
+                Token::Str("veth_ip"),
                 Token::Str("10.11.12.134"),
                 Token::Str("vlan_id"),
                 Token::U16(10),
                 Token::StructEnd,
                 Token::SeqEnd,
-                Token::Str("netmask"),
-                Token::Str("255.255.255.0"),
-                Token::Str("broadcast"),
-                Token::Str("8.8.8.255"),
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
@@ -224,7 +222,7 @@ mod tests {
                 Token::Bool(true),
                 Token::Str("processes"),
                 Token::Str("[999/nullnetd on 875, 1234/sshd on 22]"),
-                Token::MapEnd,
+                Token::StructEnd,
             ],
         );
     }
@@ -236,7 +234,7 @@ mod tests {
 
         assert_eq!(
             hello.to_toml_string(),
-            "eth = \"8.8.8.8\"\n\
+            "ethernet = \"8.8.8.8\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
@@ -244,7 +242,7 @@ mod tests {
              is_unicast = true\n\
              processes = \"[999/nullnetd on 875, 1234/sshd on 22]\"\n\n\
              [[veths]]\n\
-             ip = \"10.11.12.134\"\n\
+             veth_ip = \"10.11.12.134\"\n\
              vlan_id = 10\n"
         );
     }
@@ -254,11 +252,11 @@ mod tests {
         let default = Hello::default();
         let local_ips = LocalIps {
             ethernet: Ipv4Addr::from([192, 168, 1, 113]),
-            veths: vec![VethKey::new(Ipv4Addr::from([10, 0, 0, 113]), 20)],
+            veths: Arc::new(RwLock::new(vec![VethKey::new(Ipv4Addr::from([10, 0, 0, 113]), 20)])),
             netmask: Ipv4Addr::from([255, 255, 255, 0]),
             broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
-        assert!(!default.is_valid(&SocketAddr::new(IpAddr::V4(default.ips.eth), 0), &local_ips));
+        assert!(!default.is_valid(&SocketAddr::new(IpAddr::V4(default.ethernet), 0), &local_ips));
     }
 
     #[test]
@@ -268,27 +266,27 @@ mod tests {
         hello.processes = Processes::default();
 
         assert_tokens(
-            &hello,
+            &hello.readable(),
             &[
-                Token::Map { len: None },
-                Token::Str("eth"),
+                Token::Struct { name: "Hello", len: 8 },
+                Token::Str("ethernet"),
                 Token::Str("8.8.8.8"),
+                Token::Str("netmask"),
+                Token::Str("255.255.255.0"),
+                Token::Str("broadcast"),
+                Token::Str("8.8.8.255"),
                 Token::Str("veths"),
                 Token::Seq { len: Some(1) },
                 Token::Struct {
                     name: "veth",
                     len: 2,
                 },
-                Token::Str("ip"),
+                Token::Str("veth_ip"),
                 Token::Str("10.11.12.134"),
                 Token::Str("vlan_id"),
                 Token::U16(10),
                 Token::StructEnd,
                 Token::SeqEnd,
-                Token::Str("netmask"),
-                Token::Str("255.255.255.0"),
-                Token::Str("broadcast"),
-                Token::Str("8.8.8.255"),
                 Token::Str("timestamp"),
                 Token::Str(TEST_TIMESTAMP),
                 Token::Str("is_setup"),
@@ -297,7 +295,7 @@ mod tests {
                 Token::Bool(true),
                 Token::Str("processes"),
                 Token::Str("[]"),
-                Token::MapEnd,
+                Token::StructEnd,
             ],
         );
     }
