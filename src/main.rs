@@ -19,7 +19,6 @@ use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
 use crate::ovs::config::OvsConfig;
-use crate::ovs::helpers::configure_trunk_port;
 use crate::peers::discovery::discover_peers;
 use crate::peers::peer::Peers;
 
@@ -54,6 +53,16 @@ async fn main() -> Result<(), Error> {
         num_tasks,
     } = Args::parse();
 
+    // create the asynchronous TUN device, and split it into reader & writer halves
+    let device = DeviceBuilder::new()
+        .name(TUN_NAME)
+        .layer(Layer::L2)
+        // .mac_addr(tun_mac)
+        // .ipv4(tun_ip, netmask, None)
+        // TODO: MTU? GSO?
+        .build_async()
+        .handle_err(location!())?;
+
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
     let forward_socket = endpoints.sockets.forward.clone();
@@ -69,18 +78,6 @@ async fn main() -> Result<(), Error> {
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
     let peers_2 = peers.clone();
-
-    // create the asynchronous TUN device, and split it into reader & writer halves
-    let device = DeviceBuilder::new()
-        .name(TUN_NAME)
-        .layer(Layer::L2)
-        // .mac_addr(tun_mac)
-        // .ipv4(tun_ip, netmask, None)
-        // TODO: MTU? GSO?
-        .build_async()
-        .handle_err(location!())?;
-
-    configure_trunk_port();
 
     let reader_shared = Arc::new(device);
     let writer_shared = reader_shared.clone();

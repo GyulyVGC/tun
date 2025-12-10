@@ -1,4 +1,4 @@
-use crate::ovs::helpers::{configure_access_port, setup_br0};
+use crate::ovs::helpers::{configure_access_port, configure_trunk_port, setup_br0};
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -30,13 +30,14 @@ impl OvsConfig {
         Ok(ovs_conf)
     }
 
-    pub fn configure_access_ports(&self) {
+    pub fn activate(&self) {
         setup_br0();
         for vlan in &self.vlans {
             for port in &vlan.ports {
                 configure_access_port(vlan.id, port);
             }
         }
+        configure_trunk_port();
     }
 
     pub fn get_veths(&self) -> Vec<VethKey> {
@@ -70,7 +71,7 @@ impl OvsConfig {
                     // ensure file changes are propagated
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     let ovs_conf = Self::load()?;
-                    ovs_conf.configure_access_ports();
+                    ovs_conf.activate();
                     *veths.write().await = ovs_conf.get_veths();
                     last_update_time = Instant::now();
                 }
