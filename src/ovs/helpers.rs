@@ -3,6 +3,14 @@ use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::process::Command;
 
 pub(super) fn setup_br0() {
+    // remove nullnet0 from the bridge
+    let res = Command::new("ovs-vsctl")
+        .args(&["del-port", "br0", "nullnet0"])
+        .spawn();
+    if let Ok(mut child) = res {
+        let _ = child.wait();
+    }
+
     // delete existing bridge if any
     let res = Command::new("ovs-vsctl").args(&["del-br", "br0"]).spawn();
     if let Ok(mut child) = res {
@@ -34,6 +42,14 @@ pub(super) fn setup_br0() {
     // use the built-in switching logic
     let res = Command::new("ovs-ofctl")
         .args(&["add-flow", "br0", "priority=0,actions=normal"])
+        .spawn();
+    if let Ok(mut child) = res {
+        let _ = child.wait();
+    }
+
+    // add nullnet0 to the bridge as a trunk port
+    let res = Command::new("ovs-vsctl")
+        .args(&["add-port", "br0", "nullnet0"])
         .spawn();
     if let Ok(mut child) = res {
         let _ = child.wait();
@@ -94,16 +110,6 @@ pub(super) fn configure_access_port(vlan_id: u16, net: &Ipv4Network) {
             &veth_peer_name,
             &format!("tag={vlan_id}"),
         ])
-        .spawn();
-    if let Ok(mut child) = res {
-        let _ = child.wait();
-    }
-}
-
-pub(crate) fn configure_trunk_port() {
-    // add nullnet0 to the bridge as a trunk port
-    let res = Command::new("ovs-vsctl")
-        .args(&["add-port", "br0", "nullnet0"])
         .spawn();
     if let Ok(mut child) = res {
         let _ = child.wait();

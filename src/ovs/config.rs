@@ -40,7 +40,6 @@ impl OvsConfig {
                 configure_access_port(vlan.id, port);
             }
         }
-        configure_trunk_port();
     }
 
     pub fn get_veths(&self) -> Vec<VethKey> {
