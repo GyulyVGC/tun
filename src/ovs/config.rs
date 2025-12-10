@@ -1,7 +1,14 @@
 use crate::ovs::helpers::{configure_access_port, setup_br0};
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
+use std::ops::Sub;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OvsConfig {
@@ -11,16 +18,23 @@ pub struct OvsConfig {
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct OvsVlan {
     pub id: u16,
-    // #[serde(
-    //     deserialize_with = "deserialize_ip_net",
-    //     serialize_with = "serialize_ip_net"
-    // )]
     pub ports: Vec<Ipv4Network>,
 }
 
 impl OvsConfig {
-    pub fn activate(&self) {
+    pub const FILE_PATH: &'static str = "ovs/conf.json";
+
+    pub fn load() -> Result<Self, Error> {
+        let ovs_json = std::fs::read_to_string(Self::FILE_PATH).handle_err(location!())?;
+        let ovs_conf: OvsConfig = serde_json::from_str(&ovs_json).handle_err(location!())?;
+        Ok(ovs_conf)
+    }
+
+    pub fn setup_br0(&self) {
         setup_br0();
+    }
+
+    pub fn configure_access_ports(&self) {
         for vlan in &self.vlans {
             for port in &vlan.ports {
                 configure_access_port(vlan.id, port);
@@ -34,42 +48,39 @@ impl OvsConfig {
             .flat_map(|vlan| vlan.ports.iter().map(|net| VethKey::new(net.ip(), vlan.id)))
             .collect()
     }
-}
 
-// pub(crate) fn serialize_ip_net<S>(v: &Vec<Ipv4Network>, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: Serializer,
-// {
-//     let str = v
-//         .iter()
-//         .map(|net| net.to_string())
-//         .collect::<Vec<String>>()
-//         .join(",");
-//     serializer.serialize_str(&format!("[{str}]"))
-// }
-//
-// pub(crate) fn deserialize_ip_net<'de, D>(deserializer: D) -> Result<Vec<Ipv4Network>, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     let net_vec_string = String::deserialize(deserializer)?;
-//     let nets_string = net_vec_string
-//         .strip_prefix('[')
-//         .and_then(|s| s.strip_suffix(']'))
-//         .ok_or_else(|| {
-//             serde::de::Error::invalid_value(
-//                 Unexpected::Str(&net_vec_string),
-//                 &"Valid IP networks list",
-//             )
-//         })?;
-//     let ips: Result<Vec<Ipv4Network>, _> = nets_string
-//         .split(',')
-//         .map(|s| s.trim().parse::<Ipv4Network>())
-//         .collect();
-//     ips.map_err(|_| {
-//         serde::de::Error::invalid_value(Unexpected::Str(&nets_string), &"Valid IP networks list")
-//     })
-// }
+    pub async fn watch(veths: &Arc<RwLock<Vec<VethKey>>>) -> Result<(), Error> {
+        let mut ovs_directory = PathBuf::from(Self::FILE_PATH);
+        ovs_directory.pop();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = RecommendedWatcher::new(tx, Config::default()).handle_err(location!())?;
+        watcher
+            .watch(&ovs_directory, RecursiveMode::Recursive)
+            .handle_err(location!())?;
+
+        let mut last_update_time = Instant::now().sub(Duration::from_secs(60));
+
+        loop {
+            // only update OVS config if the event is related to a file change
+            if let Ok(Ok(Event {
+                kind: EventKind::Modify(_),
+                ..
+            })) = rx.recv()
+            {
+                // debounce duplicated events
+                if last_update_time.elapsed().as_millis() > 100 {
+                    // ensure file changes are propagated
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    let ovs_conf = Self::load()?;
+                    ovs_conf.configure_access_ports();
+                    *veths.write().await = ovs_conf.get_veths();
+                    last_update_time = Instant::now();
+                }
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

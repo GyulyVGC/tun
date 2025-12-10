@@ -104,7 +104,7 @@ async fn listen(
             .num_microseconds()
             .unwrap_or_default();
 
-        let peer_key = PeerKey::from_ip_addr(hello.ips.eth);
+        let peer_key = PeerKey::from_ip_addr(hello.ethernet);
         let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
 
         if let Some(dest_socket_addr) = should_respond_to
@@ -175,6 +175,7 @@ async fn greet(
         socket
             .send_to(
                 Hello::with_details(local_ips, is_setup, is_unicast)
+                    .await
                     .to_toml_string()
                     .as_bytes(),
                 dest,

@@ -1,36 +1,36 @@
-use std::net::Ipv4Addr;
-use std::str::FromStr;
-
 use crate::peers::peer::VethKey;
-use serde::de::Unexpected;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::net::Ipv4Addr;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 /// Collection of the relevant local IP addresses.
 pub struct LocalIps {
     /// Ethernet IP address of the peer.
-    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
-    pub eth: Ipv4Addr,
-    /// Veths of the peer.
-    pub veths: Vec<VethKey>,
+    pub ethernet: Ipv4Addr,
     /// Netmask of the peer.
-    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
     pub netmask: Ipv4Addr,
     /// Broadcast address of the peer.
-    #[serde(deserialize_with = "deserialize_ip", serialize_with = "serialize_ip")]
     pub broadcast: Ipv4Addr,
+    /// Veths of the peer.
+    pub veths: Arc<RwLock<Vec<VethKey>>>,
 }
 
 impl LocalIps {
     /// Checks that Ethernet addresses are in the same local network.
-    pub fn is_same_ipv4_ethernet_network_of(&self, other: &Self) -> bool {
-        if self.netmask != other.netmask || self.broadcast != other.broadcast {
+    pub fn is_same_ipv4_ethernet_network_of(
+        &self,
+        ethernet: Ipv4Addr,
+        netmask: Ipv4Addr,
+        broadcast: Ipv4Addr,
+    ) -> bool {
+        if self.netmask != netmask || self.broadcast != broadcast {
             return false;
         }
 
         let netmask = self.netmask.octets();
-        let eth_1 = self.eth.octets();
-        let eth_2 = other.eth.octets();
+        let eth_1 = self.ethernet.octets();
+        let eth_2 = ethernet.octets();
 
         for i in 0..4 {
             if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
@@ -42,24 +42,24 @@ impl LocalIps {
     }
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref)]
-pub(crate) fn serialize_ip<S>(ip: &Ipv4Addr, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&ip.to_string())
-}
-
-pub(crate) fn deserialize_ip<'de, D>(deserializer: D) -> Result<Ipv4Addr, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let ip_string = String::deserialize(deserializer)?;
-
-    Ipv4Addr::from_str(&ip_string).map_err(|_| {
-        serde::de::Error::invalid_value(Unexpected::Str(&ip_string), &"Valid IP address")
-    })
-}
+// #[allow(clippy::trivially_copy_pass_by_ref)]
+// pub(crate) fn serialize_ip<S>(ip: &Ipv4Addr, serializer: S) -> Result<S::Ok, S::Error>
+// where
+//     S: Serializer,
+// {
+//     serializer.serialize_str(&ip.to_string())
+// }
+//
+// pub(crate) fn deserialize_ip<'de, D>(deserializer: D) -> Result<Ipv4Addr, D::Error>
+// where
+//     D: Deserializer<'de>,
+// {
+//     let ip_string = String::deserialize(deserializer)?;
+//
+//     Ipv4Addr::from_str(&ip_string).map_err(|_| {
+//         serde::de::Error::invalid_value(Unexpected::Str(&ip_string), &"Valid IP address")
+//     })
+// }
 
 // pub(crate) fn serialize_ip_vec<S>(v: &Vec<Ipv4Addr>, serializer: S) -> Result<S::Ok, S::Error>
 // where

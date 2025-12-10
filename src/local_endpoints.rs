@@ -1,14 +1,14 @@
+use crate::ovs::config::OvsConfig;
+use crate::peers::eth_addr::EthAddr;
+use crate::peers::local_ips::LocalIps;
+use crate::{DISCOVERY_PORT, FORWARD_PORT};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io;
 use tokio::net::UdpSocket;
-
-use crate::ovs::config::OvsConfig;
-use crate::peers::eth_addr::EthAddr;
-use crate::peers::local_ips::LocalIps;
-use crate::{DISCOVERY_PORT, FORWARD_PORT};
+use tokio::sync::RwLock;
 
 /// Struct including local IP addresses and sockets, used to set configurations
 /// and to correctly communicate with peers in the same network.
@@ -28,10 +28,10 @@ impl LocalEndpoints {
     /// Parses and handles OVS configuration,
     /// tries to discover a local IP, and binds needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup() -> Result<Self, Error> {
-        let ovs_json = std::fs::read_to_string("ovs/conf.json").handle_err(location!())?;
-        let ovs_conf: OvsConfig = serde_json::from_str(&ovs_json).handle_err(location!())?;
-        ovs_conf.activate();
-        let veths = ovs_conf.get_veths();
+        let ovs_conf = OvsConfig::load()?;
+        ovs_conf.setup_br0();
+        ovs_conf.configure_access_ports();
+        let veths = Arc::new(RwLock::new(ovs_conf.get_veths()));
 
         loop {
             if let Some(eth_addr) = EthAddr::find_suitable() {
@@ -55,7 +55,7 @@ impl LocalEndpoints {
 
                             return Ok(Self {
                                 ips: LocalIps {
-                                    eth: ip,
+                                    ethernet: ip,
                                     veths,
                                     netmask,
                                     broadcast,

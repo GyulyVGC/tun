@@ -1,19 +1,23 @@
-use std::net::{Ipv4Addr, SocketAddr};
-use std::str::FromStr;
-
+use crate::peers::local_ips::LocalIps;
+use crate::peers::peer::VethKey;
+use crate::peers::processes::Processes;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::peers::local_ips::LocalIps;
-use crate::peers::processes::Processes;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::str::FromStr;
 
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct Hello {
-    /// Ethernet IP, TUN IP, and netmask of the peer sending the message.
-    #[serde(flatten)]
-    pub ips: LocalIps,
+    /// Ethernet IP of the peer sending the message.
+    pub ethernet: Ipv4Addr,
+    /// Ethernet netmask of the peer sending the message.
+    pub netmask: Ipv4Addr,
+    /// Ethernet broadcast address of the peer sending the message.
+    pub broadcast: Ipv4Addr,
+    /// Veths of the peer sending the message.
+    pub veths: Vec<VethKey>,
     /// Timestamp of the message.
     #[serde(
         deserialize_with = "deserialize_timestamp",
@@ -30,12 +34,21 @@ pub struct Hello {
 
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
-    pub fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let veth_ips = &local_ips.veths.iter().map(|v| v.veth_ip).collect();
+    pub async fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
+        let veth_ips = &local_ips
+            .veths
+            .read()
+            .await
+            .iter()
+            .map(|v| v.veth_ip)
+            .collect();
         let processes =
             Processes::from_listeners(listeners::get_all().unwrap_or_default(), &veth_ips);
         Self {
-            ips: local_ips.to_owned(),
+            ethernet: local_ips.ethernet,
+            netmask: local_ips.netmask,
+            broadcast: local_ips.broadcast,
+            veths: local_ips.veths.read().await.clone(),
             timestamp: Utc::now(),
             is_setup,
             is_unicast,
@@ -54,15 +67,14 @@ impl Hello {
         local_ips: &LocalIps,
         // received_at: &DateTime<Utc>, TODO: timestamps must be monotonic!
     ) -> bool {
-        let remote_ips = &self.ips;
         // Ethernet address corresponds to sender socket address
-        remote_ips.eth == from.ip()
+        self.ethernet == from.ip()
             // hello was not sent from this machine
-            && remote_ips.eth != local_ips.eth
+            && self.ethernet != local_ips.ethernet
             // has not same TUN address of this machine
             // && remote_ips.tun != local_ips.tun
             // are in the same Ethernet IPv4 network
-            && remote_ips.is_same_ipv4_ethernet_network_of(local_ips)
+            && local_ips.is_same_ipv4_ethernet_network_of(self.ethernet, self.netmask, self.broadcast)
         // delay is non negative TODO: timestamps must be monotonic!
         // && received_at >= &self.timestamp
     }
@@ -81,12 +93,10 @@ impl Hello {
 impl Default for Hello {
     fn default() -> Self {
         Self {
-            ips: LocalIps {
-                eth: Ipv4Addr::UNSPECIFIED,
-                veths: Vec::new(),
-                netmask: Ipv4Addr::UNSPECIFIED,
-                broadcast: Ipv4Addr::UNSPECIFIED,
-            },
+            ethernet: Ipv4Addr::UNSPECIFIED,
+            netmask: Ipv4Addr::UNSPECIFIED,
+            broadcast: Ipv4Addr::UNSPECIFIED,
+            veths: Vec::new(),
             timestamp: DateTime::default(),
             is_setup: false,
             is_unicast: false,
@@ -164,7 +174,7 @@ mod tests {
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
             ips: LocalIps {
-                eth: Ipv4Addr::from_str("8.8.8.8").unwrap(),
+                ethernet: Ipv4Addr::from_str("8.8.8.8").unwrap(),
                 veths: vec![VethKey::new(
                     Ipv4Addr::from_str("10.11.12.134").unwrap(),
                     10,
@@ -243,7 +253,7 @@ mod tests {
     fn test_default_hello_message_not_valid() {
         let default = Hello::default();
         let local_ips = LocalIps {
-            eth: Ipv4Addr::from([192, 168, 1, 113]),
+            ethernet: Ipv4Addr::from([192, 168, 1, 113]),
             veths: vec![VethKey::new(Ipv4Addr::from([10, 0, 0, 113]), 20)],
             netmask: Ipv4Addr::from([255, 255, 255, 0]),
             broadcast: Ipv4Addr::from([192, 168, 1, 255]),

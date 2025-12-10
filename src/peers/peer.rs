@@ -6,7 +6,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use crate::peers::database::PeerDbAction;
 use crate::peers::discovery::TTL;
 use crate::peers::hello::Hello;
-use crate::peers::local_ips::{deserialize_ip, serialize_ip};
 use crate::peers::processes::Processes;
 use crate::{DISCOVERY_PORT, FORWARD_PORT};
 use chrono::{DateTime, Utc};
@@ -49,7 +48,7 @@ impl Peers {
     ) -> Option<SocketAddr> {
         // update veth to eth mapping
         self.ips.retain(|_, v| v != &peer_key);
-        for veth_key in &hello.ips.veths {
+        for veth_key in &hello.veths {
             self.ips.insert(*veth_key, peer_key);
         }
 
@@ -164,11 +163,6 @@ impl PeerKey {
 #[serde(rename = "veth")]
 pub struct VethKey {
     /// IP address of the veth.
-    #[serde(
-        deserialize_with = "deserialize_ip",
-        serialize_with = "serialize_ip",
-        rename = "ip"
-    )]
     pub(crate) veth_ip: Ipv4Addr,
     /// VLAN ID of the veth.
     pub(crate) vlan_id: u16,
@@ -201,7 +195,7 @@ impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
     pub fn with_details(delay: i64, hello: Hello) -> Self {
         Self {
-            veths: hello.ips.veths,
+            veths: hello.veths,
             num_seen_unicast: u64::from(hello.is_unicast),
             num_seen_broadcast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
@@ -218,7 +212,7 @@ impl PeerVal {
         self.num_seen_unicast += u64::from(hello.is_unicast);
         self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
-        self.veths = hello.ips.veths.clone();
+        self.veths = hello.veths.clone();
         self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
     }
