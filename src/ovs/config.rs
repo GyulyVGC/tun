@@ -69,7 +69,7 @@ impl OvsConfig {
                 // debounce duplicated events
                 if last_update_time.elapsed().as_millis() > 100 {
                     // ensure file changes are propagated
-                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    // tokio::time::sleep(Duration::from_millis(100)).await; // TODO why this causes issues?
                     let Ok(ovs_conf) = Self::load() else {
                         continue;
                     };
