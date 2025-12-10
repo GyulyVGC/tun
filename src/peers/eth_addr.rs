@@ -22,6 +22,7 @@ impl EthAddr {
     /// Checks the available network devices and returns IP address, netmask, and broadcast of the first "suitable" interface.
     ///
     /// A "suitable" interface satisfies the following:
+    /// - its name does not start with "veth"
     /// - it has a netmask that:
     ///   - is IP version 4
     ///   - is not 0.0.0.0
@@ -38,7 +39,8 @@ impl EthAddr {
         if let Ok(devices) = NetworkInterface::show() {
             for device in devices {
                 for address in device.addr {
-                    if let Some(IpAddr::V4(netmask)) = address.netmask()
+                    if !device.name.starts_with("veth")
+                        && let Some(IpAddr::V4(netmask)) = address.netmask()
                         && let Some(IpAddr::V4(broadcast)) = address.broadcast()
                     {
                         let IpAddr::V4(ip) = address.ip() else {

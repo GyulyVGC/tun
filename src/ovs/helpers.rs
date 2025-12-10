@@ -1,4 +1,5 @@
 use ipnetwork::Ipv4Network;
+use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::process::Command;
 
 pub(super) fn setup_br0() {
@@ -106,5 +107,21 @@ pub(crate) fn configure_trunk_port() {
         .spawn();
     if let Ok(mut child) = res {
         let _ = child.wait();
+    }
+}
+
+pub(crate) fn delete_all_veths() {
+    if let Ok(devices) = NetworkInterface::show() {
+        for device in devices {
+            let name = &device.name;
+            if name.starts_with("veth") {
+                let res = Command::new("ip")
+                    .args(&["link", "del", name])
+                    .spawn();
+                if let Ok(mut child) = res {
+                    let _ = child.wait();
+                }
+            }
+        }
     }
 }
