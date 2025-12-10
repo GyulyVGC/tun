@@ -35,7 +35,7 @@ impl OvsConfig {
         setup_br0();
         for vlan in &self.vlans {
             for port in &vlan.ports {
-                configure_access_port(vlan.id, port);
+                configure_access_port(vlan.id, *port);
             }
         }
     }

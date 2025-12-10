@@ -35,7 +35,7 @@ pub struct Hello {
 impl Hello {
     /// Creates a fresh `Hello` message to be sent out.
     pub async fn with_details(local_ips: &LocalIps, is_setup: bool, is_unicast: bool) -> Self {
-        let veth_ips = &local_ips
+        let veth_ips: Vec<_> = local_ips
             .veths
             .read()
             .await

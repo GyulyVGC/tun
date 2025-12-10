@@ -15,13 +15,13 @@ use tokio_rusqlite::types::ToSqlOutput;
 pub struct Processes(BTreeSet<Process>);
 
 impl Processes {
-    pub fn from_listeners(listeners: HashSet<Listener>, addrs: &Vec<Ipv4Addr>) -> Self {
+    pub fn from_listeners(listeners: HashSet<Listener>, addrs: &[Ipv4Addr]) -> Self {
         Self(
             listeners
                 .into_iter()
                 .filter(|listener| {
                     let ip = listener.socket.ip();
-                    ip.is_ipv4() && (addrs.into_iter().any(|a| *a == ip) || ip.is_unspecified())
+                    ip.is_ipv4() && (addrs.iter().any(|a| *a == ip) || ip.is_unspecified())
                 })
                 .map(Process::from_listener)
                 .collect(),

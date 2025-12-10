@@ -24,8 +24,8 @@ pub struct Peers {
 }
 
 impl Peers {
-    pub fn get_socket_by_veth(&self, veth_key: &VethKey) -> Option<SocketAddr> {
-        self.ips.get(veth_key).map(PeerKey::forward_socket_addr)
+    pub fn get_socket_by_veth(&self, veth_key: VethKey) -> Option<SocketAddr> {
+        self.ips.get(&veth_key).map(|pk| pk.forward_socket_addr())
     }
 
     pub fn get_oldest_last_seen(&self) -> Option<DateTime<Utc>> {
@@ -148,12 +148,12 @@ impl PeerKey {
     }
 
     /// Socket address for normal network operations.
-    pub fn forward_socket_addr(&self) -> SocketAddr {
+    pub fn forward_socket_addr(self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(self.eth_ip), FORWARD_PORT)
     }
 
     /// Socket address for discovery.
-    pub fn discovery_socket_addr(&self) -> SocketAddr {
+    pub fn discovery_socket_addr(self) -> SocketAddr {
         SocketAddr::new(IpAddr::V4(self.eth_ip), DISCOVERY_PORT)
     }
 }
@@ -212,7 +212,7 @@ impl PeerVal {
         self.num_seen_unicast += u64::from(hello.is_unicast);
         self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
-        self.veths = hello.veths.clone();
+        self.veths.clone_from(&hello.veths);
         self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
     }

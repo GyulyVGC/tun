@@ -66,7 +66,7 @@ async fn get_dst_socket(pkt_data: &[u8], peers: &Arc<RwLock<Peers>>) -> Result<S
     peers
         .read()
         .await
-        .get_socket_by_veth(&veth_key)
+        .get_socket_by_veth(veth_key)
         .ok_or(format!("No peer found for destination {veth_key:?}"))
         .handle_err(location!())
 }
