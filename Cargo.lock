@@ -840,11 +840,7 @@ dependencies = [
 [[package]]
 name = "nullnet-liberror"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7770b13c8488366e2a7fd4680dde340b79d23f10576aa3c4031fc4aa2ae03b4"
-dependencies = [
- "log",
-]
+source = "git+https://github.com/NullNet-ai/libguard.git?branch=nullnet-liberror-print#78dadf760f993917f32ed8165de00f6f03073cfd"
 
 [[package]]
 name = "num-traits"
