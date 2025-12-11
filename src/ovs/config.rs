@@ -137,7 +137,7 @@ mod tests {
                 },
             ],
         };
-        let json = serde_json::to_string_pretty(&config).unwrap();
+        let json = serde_json::to_string(&config).unwrap();
         let expected_json = std::fs::read_to_string("test_material/ovs.json").unwrap();
         assert_eq!(expected_json, json);
     }
