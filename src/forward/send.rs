@@ -10,7 +10,7 @@ use tun_rs::AsyncDevice;
 use crate::forward::frame::Frame;
 use crate::peers::peer::{Peers, VethKey};
 
-/// Handles outgoing network packets (receives packets from the TUN interface and sends them to the socket),
+/// Handles outgoing network packets (receives packets from the TAP interface and sends them to the socket),
 /// ensuring the firewall rules are correctly observed.
 pub async fn send(
     device: &Arc<AsyncDevice>,

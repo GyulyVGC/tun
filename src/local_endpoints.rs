@@ -77,20 +77,6 @@ impl LocalEndpoints {
     }
 }
 
-// /// Returns an IP address for the TUN device.
-// fn get_tun_ip(eth_ip: Ipv4Addr, netmask: Ipv4Addr) -> Ipv4Addr {
-//     let eth_ip_octets = eth_ip.octets();
-//     let netmask_octets = netmask.octets();
-//     let tun_net_octets = NETWORK.octets();
-//     let mut tun_ip_octets = [0; 4];
-//
-//     for i in 0..4 {
-//         tun_ip_octets[i] = tun_net_octets[i] | (eth_ip_octets[i] & !netmask_octets[i]);
-//     }
-//
-//     Ipv4Addr::from(tun_ip_octets)
-// }
-
 /// Returns the broadcast socket to use for discovery.
 #[allow(clippy::unused_async, clippy::no_effect_underscore_binding)]
 async fn get_discovery_broadcast_shared(
@@ -106,45 +92,3 @@ async fn get_discovery_broadcast_shared(
     #[cfg(target_os = "windows")]
     return Ok(_discovery_socket.to_owned());
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use std::net::IpAddr;
-//
-//     use super::*;
-//
-//     #[test]
-//     fn test_get_tun_ip_netmask_28() {
-//         let netmask = Ipv4Addr::from([255, 255, 255, 240]);
-//         let eth_ip = Ipv4Addr::from([192, 168, 1, 109]);
-//         assert_eq!(get_tun_ip(eth_ip, netmask), IpAddr::from([10, 0, 0, 13]));
-//     }
-//
-//     #[test]
-//     fn test_get_tun_ip_netmask_24() {
-//         let netmask = Ipv4Addr::from([255, 255, 255, 0]);
-//         let eth_ip = Ipv4Addr::from([192, 168, 1, 109]);
-//         assert_eq!(get_tun_ip(eth_ip, netmask), IpAddr::from([10, 0, 0, 109]));
-//     }
-//
-//     #[test]
-//     fn test_get_tun_ip_netmask_20() {
-//         let netmask = Ipv4Addr::from([255, 255, 240, 0]);
-//         let eth_ip = Ipv4Addr::from([192, 168, 1, 109]);
-//         assert_eq!(get_tun_ip(eth_ip, netmask), IpAddr::from([10, 0, 1, 109]));
-//     }
-//
-//     #[test]
-//     fn test_get_tun_ip_netmask_16() {
-//         let netmask = Ipv4Addr::from([255, 255, 0, 0]);
-//         let eth_ip = Ipv4Addr::from([192, 168, 1, 109]);
-//         assert_eq!(get_tun_ip(eth_ip, netmask), IpAddr::from([10, 0, 1, 109]));
-//     }
-//
-//     #[test]
-//     fn test_get_tun_ip_netmask_8() {
-//         let netmask = Ipv4Addr::from([255, 0, 0, 0]);
-//         let eth_ip = Ipv4Addr::from([192, 168, 1, 109]);
-//         assert_eq!(get_tun_ip(eth_ip, netmask), IpAddr::from([10, 168, 1, 109]));
-//     }
-// }

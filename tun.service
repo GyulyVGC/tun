@@ -6,7 +6,7 @@
 # on Fedora, it was required to edit /etc/selinux/config to run the executable
 
 [Unit]
-Description=TUN-based networking in Rust
+Description=TAP-based networking in Rust
 After=network.target
 
 [Service]

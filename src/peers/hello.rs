@@ -59,7 +59,6 @@ impl Hello {
     /// Checks the `Hello` message is valid; a message is valid if:
     /// - the Ethernet address specified is consistent with the address sending the message
     /// - the message was not sent from this machine itself
-    /// - the TUN address specified is not the same of the local TUN interface
     /// - the Ethernet address is in the same local network of this machine
     pub fn is_valid(
         &self,
@@ -71,8 +70,6 @@ impl Hello {
         self.ethernet == from.ip()
             // hello was not sent from this machine
             && self.ethernet != local_ips.ethernet
-            // has not same TUN address of this machine
-            // && remote_ips.tun != local_ips.tun
             // are in the same Ethernet IPv4 network
             && local_ips.is_same_ipv4_ethernet_network_of(self.ethernet, self.netmask, self.broadcast)
         // delay is non negative TODO: timestamps must be monotonic!

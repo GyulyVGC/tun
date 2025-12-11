@@ -160,7 +160,7 @@ mod tests {
         listeners.insert(Listener {
             process: listeners::Process {
                 pid: 2,
-                name: "tun".to_string(),
+                name: "tap".to_string(),
                 path: String::new(),
             },
             socket: SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 20),
@@ -178,7 +178,7 @@ mod tests {
         listeners.insert(Listener {
             process: listeners::Process {
                 pid: 4,
-                name: "tun".to_string(),
+                name: "tap".to_string(),
                 path: String::new(),
             },
             socket: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2)), 40),
@@ -302,7 +302,7 @@ mod tests {
                 },
                 Process {
                     pid: 4,
-                    name: "tun".to_string(),
+                    name: "tap".to_string(),
                     port: 40,
                 },
             ]))

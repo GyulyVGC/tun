@@ -1,6 +1,5 @@
 #![allow(clippy::used_underscore_binding)]
 
-use std::net::Ipv4Addr;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,8 +30,7 @@ mod peers;
 
 pub const FORWARD_PORT: u16 = 9999;
 pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
-pub const NETWORK: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 0);
-pub const TUN_NAME: &str = "nullnet0";
+pub const TAP_NAME: &str = "nullnet0";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -48,18 +46,15 @@ async fn main() -> Result<(), Error> {
     let Args {
         mtu,
         firewall_path,
-        // log_path, TODO!
-        // peers_path,
         num_tasks,
     } = Args::parse();
 
-    // create the asynchronous TUN device, and split it into reader & writer halves
+    // create the asynchronous TAP device, and split it into reader & writer halves
     let device = DeviceBuilder::new()
-        .name(TUN_NAME)
+        .name(TAP_NAME)
         .layer(Layer::L2)
-        // .mac_addr(tun_mac)
-        // .ipv4(tun_ip, netmask, None)
         // TODO: MTU? GSO?
+        .mtu(mtu)
         .build_async()
         .handle_err(location!())?;
 
@@ -81,9 +76,6 @@ async fn main() -> Result<(), Error> {
 
     let reader_shared = Arc::new(device);
     let writer_shared = reader_shared.clone();
-
-    // properly setup routing tables
-    // configure_routing(&tun_ip, &netmask);
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
@@ -126,44 +118,6 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// /// Sets a name in the form 'nullnetX' for the TUN, where X is the host part of the TUN's ip (doesn't work on macOS).
-// ///
-// /// Example: the TUN with address 10.0.0.1 will be called nullnet1.
-// fn set_tun_name(_tun_ip: &IpAddr, _netmask: &IpAddr, _config: &mut Configuration) {
-// #[cfg(not(target_os = "macos"))]
-// {
-//     let tun_ip_octets = _tun_ip.into_address().octets();
-//     let netmask_octets = _netmask.into_address().octets();
-//
-//     let mut host_octets = [0; 4];
-//     for i in 0..4 {
-//         host_octets[i] = tun_ip_octets[i] & !netmask_octets[i];
-//     }
-//
-//     let host_num = u32::from_be_bytes(host_octets);
-//     _config.name(format!("nullnet{host_num}"));
-// }
-// }
-
-// /// Manually setup routing on macOS (to be done after TUN creation).
-// fn configure_routing(_tun_ip: &IpAddr, _netmask: &IpAddr) {
-//     #[cfg(target_os = "macos")]
-//     {
-//         process::Command::new("route")
-//             .args([
-//                 "-n",
-//                 "add",
-//                 "-net",
-//                 &NETWORK.to_string(),
-//                 &_tun_ip.to_string(),
-//                 "-netmask",
-//                 &_netmask.to_string(),
-//             ])
-//             .spawn()
-//             .expect("Failed to configure routing");
-//     }
-// }
-
 /// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
     let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
@@ -181,8 +135,8 @@ fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
     println!("    - forward:   {forward_socket}");
     println!("    - discovery: {discovery_socket}");
     println!("    - broadcast: {discovery_broadcast_socket}\n");
-    println!("TUN device created successfully:");
-    println!("    - name:      {TUN_NAME}");
+    println!("TAP device created successfully:");
+    println!("    - name:      {TAP_NAME}");
     println!("    - MTU:       {mtu} B");
     println!("{}\n", "=".repeat(40));
 }

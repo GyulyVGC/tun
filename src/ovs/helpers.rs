@@ -1,3 +1,4 @@
+use crate::TAP_NAME;
 use ipnetwork::Ipv4Network;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use std::process::Command;
@@ -37,9 +38,9 @@ pub(super) fn setup_br0() {
         let _ = child.wait();
     }
 
-    // add nullnet0 to the bridge as a trunk port
+    // add our TAP to the bridge as a trunk port
     let res = Command::new("ovs-vsctl")
-        .args(["add-port", "br0", "nullnet0"])
+        .args(["add-port", "br0", TAP_NAME])
         .spawn();
     if let Ok(mut child) = res {
         let _ = child.wait();
