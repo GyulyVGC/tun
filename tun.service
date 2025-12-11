@@ -12,7 +12,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/%H/tun
-Environment="RUST_LOG=tun"
+Environment=RUST_LOG=tun
 ExecStart=/home/%H/tun/target/release/tun
 Restart=always
 
