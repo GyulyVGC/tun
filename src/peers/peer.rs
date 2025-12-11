@@ -133,28 +133,24 @@ pub struct Peer {
 #[derive(Eq, Hash, PartialEq, Clone, Copy)]
 pub struct PeerKey {
     /// Ethernet IP address of the peer.
-    pub(crate) eth_ip: Ipv4Addr,
+    pub(crate) ethernet_ip: Ipv4Addr,
 }
 
 impl PeerKey {
-    // pub fn from_slice(slice: [u8; 4]) -> Self {
-    //     Self {
-    //         eth_ip: Ipv4Addr::from(slice),
-    //     }
-    // }
-
     pub fn from_ip_addr(ip_addr: Ipv4Addr) -> Self {
-        Self { eth_ip: ip_addr }
+        Self {
+            ethernet_ip: ip_addr,
+        }
     }
 
     /// Socket address for normal network operations.
     pub fn forward_socket_addr(self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(self.eth_ip), FORWARD_PORT)
+        SocketAddr::new(IpAddr::V4(self.ethernet_ip), FORWARD_PORT)
     }
 
     /// Socket address for discovery.
     pub fn discovery_socket_addr(self) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(self.eth_ip), DISCOVERY_PORT)
+        SocketAddr::new(IpAddr::V4(self.ethernet_ip), DISCOVERY_PORT)
     }
 }
 

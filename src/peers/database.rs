@@ -1,4 +1,4 @@
-use crate::peers::peer::Peer;
+use crate::peers::peer::{Peer, VethKey};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_rusqlite::Connection;
@@ -17,7 +17,7 @@ pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) ->
         .await
         .handle_err(location!())?;
 
-    // make sure peer table exists and it's empty
+    // make sure tables exist and are empty
     setup_db(&connection).await?;
 
     // keep listening for messages on the channel
@@ -35,12 +35,18 @@ pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) ->
 /// Inserts a new entry into the peers DB.
 async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     let Peer { key, val } = peer;
+    let ethernet_ip = key.ethernet_ip.to_string();
+    let veths = val.veths.clone();
+
+    remove_veths_for_peer(connection, ethernet_ip.clone()).await?;
+    insert_veths_for_peer(connection, ethernet_ip.clone(), veths).await?;
+
     connection
         .call(move |c| {
             let _ = c.execute(
-                "INSERT INTO peers (eth_ip, veths, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                (key.eth_ip.to_string(), serde_json::to_string(&val.veths).unwrap_or("[]".to_string()), val.avg_delay_as_seconds(),
+                "INSERT INTO peers (ethernet_ip, avg_delay, num_seen_unicast, num_seen_broadcast, last_seen, processes)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                (ethernet_ip, val.avg_delay_as_seconds(),
                  val.num_seen_unicast, val.num_seen_broadcast, val.last_seen.to_string(), val.processes),
             ).handle_err(location!());
             Ok(())
@@ -54,26 +60,30 @@ async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
 /// Modifies an existing entry in the peers DB.
 async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     let Peer { key, val } = peer;
+    let ethernet_ip = key.ethernet_ip.to_string();
+    let veths = val.veths.clone();
+
+    remove_veths_for_peer(connection, ethernet_ip.clone()).await?;
+    insert_veths_for_peer(connection, ethernet_ip.clone(), veths).await?;
+
     connection
         .call(move |c| {
             let _ = c
                 .execute(
                     "UPDATE peers
-                    SET veths = ?1,
-                        avg_delay = ?2,
-                        num_seen_unicast = ?3,
-                        num_seen_broadcast = ?4,
-                        last_seen = ?5,
-                        processes = ?6
-                    WHERE eth_ip = ?7",
+                    SET avg_delay = ?1,
+                        num_seen_unicast = ?2,
+                        num_seen_broadcast = ?3,
+                        last_seen = ?4,
+                        processes = ?5
+                    WHERE ethernet_ip = ?6",
                     (
-                        serde_json::to_string(&val.veths).unwrap_or("[]".to_string()),
                         val.avg_delay_as_seconds(),
                         val.num_seen_unicast,
                         val.num_seen_broadcast,
                         val.last_seen.to_string(),
                         val.processes,
-                        key.eth_ip.to_string(),
+                        ethernet_ip,
                     ),
                 )
                 .handle_err(location!());
@@ -88,13 +98,17 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
 /// Removes an entry from the peers DB.
 async fn remove_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     let Peer { key, val: _ } = peer;
+    let ethernet_ip = key.ethernet_ip.to_string();
+
+    remove_veths_for_peer(connection, ethernet_ip.clone()).await?;
+
     connection
         .call(move |c| {
             let _ = c
                 .execute(
                     "DELETE FROM peers
-                    WHERE eth_ip = ?1",
-                    [key.eth_ip.to_string()],
+                    WHERE ethernet_ip = ?1",
+                    [ethernet_ip],
                 )
                 .handle_err(location!());
             Ok(())
@@ -105,20 +119,15 @@ async fn remove_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
     Ok(())
 }
 
-/// Drop the peers table and creates a new one.
-async fn setup_db(connection: &Connection) -> Result<(), Error> {
-    drop_table(connection).await?;
-    create_table(connection).await?;
-
-    Ok(())
-}
-
-/// Drops the peers table.
-async fn drop_table(connection: &Connection) -> Result<(), Error> {
+async fn remove_veths_for_peer(connection: &Connection, ethernet_ip: String) -> Result<(), Error> {
     connection
-        .call(|c| {
+        .call(move |c| {
             let _ = c
-                .execute("DROP TABLE IF EXISTS peers", ())
+                .execute(
+                    "DELETE FROM veths
+                    WHERE ethernet_ip = ?1",
+                    [ethernet_ip],
+                )
                 .handle_err(location!());
             Ok(())
         })
@@ -128,20 +137,96 @@ async fn drop_table(connection: &Connection) -> Result<(), Error> {
     Ok(())
 }
 
+async fn insert_veths_for_peer(
+    connection: &Connection,
+    ethernet_ip: String,
+    veths: Vec<VethKey>,
+) -> Result<(), Error> {
+    connection
+        .call(move |c| {
+            let Ok(tran) = c.transaction().handle_err(location!()) else {
+                return Ok(());
+            };
+            for veth in veths {
+                let _ = tran
+                    .execute(
+                        "INSERT INTO veths (veth_ip, vlan_id, ethernet_ip)
+                        VALUES (?1, ?2, ?3)",
+                        (veth.veth_ip.to_string(), veth.vlan_id, ethernet_ip.clone()),
+                    )
+                    .handle_err(location!());
+            }
+            let _ = tran.commit().handle_err(location!());
+            Ok(())
+        })
+        .await
+        .handle_err(location!())?;
+
+    Ok(())
+}
+
+/// Drop the peers table and creates a new one.
+async fn setup_db(connection: &Connection) -> Result<(), Error> {
+    for name in ["peers", "veths"] {
+        drop_table(connection, name).await?;
+    }
+
+    create_peers_table(connection).await?;
+    create_veths_table(connection).await?;
+
+    Ok(())
+}
+
+/// Drops the peers table.
+async fn drop_table(connection: &Connection, name: &str) -> Result<(), Error> {
+    let sql = format!("DROP TABLE IF EXISTS {name}");
+    connection
+        .call(move |c| {
+            let _ = c.execute(&sql, ()).handle_err(location!());
+            Ok(())
+        })
+        .await
+        .handle_err(location!())?;
+
+    Ok(())
+}
+
 /// Creates the peers table.
-async fn create_table(connection: &Connection) -> Result<(), Error> {
+async fn create_peers_table(connection: &Connection) -> Result<(), Error> {
     connection
         .call(|c| {
             let _ = c
                 .execute(
                     "CREATE TABLE IF NOT EXISTS peers (
-                        eth_ip             TEXT PRIMARY KEY NOT NULL,
-                        veths              TEXT NOT NULL,
+                        ethernet_ip        TEXT PRIMARY KEY NOT NULL,
                         avg_delay          REAL NOT NULL,
                         num_seen_unicast   INTEGER NOT NULL,
                         num_seen_broadcast INTEGER NOT NULL,
                         last_seen          TEXT NOT NULL,
                         processes          TEXT NOT NULL
+                    )",
+                    (),
+                )
+                .handle_err(location!());
+            Ok(())
+        })
+        .await
+        .handle_err(location!())?;
+
+    Ok(())
+}
+
+/// Creates the veths table.
+async fn create_veths_table(connection: &Connection) -> Result<(), Error> {
+    connection
+        .call(|c| {
+            let _ = c
+                .execute(
+                    "CREATE TABLE IF NOT EXISTS veths (
+                        veth_ip            TEXT PRIMARY KEY NOT NULL,
+                        vlan_id            INTEGER PRIMARY KEY NOT NULL,
+                        ethernet_ip        TEXT,
+                        FOREIGN KEY (ethernet_ip) REFERENCES peers (ethernet_ip)
                     )",
                     (),
                 )

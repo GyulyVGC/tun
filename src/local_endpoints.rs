@@ -1,5 +1,5 @@
 use crate::ovs::config::OvsConfig;
-use crate::peers::eth_addr::EthAddr;
+use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::local_ips::LocalIps;
 use crate::{DISCOVERY_PORT, FORWARD_PORT};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
@@ -35,7 +35,7 @@ impl LocalEndpoints {
         let veths = Arc::new(RwLock::new(ovs_conf.get_veths()));
 
         loop {
-            if let Some(eth_addr) = EthAddr::find_suitable() {
+            if let Some(eth_addr) = EthernetAddr::find_suitable() {
                 let ip = eth_addr.ip;
                 let netmask = eth_addr.netmask;
                 let broadcast = eth_addr.broadcast;

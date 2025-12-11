@@ -1,12 +1,12 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-pub struct EthAddr {
+pub struct EthernetAddr {
     pub ip: Ipv4Addr,
     pub netmask: Ipv4Addr,
     pub broadcast: Ipv4Addr,
 }
 
-impl EthAddr {
+impl EthernetAddr {
     fn new(ip: Ipv4Addr, netmask: Ipv4Addr, broadcast: Ipv4Addr) -> Self {
         Self {
             ip,
@@ -33,7 +33,7 @@ impl EthAddr {
     ///   - is IP version 4
     ///   - is a private address (defined by IETF RFC 1918)
     #[cfg(not(target_os = "freebsd"))]
-    pub fn find_suitable() -> Option<EthAddr> {
+    pub fn find_suitable() -> Option<EthernetAddr> {
         use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 
         if let Ok(devices) = NetworkInterface::show() {
@@ -46,7 +46,7 @@ impl EthAddr {
                         let IpAddr::V4(ip) = address.ip() else {
                             continue;
                         };
-                        let eth_addr = EthAddr::new(ip, netmask, broadcast);
+                        let eth_addr = EthernetAddr::new(ip, netmask, broadcast);
                         if eth_addr.is_suitable() {
                             return Some(eth_addr);
                         }
@@ -58,7 +58,7 @@ impl EthAddr {
     }
 
     #[cfg(target_os = "freebsd")]
-    pub fn find_suitable() -> Option<EthAddr> {
+    pub fn find_suitable() -> Option<EthernetAddr> {
         if let Ok(addrs) = nix::ifaddrs::getifaddrs() {
             for addr in addrs {
                 if let Some(sockaddr_ip) = addr.address {
@@ -72,7 +72,7 @@ impl EthAddr {
                                         sockaddr_broadcast.as_sockaddr_in()
                                     {
                                         let broadcast = IpAddr::from(addr_broadcast.ip());
-                                        let eth_addr = EthAddr::new(ip, netmask, broadcast);
+                                        let eth_addr = EthernetAddr::new(ip, netmask, broadcast);
                                         if eth_addr.is_suitable() {
                                             return Some(eth_addr);
                                         }
