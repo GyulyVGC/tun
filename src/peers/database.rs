@@ -223,9 +223,10 @@ async fn create_veths_table(connection: &Connection) -> Result<(), Error> {
             let _ = c
                 .execute(
                     "CREATE TABLE IF NOT EXISTS veths (
-                        veth_ip            TEXT PRIMARY KEY NOT NULL,
-                        vlan_id            INTEGER PRIMARY KEY NOT NULL,
+                        veth_ip            TEXT NOT NULL,
+                        vlan_id            INTEGER NOT NULL,
                         ethernet_ip        TEXT,
+                        PRIMARY KEY (veth_ip, vlan_id),
                         FOREIGN KEY (ethernet_ip) REFERENCES peers (ethernet_ip)
                     )",
                     (),
