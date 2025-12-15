@@ -37,7 +37,6 @@ impl LocalEndpoints {
         loop {
             if let Some(eth_addr) = EthernetAddr::find_suitable() {
                 let ip = eth_addr.ip;
-                let netmask = eth_addr.netmask;
                 let broadcast = eth_addr.broadcast;
                 println!("Local IP address found: {ip}");
                 let forward_socket_addr = SocketAddr::new(IpAddr::V4(ip), FORWARD_PORT);
@@ -56,10 +55,8 @@ impl LocalEndpoints {
 
                             return Ok(Self {
                                 ips: LocalIps {
-                                    ethernet: ip,
+                                    ethernet: eth_addr,
                                     veths,
-                                    netmask,
-                                    broadcast,
                                 },
                                 sockets: LocalSockets {
                                     forward: forward_shared,

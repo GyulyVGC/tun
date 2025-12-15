@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr};
 
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct EthernetAddr {
     pub ip: Ipv4Addr,
     pub netmask: Ipv4Addr,
@@ -7,12 +9,31 @@ pub struct EthernetAddr {
 }
 
 impl EthernetAddr {
-    fn new(ip: Ipv4Addr, netmask: Ipv4Addr, broadcast: Ipv4Addr) -> Self {
+    pub fn new(ip: Ipv4Addr, netmask: Ipv4Addr, broadcast: Ipv4Addr) -> Self {
         Self {
             ip,
             netmask,
             broadcast,
         }
+    }
+
+    /// Checks that Ethernet addresses are in the same local network.
+    pub fn is_same_ipv4_ethernet_network_of(&self, other: Self) -> bool {
+        if self.netmask != other.netmask || self.broadcast != other.broadcast {
+            return false;
+        }
+
+        let netmask = self.netmask.octets();
+        let eth_1 = self.ip.octets();
+        let eth_2 = other.ip.octets();
+
+        for i in 0..4 {
+            if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
+                return false;
+            }
+        }
+
+        true
     }
 
     fn is_suitable(&self) -> bool {
@@ -85,5 +106,15 @@ impl EthernetAddr {
             }
         }
         None
+    }
+}
+
+impl Default for EthernetAddr {
+    fn default() -> Self {
+        Self {
+            ip: Ipv4Addr::UNSPECIFIED,
+            netmask: Ipv4Addr::UNSPECIFIED,
+            broadcast: Ipv4Addr::UNSPECIFIED,
+        }
     }
 }

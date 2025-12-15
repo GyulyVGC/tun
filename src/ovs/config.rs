@@ -84,7 +84,8 @@ impl OvsConfig {
                     *endpoints.ips.veths.write().await = ovs_conf.get_veths();
                     let socket = endpoints.sockets.discovery.clone();
                     let local_ips = endpoints.ips.clone();
-                    let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
+                    let dest =
+                        SocketAddr::new(IpAddr::V4(local_ips.ethernet.broadcast), DISCOVERY_PORT);
                     tokio::spawn(async move {
                         greet(&socket, dest, &local_ips, false, true, false).await;
                     });

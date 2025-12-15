@@ -1,21 +1,19 @@
+use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::VethKey;
 use crate::peers::processes::Processes;
 use chrono::{DateTime, Utc};
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 /// Struct representing the content of messages exchanged in the scope of peers discovery.
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct Hello {
     /// Ethernet IP of the peer sending the message.
-    pub ethernet: Ipv4Addr,
-    /// Ethernet netmask of the peer sending the message.
-    pub netmask: Ipv4Addr,
-    /// Ethernet broadcast address of the peer sending the message.
-    pub broadcast: Ipv4Addr,
+    #[serde(flatten)]
+    pub ethernet: EthernetAddr,
     /// Veths of the peer sending the message.
     pub veths: Vec<VethKey>,
     /// Timestamp of the message.
@@ -46,8 +44,6 @@ impl Hello {
             Processes::from_listeners(listeners::get_all().unwrap_or_default(), &veth_ips);
         Self {
             ethernet: local_ips.ethernet,
-            netmask: local_ips.netmask,
-            broadcast: local_ips.broadcast,
             veths: local_ips.veths.read().await.clone(),
             timestamp: Utc::now(),
             is_setup,
@@ -67,11 +63,11 @@ impl Hello {
         // received_at: &DateTime<Utc>, TODO: timestamps must be monotonic!
     ) -> bool {
         // Ethernet address corresponds to sender socket address
-        self.ethernet == from.ip()
+        self.ethernet.ip == from.ip()
             // hello was not sent from this machine
-            && self.ethernet != local_ips.ethernet
+            && self.ethernet.ip != local_ips.ethernet.ip
             // are in the same Ethernet IPv4 network
-            && local_ips.is_same_ipv4_ethernet_network_of(self.ethernet, self.netmask, self.broadcast)
+            && local_ips.ethernet.is_same_ipv4_ethernet_network_of(self.ethernet)
         // delay is non negative TODO: timestamps must be monotonic!
         // && received_at >= &self.timestamp
     }
@@ -84,21 +80,6 @@ impl Hello {
     /// Deserializes TOML bytes into a `Hello` message.
     pub fn from_toml_bytes(msg: &[u8]) -> Self {
         toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).unwrap_or_default()
-    }
-}
-
-impl Default for Hello {
-    fn default() -> Self {
-        Self {
-            ethernet: Ipv4Addr::UNSPECIFIED,
-            netmask: Ipv4Addr::UNSPECIFIED,
-            broadcast: Ipv4Addr::UNSPECIFIED,
-            veths: Vec::new(),
-            timestamp: DateTime::default(),
-            is_setup: false,
-            is_unicast: false,
-            processes: Processes::default(),
-        }
     }
 }
 
@@ -127,6 +108,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::peers::ethernet_addr::EthernetAddr;
     use crate::peers::hello::Hello;
     use crate::peers::local_ips::LocalIps;
     use crate::peers::peer::VethKey;
@@ -170,9 +152,11 @@ mod tests {
 
     fn hello_for_tests(timestamp: DateTime<Utc>) -> Hello {
         Hello {
-            ethernet: Ipv4Addr::from_str("8.8.8.8").unwrap(),
-            netmask: Ipv4Addr::from_str("255.255.255.0").unwrap(),
-            broadcast: Ipv4Addr::from_str("8.8.8.255").unwrap(),
+            ethernet: EthernetAddr::new(
+                Ipv4Addr::from_str("8.8.8.8").unwrap(),
+                Ipv4Addr::from_str("255.255.255.0").unwrap(),
+                Ipv4Addr::from_str("8.8.8.255").unwrap(),
+            ),
             veths: vec![VethKey::new(
                 Ipv4Addr::from_str("10.11.12.134").unwrap(),
                 10,
@@ -192,11 +176,8 @@ mod tests {
         assert_tokens(
             &hello.readable(),
             &[
-                Token::Struct {
-                    name: "Hello",
-                    len: 8,
-                },
-                Token::Str("ethernet"),
+                Token::Map { len: None },
+                Token::Str("ip"),
                 Token::Str("8.8.8.8"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
@@ -222,7 +203,7 @@ mod tests {
                 Token::Bool(true),
                 Token::Str("processes"),
                 Token::Str("[999/nullnetd on 875, 1234/sshd on 22]"),
-                Token::StructEnd,
+                Token::MapEnd,
             ],
         );
     }
@@ -234,7 +215,7 @@ mod tests {
 
         assert_eq!(
             hello.to_toml_string(),
-            "ethernet = \"8.8.8.8\"\n\
+            "ip = \"8.8.8.8\"\n\
              netmask = \"255.255.255.0\"\n\
              broadcast = \"8.8.8.255\"\n\
              timestamp = \"2024-02-08 14:26:23.862231 UTC\"\n\
@@ -251,16 +232,18 @@ mod tests {
     fn test_default_hello_message_not_valid() {
         let default = Hello::default();
         let local_ips = LocalIps {
-            ethernet: Ipv4Addr::from([192, 168, 1, 113]),
+            ethernet: EthernetAddr::new(
+                Ipv4Addr::from([192, 168, 1, 113]),
+                Ipv4Addr::from([255, 255, 255, 0]),
+                Ipv4Addr::from([192, 168, 1, 255]),
+            ),
             veths: Arc::new(RwLock::new(vec![VethKey::new(
                 Ipv4Addr::from([10, 0, 0, 113]),
                 20,
             )])),
-            netmask: Ipv4Addr::from([255, 255, 255, 0]),
-            broadcast: Ipv4Addr::from([192, 168, 1, 255]),
         };
         assert!(!default.is_valid(
-            &SocketAddr::new(IpAddr::V4(default.ethernet), 0),
+            &SocketAddr::new(IpAddr::V4(default.ethernet.ip), 0),
             &local_ips
         ));
     }
@@ -274,11 +257,8 @@ mod tests {
         assert_tokens(
             &hello.readable(),
             &[
-                Token::Struct {
-                    name: "Hello",
-                    len: 8,
-                },
-                Token::Str("ethernet"),
+                Token::Map { len: None },
+                Token::Str("ip"),
                 Token::Str("8.8.8.8"),
                 Token::Str("netmask"),
                 Token::Str("255.255.255.0"),
@@ -304,7 +284,7 @@ mod tests {
                 Token::Bool(true),
                 Token::Str("processes"),
                 Token::Str("[]"),
-                Token::StructEnd,
+                Token::MapEnd,
             ],
         );
     }

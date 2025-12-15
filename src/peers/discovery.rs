@@ -104,7 +104,7 @@ async fn listen(
             .num_microseconds()
             .unwrap_or_default();
 
-        let peer_key = PeerKey::from_ip_addr(hello.ethernet);
+        let peer_key = PeerKey::from_ip_addr(hello.ethernet.ip);
         let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
 
         if let Some(dest_socket_addr) = should_respond_to
@@ -144,7 +144,7 @@ async fn remove_inactive_peers(
 async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
+    let dest = SocketAddr::new(IpAddr::V4(local_ips.ethernet.broadcast), DISCOVERY_PORT);
     loop {
         greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;
