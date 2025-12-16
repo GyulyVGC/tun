@@ -1,6 +1,6 @@
 use crate::DISCOVERY_PORT;
 use crate::local_endpoints::LocalEndpoints;
-use crate::ovs::helpers::{configure_access_port, delete_all_veths, setup_br0};
+use crate::ovs::helpers::{configure_access_port, setup_br0};
 use crate::peers::discovery::greet;
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
@@ -33,7 +33,6 @@ impl OvsConfig {
     }
 
     pub fn activate(&self) {
-        delete_all_veths();
         setup_br0();
         for vlan in &self.vlans {
             for port in &vlan.ports {
