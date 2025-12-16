@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use crate::DISCOVERY_PORT;
 use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::{PeerDbAction, manage_peers_db};
+use crate::peers::database::{PeerDbData, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::{Peer, PeerKey, Peers};
+use crate::peers::peer::{PeerKey, Peers};
 use chrono::Utc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
@@ -82,7 +82,7 @@ async fn listen(
     unicast_socket: Arc<UdpSocket>,
     local_ips: LocalIps,
     peers: Arc<RwLock<Peers>>,
-    tx: UnboundedSender<(Peer, PeerDbAction)>,
+    tx: UnboundedSender<PeerDbData>,
 ) {
     let mut msg = [0; 1024];
     loop {
@@ -120,10 +120,7 @@ async fn listen(
 }
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
-async fn remove_inactive_peers(
-    peers: Arc<RwLock<Peers>>,
-    tx: UnboundedSender<(Peer, PeerDbAction)>,
-) {
+async fn remove_inactive_peers(peers: Arc<RwLock<Peers>>, tx: UnboundedSender<PeerDbData>) {
     loop {
         let oldest_last_seen = peers.read().await.get_oldest_last_seen();
         let sleep_time = if let Some(ols) = oldest_last_seen {

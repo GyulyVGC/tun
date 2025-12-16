@@ -1,9 +1,17 @@
-use crate::peers::peer::{Peer, VethKey};
+use crate::peers::peer::{PeerKey, PeerVal, VethKey};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_rusqlite::Connection;
 
 const SQLITE_PATH: &str = "./peers.sqlite";
+
+/// Struct representing a peer for storage in database.
+pub struct PeerDbData {
+    pub(crate) key: PeerKey,
+    pub(crate) val: PeerVal,
+    pub(crate) veths: Vec<VethKey>,
+    pub(crate) action: PeerDbAction,
+}
 
 pub enum PeerDbAction {
     Insert,
@@ -12,7 +20,7 @@ pub enum PeerDbAction {
 }
 
 /// Handles the peers database, receiving messages from the channel and sending proper queries to the DB.
-pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) -> Result<(), Error> {
+pub async fn manage_peers_db(mut rx: UnboundedReceiver<PeerDbData>) -> Result<(), Error> {
     let connection = Connection::open(SQLITE_PATH)
         .await
         .handle_err(location!())?;
@@ -22,8 +30,8 @@ pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) ->
 
     // keep listening for messages on the channel
     loop {
-        if let Some((peer, action)) = rx.recv().await {
-            match action {
+        if let Some(peer) = rx.recv().await {
+            match peer.action {
                 PeerDbAction::Insert => insert_peer(&connection, peer).await?,
                 PeerDbAction::Modify => modify_peer(&connection, peer).await?,
                 PeerDbAction::Remove => remove_peer(&connection, peer).await?,
@@ -33,10 +41,11 @@ pub async fn manage_peers_db(mut rx: UnboundedReceiver<(Peer, PeerDbAction)>) ->
 }
 
 /// Inserts a new entry into the peers DB.
-async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
-    let Peer { key, val } = peer;
+async fn insert_peer(connection: &Connection, peer: PeerDbData) -> Result<(), Error> {
+    let PeerDbData {
+        key, val, veths, ..
+    } = peer;
     let ethernet_ip = key.ethernet_ip.to_string();
-    let veths = val.veths.clone();
 
     remove_veths_for_peer(connection, ethernet_ip.clone()).await?;
     insert_veths_for_peer(connection, ethernet_ip.clone(), veths).await?;
@@ -58,10 +67,11 @@ async fn insert_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
 }
 
 /// Modifies an existing entry in the peers DB.
-async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
-    let Peer { key, val } = peer;
+async fn modify_peer(connection: &Connection, peer: PeerDbData) -> Result<(), Error> {
+    let PeerDbData {
+        key, val, veths, ..
+    } = peer;
     let ethernet_ip = key.ethernet_ip.to_string();
-    let veths = val.veths.clone();
 
     remove_veths_for_peer(connection, ethernet_ip.clone()).await?;
     insert_veths_for_peer(connection, ethernet_ip.clone(), veths).await?;
@@ -96,8 +106,8 @@ async fn modify_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
 }
 
 /// Removes an entry from the peers DB.
-async fn remove_peer(connection: &Connection, peer: Peer) -> Result<(), Error> {
-    let Peer { key, val: _ } = peer;
+async fn remove_peer(connection: &Connection, peer: PeerDbData) -> Result<(), Error> {
+    let PeerDbData { key, .. } = peer;
     let ethernet_ip = key.ethernet_ip.to_string();
 
     remove_veths_for_peer(connection, ethernet_ip.clone()).await?;

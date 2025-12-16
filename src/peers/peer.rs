@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use crate::peers::database::PeerDbAction;
+use crate::peers::database::{PeerDbAction, PeerDbData};
 use crate::peers::discovery::TTL;
 use crate::peers::hello::Hello;
 use crate::peers::processes::Processes;
@@ -44,7 +44,7 @@ impl Peers {
         peer_key: PeerKey,
         hello: Hello,
         delay: i64,
-        tx: &UnboundedSender<(Peer, PeerDbAction)>,
+        tx: &UnboundedSender<PeerDbData>,
     ) -> Option<SocketAddr> {
         // update veth to eth mapping
         self.ips.retain(|_, v| v != &peer_key);
@@ -53,6 +53,7 @@ impl Peers {
         }
 
         let mut should_respond_to: Option<SocketAddr> = None;
+        let veths = hello.veths.clone();
         self.map
             .entry(peer_key)
             .and_modify(|peer_val| {
@@ -64,13 +65,12 @@ impl Peers {
 
                 // update peer db
                 let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Modify,
-                    ))
+                    .send(PeerDbData {
+                        key: peer_key,
+                        val: peer_val.to_owned(),
+                        veths: veths.clone(),
+                        action: PeerDbAction::Modify,
+                    })
                     .handle_err(location!());
             })
             .or_insert_with(|| {
@@ -80,13 +80,12 @@ impl Peers {
 
                 // update peer db
                 let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.clone(),
-                        },
-                        PeerDbAction::Insert,
-                    ))
+                    .send(PeerDbData {
+                        key: peer_key,
+                        val: peer_val.clone(),
+                        veths,
+                        action: PeerDbAction::Insert,
+                    })
                     .handle_err(location!());
 
                 peer_val
@@ -96,7 +95,7 @@ impl Peers {
     }
 
     /// Removes peers inactive for longer than `TTL` seconds.
-    pub fn remove_inactive_peers(&mut self, tx: &UnboundedSender<(Peer, PeerDbAction)>) {
+    pub fn remove_inactive_peers(&mut self, tx: &UnboundedSender<PeerDbData>) {
         self.map.retain(|peer_key, peer_val| {
             let retain = (Utc::now() - peer_val.last_seen)
                 .num_seconds()
@@ -108,25 +107,18 @@ impl Peers {
                 self.ips.retain(|_, v| v != peer_key);
 
                 let _ = tx
-                    .send((
-                        Peer {
-                            key: *peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Remove,
-                    ))
+                    .send(PeerDbData {
+                        key: *peer_key,
+                        val: peer_val.to_owned(),
+                        veths: vec![],
+                        action: PeerDbAction::Remove,
+                    })
                     .handle_err(location!());
             }
 
             retain
         });
     }
-}
-
-/// Struct representing a peer.
-pub struct Peer {
-    pub(crate) key: PeerKey,
-    pub(crate) val: PeerVal,
 }
 
 /// Struct identifying a peer.
@@ -173,8 +165,6 @@ impl VethKey {
 /// Struct including relevant attributes of a peer.
 #[derive(Clone)]
 pub struct PeerVal {
-    /// veths IP addresses of this peer.
-    pub(crate) veths: Vec<VethKey>,
     /// Number of unicast hello messages received from this peer.
     pub(crate) num_seen_unicast: u64,
     /// Number of broadcast hello messages received from this peer.
@@ -191,7 +181,6 @@ impl PeerVal {
     /// Creates new peer attributes from a `Hello` message.
     pub fn with_details(delay: i64, hello: Hello) -> Self {
         Self {
-            veths: hello.veths,
             num_seen_unicast: u64::from(hello.is_unicast),
             num_seen_broadcast: u64::from(!hello.is_unicast),
             avg_delay: delay.unsigned_abs(), // TODO: timestamps must be monotonic!
@@ -208,7 +197,6 @@ impl PeerVal {
         self.num_seen_unicast += u64::from(hello.is_unicast);
         self.num_seen_broadcast += u64::from(!hello.is_unicast);
 
-        self.veths.clone_from(&hello.veths);
         self.last_seen = hello.timestamp;
         self.processes = hello.processes.clone();
     }
