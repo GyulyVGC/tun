@@ -1,18 +1,14 @@
-use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::process::Command;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::DISCOVERY_PORT;
-use crate::craft::mac_from_dec_to_hex;
 use crate::local_endpoints::LocalEndpoints;
-use crate::peers::database::{PeerDbAction, manage_peers_db};
+use crate::peers::database::{PeerDbData, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
-use crate::peers::peer::{Peer, PeerKey, PeerVal};
+use crate::peers::peer::{PeerKey, Peers};
 use chrono::Utc;
-use nullnet_liberror::{ErrorHandler, Location, location};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{RwLock, mpsc};
@@ -21,10 +17,10 @@ use tokio::sync::{RwLock, mpsc};
 const RETRIES: u64 = 4;
 
 /// Time to live before a peer is removed from the local list (seconds).
-const TTL: u64 = 60; // * 60;
+pub(crate) const TTL: u64 = 60;
 
 /// Retransmission period of broadcast `Hello` messages (seconds).
-const RETRANSMISSION_PERIOD: u64 = TTL / 4;
+const RETRANSMISSION_PERIOD: u64 = TTL / 2 - 1;
 
 /// Period between the forward of two consecutive `Hello` message copies (seconds).
 const RETRIES_DELTA: u64 = 1;
@@ -35,11 +31,7 @@ const RETRIES_DELTA: u64 = 1;
 /// - listen for (and produces) unicast `Hello` responses
 /// - remove inactive peers when their TTL expires
 /// - periodically send out broadcast `Hello` messages
-pub async fn discover_peers(
-    tun_mac: [u8; 6],
-    endpoints: LocalEndpoints,
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-) {
+pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<Peers>>) {
     let socket = endpoints.sockets.discovery;
     let socket_2 = socket.clone();
     let socket_3 = socket.clone();
@@ -48,6 +40,8 @@ pub async fn discover_peers(
     let broadcast_socket = endpoints.sockets.discovery_broadcast;
 
     let local_ips = endpoints.ips;
+    let local_ips_2 = local_ips.clone();
+    let local_ips_3 = local_ips.clone();
 
     let peers_2 = peers.clone();
     let peers_3 = peers.clone();
@@ -65,12 +59,12 @@ pub async fn discover_peers(
 
     // listen for broadcast hello messages
     tokio::spawn(async move {
-        listen(broadcast_socket, socket, tun_mac, local_ips, peers, tx).await;
+        listen(broadcast_socket, socket, local_ips, peers, tx).await;
     });
 
     // listen for unicast hello responses
     tokio::spawn(async move {
-        listen(socket_2, socket_3, tun_mac, local_ips, peers_2, tx_2).await;
+        listen(socket_2, socket_3, local_ips_2, peers_2, tx_2).await;
     });
 
     // remove inactive peers
@@ -79,24 +73,19 @@ pub async fn discover_peers(
     });
 
     // periodically send out broadcast hello messages
-    greet_broadcast(socket_4, tun_mac, local_ips).await;
+    greet_broadcast(socket_4, local_ips_3).await;
 }
 
 /// Listens to hello messages (unicast or broadcast), and invokes `greet_unicast` when needed.
 async fn listen(
     listen_socket: Arc<UdpSocket>,
     unicast_socket: Arc<UdpSocket>,
-    tun_mac: [u8; 6],
     local_ips: LocalIps,
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-    tx: UnboundedSender<(Peer, PeerDbAction)>,
+    peers: Arc<RwLock<Peers>>,
+    tx: UnboundedSender<PeerDbData>,
 ) {
-    // used to determine whether an unicast response is required
-    let mut should_respond_to;
     let mut msg = [0; 1024];
     loop {
-        should_respond_to = None;
-
         let Ok((msg_len, from)) = listen_socket.recv_from(&mut msg).await else {
             continue;
         };
@@ -111,90 +100,32 @@ async fn listen(
         let hello_is_unicast = hello.is_unicast;
         let hello_is_setup = hello.is_setup;
 
-        // update ARP table of the TUNs
-        if hello_is_unicast || hello_is_setup {
-            update_arp_table(hello.ips.tun, hello.tun_mac);
-        }
-
         let delay = (now - hello.timestamp)
             .num_microseconds()
             .unwrap_or_default();
 
-        let peer_key = PeerKey::from_ip_addr(hello.ips.tun);
-        peers
-            .write()
-            .await
-            .entry(peer_key)
-            .and_modify(|peer_val| {
-                peer_val.refresh(delay, &hello);
-
-                if hello_is_setup {
-                    should_respond_to = Some(peer_val.discovery_socket_addr());
-                }
-
-                // update peer db
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Modify,
-                    ))
-                    .handle_err(location!());
-            })
-            .or_insert_with(|| {
-                let peer_val = PeerVal::with_details(delay, hello);
-
-                should_respond_to = Some(peer_val.discovery_socket_addr());
-
-                // update peer db
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: peer_key,
-                            val: peer_val.clone(),
-                        },
-                        PeerDbAction::Insert,
-                    ))
-                    .handle_err(location!());
-
-                peer_val
-            });
+        let peer_key = PeerKey::from_ip_addr(hello.ethernet.ip);
+        let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
 
         if let Some(dest_socket_addr) = should_respond_to
             && !hello_is_unicast
         {
             let source = unicast_socket.clone();
+            let local_ips = local_ips.clone();
             tokio::spawn(async move {
-                greet_unicast(
-                    source,
-                    dest_socket_addr,
-                    tun_mac,
-                    local_ips,
-                    !hello_is_setup,
-                )
-                .await;
+                greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
             });
         }
     }
 }
 
 /// Checks for peers inactive for longer than `TTL` seconds and removes them from the peers list.
-async fn remove_inactive_peers(
-    peers: Arc<RwLock<HashMap<PeerKey, PeerVal>>>,
-    tx: UnboundedSender<(Peer, PeerDbAction)>,
-) {
+async fn remove_inactive_peers(peers: Arc<RwLock<Peers>>, tx: UnboundedSender<PeerDbData>) {
     loop {
-        let oldest_peer_val = peers
-            .read()
-            .await
-            .values()
-            .min_by(|p1, p2| p1.last_seen.cmp(&p2.last_seen))
-            .cloned();
-        let sleep_time = if let Some(p) = oldest_peer_val {
+        let oldest_last_seen = peers.read().await.get_oldest_last_seen();
+        let sleep_time = if let Some(ols) = oldest_last_seen {
             // TODO: timestamps must be monotonic!
-            let since_oldest = (Utc::now() - p.last_seen).num_seconds().unsigned_abs();
+            let since_oldest = (Utc::now() - ols).num_seconds().unsigned_abs();
             TTL.checked_sub(since_oldest).unwrap_or_default()
         } else {
             TTL
@@ -202,37 +133,17 @@ async fn remove_inactive_peers(
 
         tokio::time::sleep(Duration::from_secs(sleep_time)).await;
 
-        peers.write().await.retain(|peer_key, peer_val| {
-            let retain = (Utc::now() - peer_val.last_seen)
-                .num_seconds()
-                .unsigned_abs()
-                < TTL;
-
-            // update peer db
-            if !retain {
-                let _ = tx
-                    .send((
-                        Peer {
-                            key: *peer_key,
-                            val: peer_val.to_owned(),
-                        },
-                        PeerDbAction::Remove,
-                    ))
-                    .handle_err(location!());
-            }
-
-            retain
-        });
+        peers.write().await.remove_inactive_peers(&tx);
     }
 }
 
 /// Periodically sends out messages to let all other peers know that this device is up.
-async fn greet_broadcast(socket: Arc<UdpSocket>, tun_mac: [u8; 6], local_ips: LocalIps) {
+async fn greet_broadcast(socket: Arc<UdpSocket>, local_ips: LocalIps) {
     // require unicast responses when this peer first joins the network
     let mut is_setup = true;
-    let dest = SocketAddr::new(IpAddr::V4(local_ips.broadcast), DISCOVERY_PORT);
+    let dest = SocketAddr::new(IpAddr::V4(local_ips.ethernet.broadcast), DISCOVERY_PORT);
     loop {
-        greet(&socket, dest, tun_mac, &local_ips, is_setup, true, false).await;
+        greet(&socket, dest, &local_ips, is_setup, true, false).await;
         is_setup = false;
         tokio::time::sleep(Duration::from_secs(RETRANSMISSION_PERIOD)).await;
     }
@@ -242,27 +153,16 @@ async fn greet_broadcast(socket: Arc<UdpSocket>, tun_mac: [u8; 6], local_ips: Lo
 async fn greet_unicast(
     socket: Arc<UdpSocket>,
     dest: SocketAddr,
-    tun_mac: [u8; 6],
     local_ips: LocalIps,
     should_retry: bool,
 ) {
-    greet(
-        &socket,
-        dest,
-        tun_mac,
-        &local_ips,
-        false,
-        should_retry,
-        true,
-    )
-    .await;
+    greet(&socket, dest, &local_ips, false, should_retry, true).await;
 }
 
 /// Sends out replicated hello messages to broadcast or to a specific peer.
-async fn greet(
+pub(crate) async fn greet(
     socket: &Arc<UdpSocket>,
     dest: SocketAddr,
-    tun_mac: [u8; 6],
     local_ips: &LocalIps,
     is_setup: bool,
     should_retry: bool,
@@ -271,7 +171,8 @@ async fn greet(
     for _ in 0..if should_retry { RETRIES } else { 1 } {
         socket
             .send_to(
-                Hello::with_details(tun_mac, local_ips, is_setup, is_unicast)
+                Hello::with_details(local_ips, is_setup, is_unicast)
+                    .await
                     .to_toml_string()
                     .as_bytes(),
                 dest,
@@ -280,27 +181,4 @@ async fn greet(
             .unwrap_or_default();
         tokio::time::sleep(Duration::from_secs(RETRIES_DELTA)).await;
     }
-}
-
-/// Updates the ARP table for the TUN interface.
-fn update_arp_table(tun_ip: Ipv4Addr, tun_mac: [u8; 6]) {
-    let tun_mac_str = mac_from_dec_to_hex(tun_mac);
-
-    let Ok(mut child) = Command::new("ip")
-        .args([
-            "neigh",
-            "replace",
-            &tun_ip.to_string(),
-            "lladdr",
-            &tun_mac_str,
-            "dev",
-            "nullnet0",
-        ])
-        .spawn()
-        .handle_err(location!())
-    else {
-        return;
-    };
-
-    child.wait().unwrap_or_default();
 }

@@ -1,2 +1,2 @@
-# tun
-TUN device management in Rust
+# tap
+TAP device management in Rust

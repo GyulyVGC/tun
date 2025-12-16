@@ -1,6 +1,6 @@
 pub mod database;
 pub mod discovery;
-pub mod eth_addr;
+pub mod ethernet_addr;
 mod hello;
 pub mod local_ips;
 pub mod peer;

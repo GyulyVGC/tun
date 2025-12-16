@@ -8,7 +8,7 @@ use tun_rs::AsyncDevice;
 use crate::craft::reject_payloads::send_termination_message;
 use crate::forward::frame::Frame;
 
-/// Handles incoming network packets (receives packets from the socket and sends them to the TUN interface),
+/// Handles incoming network packets (receives packets from the socket and sends them to the TAP interface),
 /// ensuring the firewall rules are correctly observed.
 pub async fn receive(
     device: &Arc<AsyncDevice>,
