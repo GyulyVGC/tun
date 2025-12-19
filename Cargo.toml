@@ -20,7 +20,7 @@ notify = "8.2.0"
 chrono = { version = "0.4.42", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = ["derive", "alloc"] }
 serde_json = "1.0.145"
-toml = "0.9.8"
+toml = "0.9.10"
 tokio-rusqlite = "0.6.0"
 rusqlite = "0.32.1"
 nullnet-liberror = { git = "https://github.com/NullNet-ai/libguard.git", branch = "nullnet-liberror-print" }
