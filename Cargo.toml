@@ -27,7 +27,7 @@ nullnet-liberror = { git = "https://github.com/NullNet-ai/libguard.git", branch 
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 
 [target.'cfg(not(target_os = "freebsd"))'.dependencies]
-network-interface = "2.0.3"
+network-interface = "2.0.5"
 
 [target.'cfg(target_os = "freebsd")'.dependencies]
 nix = { version = "0.30.1", features = ["net"] }
