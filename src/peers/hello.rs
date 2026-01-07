@@ -8,7 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-/// Struct representing the content of messages exchanged in the scope of peers discovery.
+/// Struct representing Hello messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct Hello {
     /// Ethernet IP of the peer sending the message.
@@ -75,11 +75,6 @@ impl Hello {
     /// Serializes this message to a TOML string.
     pub fn to_toml_string(&self) -> String {
         toml::to_string(self).unwrap_or_default()
-    }
-
-    /// Deserializes TOML bytes into a `Hello` message.
-    pub fn from_toml_bytes(msg: &[u8]) -> Self {
-        toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).unwrap_or_default()
     }
 }
 

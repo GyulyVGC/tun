@@ -8,6 +8,7 @@ use crate::peers::database::{PeerDbData, manage_peers_db};
 use crate::peers::hello::Hello;
 use crate::peers::local_ips::LocalIps;
 use crate::peers::peer::{PeerKey, Peers};
+use crate::peers::peer_message::PeerMessage;
 use chrono::Utc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc::UnboundedSender;
@@ -62,7 +63,7 @@ pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<Peers>>
         listen(broadcast_socket, socket, local_ips, peers, tx).await;
     });
 
-    // listen for unicast hello responses
+    // listen for unicast hello responses AND unicast VLAN setup requests
     tokio::spawn(async move {
         listen(socket_2, socket_3, local_ips_2, peers_2, tx_2).await;
     });
@@ -84,37 +85,61 @@ async fn listen(
     peers: Arc<RwLock<Peers>>,
     tx: UnboundedSender<PeerDbData>,
 ) {
-    let mut msg = [0; 1024];
+    let mut buf = [0; 1024];
     loop {
-        let Ok((msg_len, from)) = listen_socket.recv_from(&mut msg).await else {
+        let Ok((buf_len, from)) = listen_socket.recv_from(&mut buf).await else {
             continue;
         };
 
         let now = Utc::now();
-        let hello = Hello::from_toml_bytes(&msg[0..msg_len]);
+        let msg = PeerMessage::from_toml_bytes(buf.get(0..buf_len).unwrap_or_default());
 
-        if !hello.is_valid(&from, &local_ips) {
-            continue;
-        }
+        match msg {
+            PeerMessage::Hello(hello) => {
+                if !hello.is_valid(&from, &local_ips) {
+                    continue;
+                }
 
-        let hello_is_unicast = hello.is_unicast;
-        let hello_is_setup = hello.is_setup;
+                let hello_is_unicast = hello.is_unicast;
+                let hello_is_setup = hello.is_setup;
 
-        let delay = (now - hello.timestamp)
-            .num_microseconds()
-            .unwrap_or_default();
+                let delay = (now - hello.timestamp)
+                    .num_microseconds()
+                    .unwrap_or_default();
 
-        let peer_key = PeerKey::from_ip_addr(hello.ethernet.ip);
-        let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
+                let peer_key = PeerKey::from_ip_addr(hello.ethernet.ip);
+                let should_respond_to = peers.write().await.entry_peer(peer_key, hello, delay, &tx);
 
-        if let Some(dest_socket_addr) = should_respond_to
-            && !hello_is_unicast
-        {
-            let source = unicast_socket.clone();
-            let local_ips = local_ips.clone();
-            tokio::spawn(async move {
-                greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
-            });
+                if let Some(dest_socket_addr) = should_respond_to
+                    && !hello_is_unicast
+                {
+                    let source = unicast_socket.clone();
+                    let local_ips = local_ips.clone();
+                    tokio::spawn(async move {
+                        greet_unicast(source, dest_socket_addr, local_ips, !hello_is_setup).await;
+                    });
+                }
+            }
+            PeerMessage::VlanSetupRequest(vlan_setup_request) => {
+                // TODO: remove OvsConfig file watching, setup br0 at startup only, activate new VLANs here, support multiple VLANs in the same request
+
+                vlan_setup_request.vlan.activate();
+
+                // send broadcast updates
+                local_ips
+                    // TODO: use Sets over Vecs
+                    .veths
+                    .write()
+                    .await
+                    .extend(vlan_setup_request.vlan.get_veths());
+                let source = unicast_socket.clone();
+                let local_ips = local_ips.clone();
+                let dest =
+                    SocketAddr::new(IpAddr::V4(local_ips.ethernet.broadcast), DISCOVERY_PORT);
+                tokio::spawn(async move {
+                    greet(&source, dest, &local_ips, false, true, false).await;
+                });
+            }
         }
     }
 }

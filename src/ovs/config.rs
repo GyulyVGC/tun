@@ -12,12 +12,12 @@ use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct OvsConfig {
     pub vlans: Vec<OvsVlan>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct OvsVlan {
     pub id: u16,
     pub ports: Vec<Ipv4Network>,
@@ -35,17 +35,12 @@ impl OvsConfig {
     pub fn activate(&self) {
         setup_br0();
         for vlan in &self.vlans {
-            for port in &vlan.ports {
-                configure_access_port(vlan.id, *port);
-            }
+            vlan.activate();
         }
     }
 
     pub fn get_veths(&self) -> Vec<VethKey> {
-        self.vlans
-            .iter()
-            .flat_map(|vlan| vlan.ports.iter().map(|net| VethKey::new(net.ip(), vlan.id)))
-            .collect()
+        self.vlans.iter().flat_map(OvsVlan::get_veths).collect()
     }
 
     pub async fn watch(endpoints: &LocalEndpoints) -> Result<(), Error> {
@@ -93,6 +88,21 @@ impl OvsConfig {
                 }
             }
         }
+    }
+}
+
+impl OvsVlan {
+    pub fn activate(&self) {
+        for port in &self.ports {
+            configure_access_port(self.id, *port);
+        }
+    }
+
+    pub fn get_veths(&self) -> Vec<VethKey> {
+        self.ports
+            .iter()
+            .map(|net| VethKey::new(net.ip(), self.id))
+            .collect()
     }
 }
 
