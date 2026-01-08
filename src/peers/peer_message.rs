@@ -12,14 +12,7 @@ pub(super) enum PeerMessage {
 
 impl PeerMessage {
     /// Deserializes TOML bytes into a `PeerMessage`.
-    pub fn from_toml_bytes(msg: &[u8]) -> Self {
-        // TODO: return an optional value
-        toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).unwrap_or_default()
-    }
-}
-
-impl Default for PeerMessage {
-    fn default() -> Self {
-        PeerMessage::Hello(Hello::default())
+    pub fn from_toml_bytes(msg: &[u8]) -> Option<Self> {
+        toml::from_str(std::str::from_utf8(msg).unwrap_or_default()).ok()
     }
 }

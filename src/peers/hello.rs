@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 /// Struct representing Hello messages exchanged in the scope of peers discovery.
-#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Hello {
     /// Ethernet IP of the peer sending the message.
     #[serde(flatten)]
@@ -105,7 +105,6 @@ where
 mod tests {
     use crate::peers::ethernet_addr::EthernetAddr;
     use crate::peers::hello::Hello;
-    use crate::peers::local_ips::LocalIps;
     use crate::peers::peer::VethKey;
     use crate::peers::processes::Processes;
     use chrono::{DateTime, Utc};
@@ -114,8 +113,6 @@ mod tests {
     use std::collections::HashSet;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
 
     pub static TEST_TIMESTAMP: &str = "2024-02-08 14:26:23.862231 UTC";
 
@@ -221,26 +218,6 @@ mod tests {
              veth_ip = \"10.11.12.134\"\n\
              vlan_id = 10\n"
         );
-    }
-
-    #[test]
-    fn test_default_hello_message_not_valid() {
-        let default = Hello::default();
-        let local_ips = LocalIps {
-            ethernet: EthernetAddr::new(
-                Ipv4Addr::from([192, 168, 1, 113]),
-                Ipv4Addr::from([255, 255, 255, 0]),
-                Ipv4Addr::from([192, 168, 1, 255]),
-            ),
-            veths: Arc::new(RwLock::new(vec![VethKey::new(
-                Ipv4Addr::from([10, 0, 0, 113]),
-                20,
-            )])),
-        };
-        assert!(!default.is_valid(
-            &SocketAddr::new(IpAddr::V4(default.ethernet.ip), 0),
-            &local_ips
-        ));
     }
 
     #[test]

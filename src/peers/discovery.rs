@@ -92,8 +92,11 @@ async fn listen(
         };
 
         let now = Utc::now();
-        let msg = PeerMessage::from_toml_bytes(buf.get(0..buf_len).unwrap_or_default());
-        println!("Received peer message from {from}: {msg:?}");
+        let Some(msg) = PeerMessage::from_toml_bytes(buf.get(0..buf_len).unwrap_or_default())
+        else {
+            println!("Could not parse peer message from {from}");
+            continue;
+        };
 
         match msg {
             PeerMessage::Hello(hello) => {
@@ -122,6 +125,7 @@ async fn listen(
                 }
             }
             PeerMessage::VlanSetupRequest(vlan_setup_request) => {
+                println!("Received VLAN setup request from {from}: {vlan_setup_request:?}");
                 // TODO: remove OvsConfig file watching, setup br0 at startup only, activate new VLANs here, support multiple VLANs in the same request
 
                 vlan_setup_request.vlan.activate();
