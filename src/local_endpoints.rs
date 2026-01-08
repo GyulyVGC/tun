@@ -43,9 +43,7 @@ impl LocalEndpoints {
                 if let Ok(forward) = UdpSocket::bind(forward_socket_addr).await {
                     let forward_shared = Arc::new(forward);
                     println!("Forward socket bound successfully");
-                    // use 0.0.0.0 to receive also VlanSetupRequest sent from a controller on this same machine
-                    let discovery_socket_addr =
-                        SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), DISCOVERY_PORT);
+                    let discovery_socket_addr = SocketAddr::new(IpAddr::V4(ip), DISCOVERY_PORT);
                     if let Ok(discovery) = UdpSocket::bind(discovery_socket_addr).await {
                         discovery.set_broadcast(true).handle_err(location!())?;
                         let discovery_shared = Arc::new(discovery);
