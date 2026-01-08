@@ -93,6 +93,7 @@ async fn listen(
 
         let now = Utc::now();
         let msg = PeerMessage::from_toml_bytes(buf.get(0..buf_len).unwrap_or_default());
+        println!("Received peer message from {from}: {msg:?}");
 
         match msg {
             PeerMessage::Hello(hello) => {

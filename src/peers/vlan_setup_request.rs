@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Struct representing `VlanSetupRequest` messages exchanged in the scope of peers discovery.
 #[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
+#[serde(transparent)]
 pub struct VlanSetupRequest {
     /// OVS configuration to be applied.
     pub vlan: OvsVlan,
@@ -36,11 +37,6 @@ mod tests {
             &vlan_setup_request.readable(),
             &[
                 Token::Struct {
-                    name: "VlanSetupRequest",
-                    len: 1,
-                },
-                Token::Str("vlan"),
-                Token::Struct {
                     name: "OvsVlan",
                     len: 2,
                 },
@@ -52,7 +48,6 @@ mod tests {
                 Token::Str("16.16.16.16/8"),
                 Token::SeqEnd,
                 Token::StructEnd,
-                Token::StructEnd,
             ],
         );
     }
@@ -63,8 +58,7 @@ mod tests {
 
         assert_eq!(
             toml::to_string(&vlan_setup_request).unwrap(),
-            "[vlan]\n\
-             id = 10\n\
+            "id = 10\n\
              ports = [\"8.8.8.8/24\", \"16.16.16.16/8\"]\n"
         );
     }
