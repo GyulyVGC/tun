@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,15 +34,7 @@ const RETRIES_DELTA: u64 = 1;
 /// - periodically send out broadcast `Hello` messages
 pub async fn discover_peers(endpoints: LocalEndpoints, peers: Arc<RwLock<Peers>>) {
     let socket = endpoints.sockets.discovery;
-    // use 0.0.0.0 to receive also VlanSetupRequest sent from a controller on this same machine
-    let socket_2 = Arc::new(
-        UdpSocket::bind(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-            DISCOVERY_PORT,
-        ))
-        .await
-        .unwrap(),
-    );
+    let socket_2 = socket.clone();
     let socket_3 = socket.clone();
     let socket_4 = socket.clone();
 
