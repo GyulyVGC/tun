@@ -126,7 +126,7 @@ async fn listen(
             }
             PeerMessage::VlanSetupRequest(vlan_setup_request) => {
                 println!("Received VLAN setup request from {from}: {vlan_setup_request:?}");
-                // TODO: remove OvsConfig file watching, setup br0 at startup only, support multiple VLANs in the same request
+                // TODO: remove OvsConfig file watching, setup br0 at startup only, activate new VLANs here, support multiple VLANs in the same request
 
                 vlan_setup_request.vlan.activate();
 

@@ -1,9 +1,0 @@
-[[services]]
-name = "color.com"
-host = "192.168.1.104"
-port = 3001
-
-[[services]]
-name = "directory.com"
-host = "192.168.1.104"
-port = 8080
