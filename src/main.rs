@@ -198,8 +198,8 @@ async fn set_firewall_rules(
 }
 
 async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
-    let host = std::env::var("CONTROL_SERVICE_ADDR").handle_err(location!())?;
-    let port_str = std::env::var("CONTROL_SERVICE_PORT").handle_err(location!())?;
+    let host = option_env!("CONTROL_SERVICE_ADDR").unwrap_or("0.0.0.0");
+    let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
     let port = port_str.parse::<u16>().handle_err(location!())?;
 
     let server = NullnetGrpcInterface::new(&host, port, false)
