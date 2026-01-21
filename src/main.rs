@@ -17,8 +17,6 @@ use crate::cli::Args;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
-use crate::ovs::config::OvsConfig;
-use crate::peers::discovery::discover_peers;
 use crate::peers::peer::Peers;
 
 mod cli;
@@ -29,7 +27,6 @@ mod ovs;
 mod peers;
 
 pub const FORWARD_PORT: u16 = 9999;
-pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const TAP_NAME: &str = "nullnet0";
 
 #[tokio::main]
@@ -60,15 +57,7 @@ async fn main() -> Result<(), Error> {
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
-    let forward_socket = endpoints.sockets.forward.clone();
-
-    // watch the file defining OVS config and update the local veths accordingly
-    let endpoints_2 = endpoints.clone();
-    tokio::spawn(async move {
-        OvsConfig::watch(&endpoints_2)
-            .await
-            .expect("Watching OVS config failed");
-    });
+    let forward_socket = endpoints.forward_socket.clone();
 
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
@@ -107,10 +96,11 @@ async fn main() -> Result<(), Error> {
     // print information about the overall setup
     print_info(&endpoints, mtu);
 
+    // TODO: launch gRPC control channel here?
     // discover peers in the same area network
-    tokio::spawn(async move {
-        discover_peers(endpoints, peers_2).await;
-    });
+    // tokio::spawn(async move {
+    //     discover_peers(endpoints, peers_2).await;
+    // });
 
     // watch the file defining rules and update the firewall accordingly
     set_firewall_rules(&firewall_shared, &firewall_path, false).await?;
@@ -120,21 +110,12 @@ async fn main() -> Result<(), Error> {
 
 /// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
-    let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
-        return;
-    };
-    let Ok(discovery_socket) = &local_endpoints.sockets.discovery.local_addr() else {
-        return;
-    };
-    let Ok(discovery_broadcast_socket) = &local_endpoints.sockets.discovery_broadcast.local_addr()
-    else {
+    let Ok(forward_socket) = &local_endpoints.forward_socket.local_addr() else {
         return;
     };
     println!("\n{}", "=".repeat(40));
     println!("UDP sockets bound successfully:");
     println!("    - forward:   {forward_socket}");
-    println!("    - discovery: {discovery_socket}");
-    println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TAP device created successfully:");
     println!("    - name:      {TAP_NAME}");
     println!("    - MTU:       {mtu} B");
