@@ -19,6 +19,10 @@ impl Peers {
             .get(&veth_key)
             .map(|ip| SocketAddr::new(IpAddr::V4(*ip), FORWARD_PORT))
     }
+
+    pub fn insert(&mut self, veth_key: VethKey, eth_ip: Ipv4Addr) {
+        self.ips.insert(veth_key, eth_ip);
+    }
 }
 
 /// Struct identifying veth on a VLAN.
@@ -26,9 +30,9 @@ impl Peers {
 #[serde(rename = "veth")]
 pub struct VethKey {
     /// IP address of the veth.
-    pub(crate) veth_ip: Ipv4Addr,
+    veth_ip: Ipv4Addr,
     /// VLAN ID of the veth.
-    pub(crate) vlan_id: u16,
+    vlan_id: u16,
 }
 
 impl VethKey {

@@ -9,17 +9,21 @@ use std::{panic, process};
 use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
+use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
+use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
+use crate::ovs::helpers::setup_br0;
 use crate::peers::peer::Peers;
 
 mod cli;
+mod control_channel;
 mod craft;
 mod forward;
 mod local_endpoints;
@@ -54,6 +58,9 @@ async fn main() -> Result<(), Error> {
         .mtu(mtu)
         .build_async()
         .handle_err(location!())?;
+
+    // set up OVS bridge
+    setup_br0();
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
@@ -96,11 +103,14 @@ async fn main() -> Result<(), Error> {
     // print information about the overall setup
     print_info(&endpoints, mtu);
 
-    // TODO: launch gRPC control channel here?
-    // discover peers in the same area network
-    // tokio::spawn(async move {
-    //     discover_peers(endpoints, peers_2).await;
-    // });
+    let grpc_server = grpc_init().await?;
+    let local_ethernet = endpoints.ethernet;
+    // listen on the gRPC control channel
+    tokio::spawn(async move {
+        control_channel(grpc_server, local_ethernet, peers_2)
+            .await
+            .expect("Control channel failed");
+    });
 
     // watch the file defining rules and update the firewall accordingly
     set_firewall_rules(&firewall_shared, &firewall_path, false).await?;
@@ -185,4 +195,16 @@ async fn set_firewall_rules(
             }
         }
     }
+}
+
+async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
+    let host = std::env::var("CONTROL_SERVICE_ADDR").handle_err(location!())?;
+    let port_str = std::env::var("CONTROL_SERVICE_PORT").handle_err(location!())?;
+    let port = port_str.parse::<u16>().handle_err(location!())?;
+
+    let server = NullnetGrpcInterface::new(&host, port, false)
+        .await
+        .handle_err(location!())?;
+
+    Ok(server)
 }
