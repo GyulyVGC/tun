@@ -1,9 +1,7 @@
 use crate::ovs::helpers::{configure_access_port, setup_br0};
 use crate::peers::peer::VethKey;
 use ipnetwork::Ipv4Network;
-use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
-use std::ops::Sub;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct OvsConfig {

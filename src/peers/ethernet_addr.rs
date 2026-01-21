@@ -17,24 +17,24 @@ impl EthernetAddr {
         }
     }
 
-    /// Checks that Ethernet addresses are in the same local network.
-    pub fn is_same_ipv4_ethernet_network_of(&self, other: Self) -> bool {
-        if self.netmask != other.netmask || self.broadcast != other.broadcast {
-            return false;
-        }
-
-        let netmask = self.netmask.octets();
-        let eth_1 = self.ip.octets();
-        let eth_2 = other.ip.octets();
-
-        for i in 0..4 {
-            if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
-                return false;
-            }
-        }
-
-        true
-    }
+    // /// Checks that Ethernet addresses are in the same local network.
+    // pub fn is_same_ipv4_ethernet_network_of(&self, other: Self) -> bool {
+    //     if self.netmask != other.netmask || self.broadcast != other.broadcast {
+    //         return false;
+    //     }
+    //
+    //     let netmask = self.netmask.octets();
+    //     let eth_1 = self.ip.octets();
+    //     let eth_2 = other.ip.octets();
+    //
+    //     for i in 0..4 {
+    //         if eth_1[i] & netmask[i] != eth_2[i] & netmask[i] {
+    //             return false;
+    //         }
+    //     }
+    //
+    //     true
+    // }
 
     fn is_suitable(&self) -> bool {
         !self.netmask.is_unspecified() && !self.broadcast.is_unspecified() && self.ip.is_private()
