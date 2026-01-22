@@ -10,6 +10,7 @@ use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use nullnet_firewall::{DataLink, Firewall, FirewallError};
 use nullnet_grpc_lib::NullnetGrpcInterface;
+use nullnet_grpc_lib::nullnet_grpc::Services;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
@@ -103,9 +104,14 @@ async fn main() -> Result<(), Error> {
     // print information about the overall setup
     print_info(&endpoints, mtu);
 
+    // initialize gRPC connection
     let grpc_server = grpc_init().await?;
-    let local_ethernet = endpoints.ethernet;
+
+    // read our services list from file and send it to the gRPC server
+    declare_services(&grpc_server).await?;
+
     // listen on the gRPC control channel
+    let local_ethernet = endpoints.ethernet;
     tokio::spawn(async move {
         control_channel(grpc_server, local_ethernet, peers_2)
             .await
@@ -202,9 +208,25 @@ async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
     let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
     let port = port_str.parse::<u16>().handle_err(location!())?;
 
-    let server = NullnetGrpcInterface::new(&host, port, false)
+    let server = NullnetGrpcInterface::new(host, port, false)
         .await
         .handle_err(location!())?;
 
     Ok(server)
+}
+
+async fn declare_services(grpc_server: &NullnetGrpcInterface) -> Result<(), Error> {
+    // read services from file
+    let services_toml = tokio::fs::read_to_string("services.toml")
+        .await
+        .handle_err(location!())?;
+    let services: Services = toml::from_str(&services_toml).handle_err(location!())?;
+
+    // send services to gRPC server
+    grpc_server
+        .services_list(services)
+        .await
+        .handle_err(location!())?;
+
+    Ok(())
 }
