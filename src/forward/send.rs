@@ -44,21 +44,21 @@ pub async fn send(
 }
 
 async fn get_dst_socket(pkt_data: &[u8], peers: &Arc<RwLock<Peers>>) -> Result<SocketAddr, Error> {
-    let headers = LaxPacketHeaders::from_ethernet(pkt_data).handle_err(location!())?;
+    let headers = LaxPacketHeaders::from_ethernet(pkt_data).handle_err_no_print(location!())?;
     let vlan_id = headers
         .vlan_ids()
         .first()
         .map(|v| v.value())
         .ok_or("Packet missing VLAN tag")
-        .handle_err(location!())?;
+        .handle_err_no_print(location!())?;
     let dest_ip_slice = match headers.net {
         Some(NetHeaders::Ipv4(ipv4_header, _)) => Ok(ipv4_header.destination),
         Some(NetHeaders::Arp(arp_packet)) => match arp_packet.proto_addr_type {
             EtherType::IPV4 => TryInto::<[u8; 4]>::try_into(arp_packet.target_protocol_addr())
-                .handle_err(location!()),
-            _ => Err("ARP packet with non-IPv4 protocol address type").handle_err(location!()),
+                .handle_err_no_print(location!()),
+            _ => Err("ARP packet with non-IPv4 protocol address type").handle_err_no_print(location!()),
         },
-        _ => Err("Unsupported network layer protocol").handle_err(location!()),
+        _ => Err("Unsupported network layer protocol").handle_err_no_print(location!()),
     }?;
     let dest_ip = Ipv4Addr::from(dest_ip_slice);
     let veth_key = VethKey::new(dest_ip, vlan_id);
@@ -68,5 +68,5 @@ async fn get_dst_socket(pkt_data: &[u8], peers: &Arc<RwLock<Peers>>) -> Result<S
         .await
         .get_socket_by_veth(veth_key)
         .ok_or(format!("No peer found for destination {veth_key:?}"))
-        .handle_err(location!())
+        .handle_err_no_print(location!())
 }

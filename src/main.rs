@@ -8,7 +8,7 @@ use std::{panic, process};
 
 use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall, FirewallError};
+use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::Services;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
@@ -76,6 +76,7 @@ async fn main() -> Result<(), Error> {
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
+    firewall.log_level(LogLevel::Db);
     firewall.data_link(DataLink::Ethernet);
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
