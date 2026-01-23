@@ -52,6 +52,6 @@ pub(crate) async fn control_channel(
     Ok(())
 }
 
-// TODOs
+// TODO
 // - inactive peer removal
 // - heartbeat messages
