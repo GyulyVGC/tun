@@ -223,6 +223,8 @@ async fn declare_services(grpc_server: &NullnetGrpcInterface) -> Result<(), Erro
         .handle_err(location!())?;
     let services: Services = toml::from_str(&services_toml).handle_err(location!())?;
 
+    println!("Declaring services to gRPC server: {services:?}");
+
     // send services to gRPC server
     grpc_server
         .services_list(services)
