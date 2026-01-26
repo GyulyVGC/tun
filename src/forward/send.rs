@@ -56,7 +56,8 @@ async fn get_dst_socket(pkt_data: &[u8], peers: &Arc<RwLock<Peers>>) -> Result<S
         Some(NetHeaders::Arp(arp_packet)) => match arp_packet.proto_addr_type {
             EtherType::IPV4 => TryInto::<[u8; 4]>::try_into(arp_packet.target_protocol_addr())
                 .handle_err_no_print(location!()),
-            _ => Err("ARP packet with non-IPv4 protocol address type").handle_err_no_print(location!()),
+            _ => Err("ARP packet with non-IPv4 protocol address type")
+                .handle_err_no_print(location!()),
         },
         _ => Err("Unsupported network layer protocol").handle_err_no_print(location!()),
     }?;
