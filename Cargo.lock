@@ -855,7 +855,7 @@ dependencies = [
 [[package]]
 name = "nullnet-liberror"
 version = "0.1.1"
-source = "git+https://github.com/NullNet-ai/libguard.git?branch=nullnet-liberror-print#78dadf760f993917f32ed8165de00f6f03073cfd"
+source = "git+https://github.com/NullNet-ai/libguard.git?branch=nullnet-liberror-print#7a11a8106bdaa102028fc1bb824b86646ed96e74"
 
 [[package]]
 name = "num-traits"
