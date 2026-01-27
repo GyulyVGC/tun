@@ -3,4 +3,3 @@ services = []
 #[[services]]
 #name = "color.com"
 #port = 3001
-#dependencies = ["colorfs.com"]
