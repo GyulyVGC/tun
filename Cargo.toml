@@ -20,8 +20,7 @@ nullnet-liberror = { git = "https://github.com/NullNet-ai/libguard.git", branch 
 nullnet-grpc-lib = { git = "https://github.com/GyulyVGC/nullnet-grpc.git" }
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 toml = "0.9.11"
-
-#listeners = "0.3.0"
+listeners = "0.3.0"
 
 [target.'cfg(not(target_os = "freebsd"))'.dependencies]
 network-interface = "2.0.5"

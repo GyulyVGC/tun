@@ -217,19 +217,30 @@ async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
 }
 
 async fn declare_services(grpc_server: &NullnetGrpcInterface) -> Result<(), Error> {
-    // read services from file
-    let services_toml = tokio::fs::read_to_string("services.toml")
-        .await
-        .handle_err(location!())?;
-    let services: Services = toml::from_str(&services_toml).handle_err(location!())?;
+    loop {
+        // read services from file
+        let services_toml = tokio::fs::read_to_string("services.toml")
+            .await
+            .handle_err(location!())?;
+        let mut services: Services = toml::from_str(&services_toml).handle_err(location!())?;
 
-    println!("Declaring services to gRPC server: {services:?}");
+        // only declare services that are actually running
+        let listeners = listeners::get_all().handle_err(location!())?;
+        services.services.retain(|service| {
+            listeners
+                .iter()
+                .any(|listener| u32::from(listener.socket.port()) == service.port)
+        });
 
-    // send services to gRPC server
-    grpc_server
-        .services_list(services)
-        .await
-        .handle_err(location!())?;
+        println!("Declaring services to gRPC server: {services:?}");
 
-    Ok(())
+        // send services to gRPC server
+        grpc_server
+            .services_list(services)
+            .await
+            .handle_err(location!())?;
+
+        // wait before re-declaring services
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    }
 }
