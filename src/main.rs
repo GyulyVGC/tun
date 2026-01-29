@@ -107,14 +107,19 @@ async fn main() -> Result<(), Error> {
 
     // initialize gRPC connection
     let grpc_server = grpc_init().await?;
+    let grpc_server2 = grpc_server.clone();
 
     // read our services list from file and send it to the gRPC server
-    declare_services(&grpc_server).await?;
+    tokio::spawn(async move {
+        declare_services(grpc_server)
+            .await
+            .expect("Failed to declare services");
+    });
 
     // listen on the gRPC control channel
     let local_ethernet = endpoints.ethernet;
     tokio::spawn(async move {
-        control_channel(grpc_server, local_ethernet, peers_2)
+        control_channel(grpc_server2, local_ethernet, peers_2)
             .await
             .expect("Control channel failed");
     });
@@ -216,7 +221,7 @@ async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
     Ok(server)
 }
 
-async fn declare_services(grpc_server: &NullnetGrpcInterface) -> Result<(), Error> {
+async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error> {
     loop {
         // read services from file
         let services_toml = tokio::fs::read_to_string("services.toml")
