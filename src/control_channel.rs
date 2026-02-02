@@ -80,6 +80,4 @@ fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
     Ok(())
 }
 
-// TODO
-// - inactive peer removal
-// - heartbeat messages
+// TODO: inactive peer removal
