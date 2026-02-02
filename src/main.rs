@@ -8,20 +8,23 @@ use std::{panic, process};
 
 use clap::Parser;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use nullnet_firewall::{DataLink, Firewall, FirewallError};
+use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
+use nullnet_grpc_lib::NullnetGrpcInterface;
+use nullnet_grpc_lib::nullnet_grpc::Services;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
+use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
-use crate::ovs::config::OvsConfig;
-use crate::peers::discovery::discover_peers;
+use crate::ovs::helpers::setup_br0;
 use crate::peers::peer::Peers;
 
 mod cli;
+mod control_channel;
 mod craft;
 mod forward;
 mod local_endpoints;
@@ -29,7 +32,6 @@ mod ovs;
 mod peers;
 
 pub const FORWARD_PORT: u16 = 9999;
-pub const DISCOVERY_PORT: u16 = FORWARD_PORT - 1;
 pub const TAP_NAME: &str = "nullnet0";
 
 #[tokio::main]
@@ -58,17 +60,12 @@ async fn main() -> Result<(), Error> {
         .build_async()
         .handle_err(location!())?;
 
+    // set up OVS bridge
+    setup_br0();
+
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
-    let forward_socket = endpoints.sockets.forward.clone();
-
-    // watch the file defining OVS config and update the local veths accordingly
-    let endpoints_2 = endpoints.clone();
-    tokio::spawn(async move {
-        OvsConfig::watch(&endpoints_2)
-            .await
-            .expect("Watching OVS config failed");
-    });
+    let forward_socket = endpoints.forward_socket.clone();
 
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
@@ -79,6 +76,7 @@ async fn main() -> Result<(), Error> {
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
+    firewall.log_level(LogLevel::Db);
     firewall.data_link(DataLink::Ethernet);
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
@@ -107,9 +105,23 @@ async fn main() -> Result<(), Error> {
     // print information about the overall setup
     print_info(&endpoints, mtu);
 
-    // discover peers in the same area network
+    // initialize gRPC connection
+    let grpc_server = grpc_init().await?;
+    let grpc_server2 = grpc_server.clone();
+
+    // read our services list from file and send it to the gRPC server
     tokio::spawn(async move {
-        discover_peers(endpoints, peers_2).await;
+        declare_services(grpc_server)
+            .await
+            .expect("Failed to declare services");
+    });
+
+    // listen on the gRPC control channel
+    let local_ethernet = endpoints.ethernet;
+    tokio::spawn(async move {
+        control_channel(grpc_server2, local_ethernet, peers_2)
+            .await
+            .expect("Control channel failed");
     });
 
     // watch the file defining rules and update the firewall accordingly
@@ -120,21 +132,12 @@ async fn main() -> Result<(), Error> {
 
 /// Prints useful info about the local environment and the created interface.
 fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
-    let Ok(forward_socket) = &local_endpoints.sockets.forward.local_addr() else {
-        return;
-    };
-    let Ok(discovery_socket) = &local_endpoints.sockets.discovery.local_addr() else {
-        return;
-    };
-    let Ok(discovery_broadcast_socket) = &local_endpoints.sockets.discovery_broadcast.local_addr()
-    else {
+    let Ok(forward_socket) = &local_endpoints.forward_socket.local_addr() else {
         return;
     };
     println!("\n{}", "=".repeat(40));
     println!("UDP sockets bound successfully:");
     println!("    - forward:   {forward_socket}");
-    println!("    - discovery: {discovery_socket}");
-    println!("    - broadcast: {discovery_broadcast_socket}\n");
     println!("TAP device created successfully:");
     println!("    - name:      {TAP_NAME}");
     println!("    - MTU:       {mtu} B");
@@ -203,5 +206,46 @@ async fn set_firewall_rules(
                 last_update_time = Instant::now();
             }
         }
+    }
+}
+
+async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
+    let host = option_env!("CONTROL_SERVICE_ADDR").unwrap_or("0.0.0.0");
+    let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
+    let port = port_str.parse::<u16>().handle_err(location!())?;
+
+    let server = NullnetGrpcInterface::new(host, port, false)
+        .await
+        .handle_err(location!())?;
+
+    Ok(server)
+}
+
+async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error> {
+    loop {
+        // read services from file
+        let services_toml = tokio::fs::read_to_string("services.toml")
+            .await
+            .handle_err(location!())?;
+        let mut services: Services = toml::from_str(&services_toml).handle_err(location!())?;
+
+        // only declare services that are actually running
+        let listeners = listeners::get_all().handle_err(location!())?;
+        services.services.retain(|service| {
+            listeners
+                .iter()
+                .any(|listener| u32::from(listener.socket.port()) == service.port)
+        });
+
+        println!("Declaring services to gRPC server: {services:?}");
+
+        // send services to gRPC server
+        grpc_server
+            .services_list(services)
+            .await
+            .handle_err(location!())?;
+
+        // wait before re-declaring services
+        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }

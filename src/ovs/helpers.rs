@@ -86,7 +86,7 @@ impl OvsCommand<'_> {
     }
 }
 
-pub(super) fn setup_br0() {
+pub fn setup_br0() {
     // clean up existing veth interfaces
     delete_all_veths();
 
