@@ -210,7 +210,7 @@ async fn set_firewall_rules(
 }
 
 async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
-    // TODO: read env at runtime and make the program run as a daemon
+    // TODO: read env at runtime
     let host = option_env!("CONTROL_SERVICE_ADDR").unwrap_or("0.0.0.0");
     let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
     let port = port_str.parse::<u16>().handle_err(location!())?;

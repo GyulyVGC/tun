@@ -20,34 +20,56 @@ pub(crate) async fn control_channel(
         .handle_err(location!())?;
 
     while let Ok(Some(message)) = inbound.message().await {
-        let Ok(target_ip) = message.target_ip.parse::<Ipv4Addr>() else {
+        let Ok(client_eth) = message.client_eth.parse::<Ipv4Addr>() else {
             continue;
         };
-        let Ok(veth_ip) = message.veth_ip.parse::<Ipv4Addr>() else {
+        let Ok(client_veth) = message.client_veth.parse::<Ipv4Addr>() else {
+            continue;
+        };
+        let Ok(server_eth) = message.server_eth.parse::<Ipv4Addr>() else {
+            continue;
+        };
+        let Ok(server_veth) = message.server_veth.parse::<Ipv4Addr>() else {
             continue;
         };
         let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
             continue;
         };
 
-        let veth_interface = VethInterface::new(veth_ip, vlan_id);
+        let local_ip = local_ethernet.ip;
 
-        if target_ip == local_ethernet.ip {
+        let client_veth_interface = VethInterface::new(client_veth, vlan_id);
+        let server_veth_interface = VethInterface::new(server_veth, vlan_id);
+
+        if client_eth == local_ip {
             // setup VLAN on this machine
-            println!("setting up veth {veth_ip} on VLAN {vlan_id}");
-            veth_interface.activate();
+            println!("setting up veth {client_veth} on VLAN {vlan_id}");
+            client_veth_interface.activate();
 
-            // add host mapping if needed
-            if let Some(host_mapping) = message.host_mapping {
-                let _ = add_host_mapping(&host_mapping);
-            }
-        } else {
             // register peer
-            println!("registering peer {veth_ip} on VLAN {vlan_id} for target IP {target_ip}");
+            println!("registering peer {server_veth} on VLAN {vlan_id} for target IP {server_eth}");
             peers
                 .write()
                 .await
-                .insert(veth_interface.get_veth_key(), target_ip);
+                .insert(server_veth_interface.get_veth_key(), server_eth);
+
+            // add host mapping if needed
+            if let Some(host_mapping) = &message.host_mapping {
+                let _ = add_host_mapping(host_mapping);
+            }
+        }
+
+        if server_eth == local_ip {
+            // setup VLAN on this machine
+            println!("setting up veth {server_veth} on VLAN {vlan_id}");
+            server_veth_interface.activate();
+
+            // register peer
+            println!("registering peer {client_veth} on VLAN {vlan_id} for target IP {client_eth}");
+            peers
+                .write()
+                .await
+                .insert(client_veth_interface.get_veth_key(), client_eth);
         }
 
         // acknowledge message

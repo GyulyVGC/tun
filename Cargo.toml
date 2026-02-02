@@ -17,7 +17,7 @@ tokio = { version = "1.49.0", features = ["net", "sync", "rt-multi-thread", "mac
 notify = "8.2.0"
 serde = { version = "1.0.228", default-features = false, features = ["derive", "alloc"] }
 nullnet-liberror = { git = "https://github.com/NullNet-ai/libguard.git", branch = "nullnet-liberror-print" }
-nullnet-grpc-lib = { git = "https://github.com/GyulyVGC/nullnet-grpc.git" }
+nullnet-grpc-lib = { git = "https://github.com/GyulyVGC/nullnet-grpc.git", branch = "perf" }
 ipnetwork = { version = "0.21.1", features = ["serde"] }
 toml = "0.9.11"
 listeners = "0.3.0"
