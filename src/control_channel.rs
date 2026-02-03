@@ -1,12 +1,35 @@
-use crate::ovs::veth_interface::VethInterface;
+use crate::ovs::helpers::configure_access_port;
 use crate::peers::ethernet_addr::EthernetAddr;
-use crate::peers::peer::Peers;
+use crate::peers::peer::{Peers, VethKey};
+use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
+use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
+
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+struct VethInterface {
+    ip: Ipv4Network,
+    vlan_id: u16,
+}
+
+impl VethInterface {
+    fn new(ip: Ipv4Addr, vlan_id: u16) -> Result<Self, Error> {
+        let ip = Ipv4Network::new(ip, 24).handle_err(location!())?;
+        Ok(Self { ip, vlan_id })
+    }
+
+    fn activate(&self) {
+        configure_access_port(self.vlan_id, self.ip);
+    }
+
+    fn get_veth_key(&self) -> VethKey {
+        VethKey::new(self.ip.ip(), self.vlan_id)
+    }
+}
 
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
@@ -38,8 +61,8 @@ pub(crate) async fn control_channel(
 
         let local_ip = local_ethernet.ip;
 
-        let client_veth_interface = VethInterface::new(client_veth, vlan_id);
-        let server_veth_interface = VethInterface::new(server_veth, vlan_id);
+        let client_veth_interface = VethInterface::new(client_veth, vlan_id)?;
+        let server_veth_interface = VethInterface::new(server_veth, vlan_id)?;
 
         if client_eth == local_ip {
             // setup VLAN on this machine

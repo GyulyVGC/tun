@@ -118,7 +118,7 @@ pub fn setup_br0() {
     OvsCommand::AddTrunkPort.execute();
 }
 
-pub(super) fn configure_access_port(vlan_id: u16, net: Ipv4Network) {
+pub(crate) fn configure_access_port(vlan_id: u16, net: Ipv4Network) {
     let ip = net.ip();
     let veth_name = format!("veth{}", ip.to_bits());
     let veth_peer_name = format!("{veth_name}p");
