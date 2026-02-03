@@ -3,7 +3,7 @@ use futures::stream::TryStreamExt;
 use ipnetwork::Ipv4Network;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use rtnetlink::LinkVeth;
+use rtnetlink::{LinkUnspec, LinkVeth};
 use std::net::IpAddr;
 
 #[derive(Debug)]
@@ -61,16 +61,16 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
             .handle_err(location!())?;
     }
 
-    // create veth pair veth_name <-> veth_peer_name and set it up
+    // create veth pair veth_name <-> veth_peer_name
     handle
         .link()
-        .add(LinkVeth::new(&veth_name, &veth_peer_name).up().build())
+        .add(LinkVeth::new(&veth_name, &veth_peer_name).build())
         .execute()
         .await
         .handle_err(location!())?;
 
-    // assign IP to veth_name
-    let link = handle
+    // retrieve both ends of the veth pair
+    let veth = handle
         .link()
         .get()
         .match_name(veth_name.clone())
@@ -80,9 +80,31 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
         .handle_err(location!())?
         .ok_or("Failed to find veth interface after creation")
         .handle_err(location!())?;
+    let veth_peer = handle
+        .link()
+        .get()
+        .match_name(veth_peer_name.clone())
+        .execute()
+        .try_next()
+        .await
+        .handle_err(location!())?
+        .ok_or("Failed to find veth peer interface after creation")
+        .handle_err(location!())?;
+
+    // set both ends of the veth pair up
+    for link in [&veth, &veth_peer] {
+        let req = LinkUnspec::new_with_index(link.header.index).up().build();
+        handle
+            .link()
+            .set(req)
+            .execute()
+            .await
+            .handle_err(location!())?;
+    }
+
     handle
         .address()
-        .add(link.header.index, IpAddr::V4(ip), prefix)
+        .add(veth.header.index, IpAddr::V4(ip), prefix)
         .execute()
         .await
         .handle_err(location!())?;
