@@ -9,13 +9,13 @@ use std::net::IpAddr;
 use std::process::Command;
 
 #[derive(Debug)]
-pub(super) enum IpCommand<'a> {
+pub(super) enum IpCommand {
     HandleVethPairCreation(u16, Ipv4Network),
     DeleteAllVeths,
     SetInterfacesUp(Vec<String>),
 }
 
-impl IpCommand<'_> {
+impl IpCommand {
     pub(super) async fn execute(&self) {
         let init_t = std::time::Instant::now();
         match self {
@@ -81,8 +81,7 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
         .try_next()
         .await
         .handle_err(location!())?
-        .ok_or(Err("Failed to find veth interface after creation"))
-        .handle_err(location!())?;
+        .ok_or(Err("Failed to find veth interface after creation").handle_err(location!()))?;
     handle
         .address()
         .add(link.header.index, IpAddr::V4(ip), prefix)

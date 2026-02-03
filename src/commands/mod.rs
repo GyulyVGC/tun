@@ -1,5 +1,6 @@
 use crate::commands::ip::IpCommand;
 use crate::commands::ovs::OvsCommand;
+use ipnetwork::Ipv4Network;
 
 mod ip;
 pub mod ovs;
@@ -27,4 +28,10 @@ pub(crate) async fn setup_br0() {
 
     // add our TAP to the bridge as a trunk port
     OvsCommand::AddTrunkPort.execute();
+}
+
+pub(crate) async fn configure_access_port(vlan_id: u16, net: Ipv4Network) {
+    IpCommand::HandleVethPairCreation(vlan_id, net)
+        .execute()
+        .await;
 }

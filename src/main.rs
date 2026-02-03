@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
-use crate::commands::ovs::setup_br0;
+use crate::commands::setup_br0;
 use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;

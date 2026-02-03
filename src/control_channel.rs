@@ -1,4 +1,4 @@
-use crate::commands::ovs::configure_access_port;
+use crate::commands::configure_access_port;
 use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
@@ -22,8 +22,8 @@ impl VethInterface {
         Ok(Self { ip, vlan_id })
     }
 
-    fn activate(&self) {
-        configure_access_port(self.vlan_id, self.ip);
+    async fn activate(&self) {
+        configure_access_port(self.vlan_id, self.ip).await;
     }
 
     fn get_veth_key(&self) -> VethKey {
@@ -67,7 +67,7 @@ pub(crate) async fn control_channel(
         if client_eth == local_ip {
             // setup VLAN on this machine
             let init_t = std::time::Instant::now();
-            client_veth_interface.activate();
+            client_veth_interface.activate().await;
             println!(
                 "veth {client_veth} setup completed in {} ms",
                 init_t.elapsed().as_millis()
@@ -89,7 +89,7 @@ pub(crate) async fn control_channel(
         if server_eth == local_ip {
             // setup VLAN on this machine
             let init_t = std::time::Instant::now();
-            server_veth_interface.activate();
+            server_veth_interface.activate().await;
             println!(
                 "veth {server_veth} setup completed in {} ms",
                 init_t.elapsed().as_millis()
