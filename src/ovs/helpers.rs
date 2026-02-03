@@ -4,6 +4,7 @@ use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{ErrorHandler, Location, location};
 use std::process::Command;
 
+#[derive(Debug)]
 enum OvsCommand<'a> {
     DeleteInterface(&'a str),
     DeleteBridge,
@@ -19,11 +20,17 @@ enum OvsCommand<'a> {
 
 impl OvsCommand<'_> {
     fn execute(&self) {
+        let init_t = std::time::Instant::now();
         let _ = Command::new(self.program())
             .args(self.args())
             .spawn()
             .map(|mut c| c.wait())
             .handle_err(location!());
+        println!(
+            "Executed command {:?} in {} ms",
+            self,
+            init_t.elapsed().as_millis()
+        );
     }
 
     fn program(&self) -> &str {

@@ -59,14 +59,7 @@ pub(crate) async fn control_channel(
 
             // add host mapping if needed
             if let Some(host_mapping) = &message.host_mapping {
-                let init_t = std::time::Instant::now();
                 let _ = add_host_mapping(host_mapping);
-                println!(
-                    "host mapping {} -> {} added in {} ms",
-                    host_mapping.name,
-                    host_mapping.ip,
-                    init_t.elapsed().as_millis()
-                );
             }
         }
 
