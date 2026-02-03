@@ -16,19 +16,19 @@ use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
+use crate::commands::ovs::setup_br0;
 use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
-use crate::ovs::helpers::setup_br0;
 use crate::peers::peer::Peers;
 
 mod cli;
+mod commands;
 mod control_channel;
 mod craft;
 mod forward;
 mod local_endpoints;
-mod ovs;
 mod peers;
 
 pub const FORWARD_PORT: u16 = 9999;

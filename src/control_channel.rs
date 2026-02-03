@@ -1,4 +1,4 @@
-use crate::ovs::helpers::configure_access_port;
+use crate::commands::ovs::configure_access_port;
 use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
