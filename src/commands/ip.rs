@@ -13,7 +13,7 @@ pub(super) enum IpCommand<'a> {
     SetInterfacesUp(Vec<String>),
 }
 
-impl IpCommand {
+impl IpCommand<'_> {
     pub(super) async fn execute(&self) {
         let init_t = std::time::Instant::now();
         match self {
