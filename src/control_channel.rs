@@ -1,7 +1,6 @@
 use crate::commands::configure_access_port;
 use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::peer::{Peers, VethKey};
-use futures::task::SpawnExt;
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping};
@@ -13,7 +12,7 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use tokio::task::JoinSet;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 struct VethInterface {
     ip: Ipv4Network,
     vlan_id: u16,
@@ -70,6 +69,8 @@ pub(crate) async fn control_channel(
 
         let mut join_set = JoinSet::new();
         if client_eth == local_ip {
+            let rtlink_handle = rtlink_handle.clone();
+            let peers = peers.clone();
             join_set.spawn(async move {
                 // setup VLAN on this machine
                 let init_t = std::time::Instant::now();
@@ -94,6 +95,8 @@ pub(crate) async fn control_channel(
         }
 
         if server_eth == local_ip {
+            let rtlink_handle = rtlink_handle.clone();
+            let peers = peers.clone();
             join_set.spawn(async move {
                 // setup VLAN on this machine
                 let init_t = std::time::Instant::now();
