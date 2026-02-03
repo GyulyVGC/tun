@@ -35,7 +35,11 @@ impl IpCommand<'_> {
     }
 }
 
-async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network, handle: &Handle) -> Result<(), Error> {
+async fn handle_veth_pair_creation(
+    vlan_id: u16,
+    net: Ipv4Network,
+    handle: &Handle,
+) -> Result<(), Error> {
     let ip = net.ip();
     let prefix = net.prefix();
     let veth_name = format!("veth{}", ip.to_bits());
