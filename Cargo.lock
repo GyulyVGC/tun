@@ -386,7 +386,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1113,7 +1113,7 @@ dependencies = [
 [[package]]
 name = "nullnet-grpc-lib"
 version = "0.1.0"
-source = "git+https://github.com/GyulyVGC/nullnet-grpc.git?branch=perf#9d442dfedbe13d356b146dc556610f83d8e107b8"
+source = "git+https://github.com/GyulyVGC/nullnet-grpc.git?branch=perf#8ffb798b54cbc5373a702e58cc6301ed0ab1c115"
 dependencies = [
  "prost",
  "serde",
@@ -1314,7 +1314,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1955,7 +1955,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
