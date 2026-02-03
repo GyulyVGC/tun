@@ -45,14 +45,13 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
     tokio::spawn(connection);
 
     // delete veth_name if it exists
-    if let Some(link) = handle
+    if let Ok(Some(link)) = handle
         .link()
         .get()
         .match_name(veth_name.clone())
         .execute()
         .try_next()
         .await
-        .handle_err(location!())?
     {
         handle
             .link()
