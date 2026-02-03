@@ -1,12 +1,10 @@
-use crate::TAP_NAME;
 use crate::commands::ovs::OvsCommand;
 use futures::stream::TryStreamExt;
 use ipnetwork::Ipv4Network;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use rtnetlink::{LinkMessageBuilder, LinkUnspec, LinkVeth};
+use rtnetlink::LinkVeth;
 use std::net::IpAddr;
-use std::process::Command;
 
 #[derive(Debug)]
 pub(super) enum IpCommand {
@@ -81,7 +79,8 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
         .try_next()
         .await
         .handle_err(location!())?
-        .ok_or(Err("Failed to find veth interface after creation").handle_err(location!()))?;
+        .ok_or("Failed to find veth interface after creation")
+        .handle_err(location!())?;
     handle
         .address()
         .add(link.header.index, IpAddr::V4(ip), prefix)

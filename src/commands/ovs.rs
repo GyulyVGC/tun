@@ -1,6 +1,4 @@
 use crate::TAP_NAME;
-use ipnetwork::Ipv4Network;
-use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{ErrorHandler, Location, location};
 use std::process::Command;
 
