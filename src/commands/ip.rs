@@ -41,7 +41,7 @@ async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(),
     let veth_name = format!("veth{}", ip.to_bits());
     let veth_peer_name = format!("{veth_name}p");
 
-    let (connection, mut handle, _) = rtnetlink::new_connection().handle_err(location!())?;
+    let (connection, handle, _) = rtnetlink::new_connection().handle_err(location!())?;
     tokio::spawn(connection);
 
     // delete veth_name if it exists

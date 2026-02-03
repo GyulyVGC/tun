@@ -61,7 +61,7 @@ async fn main() -> Result<(), Error> {
         .handle_err(location!())?;
 
     // set up OVS bridge
-    setup_br0();
+    setup_br0().await;
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
