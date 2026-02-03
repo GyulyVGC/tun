@@ -118,8 +118,10 @@ async fn main() -> Result<(), Error> {
 
     // listen on the gRPC control channel
     let local_ethernet = endpoints.ethernet;
+    let (rtlink_conn, rtlink_handle, _) = rtnetlink::new_connection().handle_err(location!())?;
+    tokio::spawn(rtlink_conn);
     tokio::spawn(async move {
-        control_channel(grpc_server2, local_ethernet, peers_2)
+        control_channel(grpc_server2, local_ethernet, peers_2, rtlink_handle)
             .await
             .expect("Control channel failed");
     });

@@ -8,6 +8,7 @@ use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use rtnetlink::Handle;
 use tokio::sync::{RwLock, mpsc};
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -22,8 +23,8 @@ impl VethInterface {
         Ok(Self { ip, vlan_id })
     }
 
-    async fn activate(&self) {
-        configure_access_port(self.vlan_id, self.ip).await;
+    async fn activate(&self, rtlink_handle: &Handle) {
+        configure_access_port(self.vlan_id, self.ip, rtlink_handle).await;
     }
 
     fn get_veth_key(&self) -> VethKey {
@@ -35,6 +36,7 @@ pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     local_ethernet: EthernetAddr,
     peers: Arc<RwLock<Peers>>,
+    rtlink_handle: Handle,
 ) -> Result<(), Error> {
     let (outbound, grpc_rx) = mpsc::channel(64);
     let mut inbound = server
@@ -67,7 +69,7 @@ pub(crate) async fn control_channel(
         if client_eth == local_ip {
             // setup VLAN on this machine
             let init_t = std::time::Instant::now();
-            client_veth_interface.activate().await;
+            client_veth_interface.activate(&rtlink_handle).await;
             println!(
                 "veth {client_veth} setup completed in {} ms",
                 init_t.elapsed().as_millis()
@@ -89,7 +91,7 @@ pub(crate) async fn control_channel(
         if server_eth == local_ip {
             // setup VLAN on this machine
             let init_t = std::time::Instant::now();
-            server_veth_interface.activate().await;
+            server_veth_interface.activate(&rtlink_handle).await;
             println!(
                 "veth {server_veth} setup completed in {} ms",
                 init_t.elapsed().as_millis()

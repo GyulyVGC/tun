@@ -1,6 +1,7 @@
 use crate::commands::ip::IpCommand;
 use crate::commands::ovs::OvsCommand;
 use ipnetwork::Ipv4Network;
+use rtnetlink::Handle;
 
 mod ip;
 pub mod ovs;
@@ -30,8 +31,8 @@ pub(crate) async fn setup_br0() {
     OvsCommand::AddTrunkPort.execute();
 }
 
-pub(crate) async fn configure_access_port(vlan_id: u16, net: Ipv4Network) {
-    IpCommand::HandleVethPairCreation(vlan_id, net)
+pub(crate) async fn configure_access_port(vlan_id: u16, net: Ipv4Network, rtlink_handle: &Handle) {
+    IpCommand::HandleVethPairCreation(vlan_id, net, rtlink_handle)
         .execute()
         .await;
 }

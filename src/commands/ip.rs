@@ -3,12 +3,12 @@ use futures::stream::TryStreamExt;
 use ipnetwork::Ipv4Network;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use rtnetlink::{LinkUnspec, LinkVeth};
+use rtnetlink::{Handle, LinkUnspec, LinkVeth};
 use std::net::IpAddr;
 
 #[derive(Debug)]
-pub(super) enum IpCommand {
-    HandleVethPairCreation(u16, Ipv4Network),
+pub(super) enum IpCommand<'a> {
+    HandleVethPairCreation(u16, Ipv4Network, &'a Handle),
     DeleteAllVeths,
     SetInterfacesUp(Vec<String>),
 }
@@ -17,8 +17,8 @@ impl IpCommand {
     pub(super) async fn execute(&self) {
         let init_t = std::time::Instant::now();
         match self {
-            IpCommand::HandleVethPairCreation(vlan_id, addr) => {
-                let _ = handle_veth_pair_creation(*vlan_id, *addr).await;
+            IpCommand::HandleVethPairCreation(vlan_id, addr, handle) => {
+                let _ = handle_veth_pair_creation(*vlan_id, *addr, handle).await;
             }
             IpCommand::DeleteAllVeths => {
                 delete_all_veths();
@@ -35,14 +35,11 @@ impl IpCommand {
     }
 }
 
-async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network) -> Result<(), Error> {
+async fn handle_veth_pair_creation(vlan_id: u16, net: Ipv4Network, handle: &Handle) -> Result<(), Error> {
     let ip = net.ip();
     let prefix = net.prefix();
     let veth_name = format!("veth{}", ip.to_bits());
     let veth_peer_name = format!("{veth_name}p");
-
-    let (connection, handle, _) = rtnetlink::new_connection().handle_err(location!())?;
-    tokio::spawn(connection);
 
     // delete veth_name if it exists
     if let Ok(Some(link)) = handle
