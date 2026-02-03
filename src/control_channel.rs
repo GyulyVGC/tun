@@ -43,11 +43,15 @@ pub(crate) async fn control_channel(
 
         if client_eth == local_ip {
             // setup VLAN on this machine
-            println!("setting up veth {client_veth} on VLAN {vlan_id}");
+            let init_t = std::time::Instant::now();
             client_veth_interface.activate();
+            println!(
+                "veth {client_veth} setup completed in {} ms",
+                init_t.elapsed().as_millis()
+            );
 
             // register peer
-            println!("registering peer {server_veth} on VLAN {vlan_id} for target IP {server_eth}");
+            // println!("registering peer {server_veth} on VLAN {vlan_id} for target IP {server_eth}");
             peers
                 .write()
                 .await
@@ -55,17 +59,28 @@ pub(crate) async fn control_channel(
 
             // add host mapping if needed
             if let Some(host_mapping) = &message.host_mapping {
+                let init_t = std::time::Instant::now();
                 let _ = add_host_mapping(host_mapping);
+                println!(
+                    "host mapping {} -> {} added in {} ms",
+                    host_mapping.name,
+                    host_mapping.ip,
+                    init_t.elapsed().as_millis()
+                );
             }
         }
 
         if server_eth == local_ip {
             // setup VLAN on this machine
-            println!("setting up veth {server_veth} on VLAN {vlan_id}");
+            let init_t = std::time::Instant::now();
             server_veth_interface.activate();
+            println!(
+                "veth {server_veth} setup completed in {} ms",
+                init_t.elapsed().as_millis()
+            );
 
             // register peer
-            println!("registering peer {client_veth} on VLAN {vlan_id} for target IP {client_eth}");
+            // println!("registering peer {client_veth} on VLAN {vlan_id} for target IP {client_eth}");
             peers
                 .write()
                 .await
@@ -83,7 +98,7 @@ fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
     let path = "/etc/hosts";
     let entry = format!("{} {}", hm.ip, hm.name);
 
-    println!("Adding host mapping: {entry}");
+    // println!("Adding host mapping: {entry}");
 
     // parse each line IP and name: if name exists replace the line, else append
     let content = std::fs::read_to_string(path).handle_err(location!())?;
