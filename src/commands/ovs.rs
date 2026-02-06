@@ -53,14 +53,6 @@ impl OvsCommand<'_> {
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            OvsCommand::SetInterfaceUp(dev) => ["link", "set", dev, "up"]
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-            OvsCommand::DeleteInterface(dev) => ["link", "del", dev]
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
             OvsCommand::AddAccessPort(dev, vlan) => {
                 ["add-port", "br0", dev, &format!("tag={vlan}")]
                     .iter()
