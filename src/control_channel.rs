@@ -1,5 +1,4 @@
 use crate::commands::{RtNetLinkHandle, configure_access_port};
-use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
@@ -34,7 +33,7 @@ impl VethInterface {
 
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
-    local_ethernet: EthernetAddr,
+    local_ip: Ipv4Addr,
     peers: Arc<RwLock<Peers>>,
     rtnetlink_handle: RtNetLinkHandle,
 ) -> Result<(), Error> {
@@ -60,8 +59,6 @@ pub(crate) async fn control_channel(
         let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
             continue;
         };
-
-        let local_ip = local_ethernet.ip;
 
         let client_veth_interface = VethInterface::new(client_veth, vlan_id)?;
         let server_veth_interface = VethInterface::new(server_veth, vlan_id)?;

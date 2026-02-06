@@ -120,7 +120,7 @@ async fn main() -> Result<(), Error> {
     });
 
     // listen on the gRPC control channel
-    let local_ethernet = endpoints.ethernet;
+    let local_ethernet = endpoints.ethernet_ip;
     tokio::spawn(async move {
         control_channel(grpc_server2, local_ethernet, peers_2, rtnetlink_handle)
             .await
