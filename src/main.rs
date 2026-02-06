@@ -61,7 +61,7 @@ async fn main() -> Result<(), Error> {
         .handle_err(location!())?;
 
     // create a handle to execute netlink commands
-    let rtnetlink_handle = RtNetLinkHandle::new()?;
+    let rtnetlink_handle = RtNetLinkHandle::new().await?;
 
     // set up OVS bridge
     setup_br0(&rtnetlink_handle).await;
