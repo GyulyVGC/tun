@@ -1,16 +1,16 @@
 use ipnetwork::Ipv4Network;
 use nullnet_liberror::{Error, ErrorHandler, location};
 use ovs::OvsCommand;
-use rtnetlink::Handle;
-use rtnetlink::RtNetLinkCommand;
+use rtnetlink::{Handle, new_connection};
+use netlink::NetLinkCommand;
 
 mod ovs;
-mod rtnetlink;
+mod netlink;
 
 pub(crate) async fn setup_br0(rtnetlink_handle: &RtNetLinkHandle) {
     // clean up existing veth interfaces
     rtnetlink_handle
-        .execute(RtNetLinkCommand::DeleteAllVeths)
+        .execute(NetLinkCommand::DeleteAllVeths)
         .await;
 
     // delete existing bridge if any
@@ -21,7 +21,7 @@ pub(crate) async fn setup_br0(rtnetlink_handle: &RtNetLinkHandle) {
 
     // set the bridge up and ovs-system up
     rtnetlink_handle
-        .execute(RtNetLinkCommand::SetInterfacesUp(vec![
+        .execute(NetLinkCommand::SetInterfacesUp(vec![
             "br0".to_string(),
             "ovs-system".to_string(),
         ]))
@@ -43,7 +43,7 @@ pub(crate) async fn configure_access_port(
     net: Ipv4Network,
 ) {
     rtnetlink_handle
-        .execute(RtNetLinkCommand::HandleVethPairCreation(vlan_id, net))
+        .execute(NetLinkCommand::HandleVethPairCreation(vlan_id, net))
         .await;
 }
 
@@ -55,14 +55,14 @@ pub(crate) struct RtNetLinkHandle {
 impl RtNetLinkHandle {
     pub(crate) fn new() -> Result<Self, Error> {
         let (rtnetlink_conn, rtnetlink_handle, _) =
-            rtnetlink::new_connection().handle_err(location!())?;
+            new_connection().handle_err(location!())?;
         tokio::spawn(rtnetlink_conn);
         Ok(Self {
             handle: rtnetlink_handle,
         })
     }
 
-    async fn execute(&self, command: RtNetLinkCommand) {
+    async fn execute(&self, command: NetLinkCommand) {
         command.execute(self).await;
     }
 }

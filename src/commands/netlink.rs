@@ -10,24 +10,24 @@ use rtnetlink::{Handle, LinkUnspec, LinkVeth};
 use std::net::IpAddr;
 
 #[derive(Debug)]
-pub(super) enum RtNetLinkCommand {
+pub(super) enum NetLinkCommand {
     HandleVethPairCreation(u16, Ipv4Network),
     DeleteAllVeths,
     SetInterfacesUp(Vec<String>),
 }
 
-impl RtNetLinkCommand {
+impl NetLinkCommand {
     pub(super) async fn execute(&self, rtnetlink_handle: &RtNetLinkHandle) {
         let handle = &rtnetlink_handle.handle;
         let init_t = std::time::Instant::now();
         match self {
-            RtNetLinkCommand::HandleVethPairCreation(vlan_id, addr) => {
+            NetLinkCommand::HandleVethPairCreation(vlan_id, addr) => {
                 let _ = handle_veth_pair_creation(handle, *vlan_id, *addr).await;
             }
-            RtNetLinkCommand::DeleteAllVeths => {
+            NetLinkCommand::DeleteAllVeths => {
                 delete_all_veths(handle).await;
             }
-            RtNetLinkCommand::SetInterfacesUp(interfaces) => {
+            NetLinkCommand::SetInterfacesUp(interfaces) => {
                 set_interfaces_up(handle, interfaces).await;
             }
         }
