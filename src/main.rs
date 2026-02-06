@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
-use crate::commands::ovs::setup_br0;
+use crate::commands::{RtNetLinkHandle, setup_br0};
 use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
@@ -60,8 +60,11 @@ async fn main() -> Result<(), Error> {
         .build_async()
         .handle_err(location!())?;
 
+    // create a handle to execute netlink commands
+    let rtnetlink_handle = RtNetLinkHandle::new()?;
+
     // set up OVS bridge
-    setup_br0();
+    setup_br0(&rtnetlink_handle).await;
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
@@ -119,7 +122,7 @@ async fn main() -> Result<(), Error> {
     // listen on the gRPC control channel
     let local_ethernet = endpoints.ethernet;
     tokio::spawn(async move {
-        control_channel(grpc_server2, local_ethernet, peers_2)
+        control_channel(grpc_server2, local_ethernet, peers_2, rtnetlink_handle)
             .await
             .expect("Control channel failed");
     });
