@@ -46,20 +46,8 @@ async fn handle_veth_pair_creation(
     let prefix = net.prefix();
 
     // delete veth_name if it exists
-    if let Some(Ok(link)) = handle
-        .link()
-        .get()
-        .match_name(veth_name.to_string())
-        .execute()
-        .next()
-        .await
-    {
-        handle
-            .link()
-            .del(link.header.index)
-            .execute()
-            .await
-            .handle_err(location!())?;
+    if let Ok(link) = get_link_by_name(handle, veth_name).await {
+        delete_link(handle, link).await?;
     }
 
     // create veth pair veth_name <-> veth_peer_name
@@ -79,6 +67,7 @@ async fn handle_veth_pair_creation(
         set_link_up(handle, link).await?;
     }
 
+    // assign the IP address to veth_name
     handle
         .address()
         .add(veth.header.index, IpAddr::V4(ip), prefix)
@@ -103,7 +92,7 @@ async fn delete_all_veths(handle: &Handle) {
                 }
             })
         {
-            let _ = handle.link().del(link.header.index).execute().await;
+            let _ = delete_link(handle, link).await;
         }
     }
 }
@@ -136,6 +125,17 @@ async fn set_link_up(handle: &Handle, link: &LinkMessage) -> Result<(), Error> {
     handle
         .link()
         .set(req)
+        .execute()
+        .await
+        .handle_err(location!())?;
+
+    Ok(())
+}
+
+async fn delete_link(handle: &Handle, link: LinkMessage) -> Result<(), Error> {
+    handle
+        .link()
+        .del(link.header.index)
         .execute()
         .await
         .handle_err(location!())?;
