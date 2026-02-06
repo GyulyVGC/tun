@@ -1,4 +1,4 @@
-use crate::commands::configure_access_port;
+use crate::commands::{RtNetLinkHandle, configure_access_port};
 use crate::peers::ethernet_addr::EthernetAddr;
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
@@ -24,8 +24,8 @@ impl VethInterface {
         Ok(Self { ip, vlan_id })
     }
 
-    async fn activate(&self, rtlink_handle: &Handle) {
-        configure_access_port(self.vlan_id, self.ip, rtlink_handle).await;
+    async fn activate(&self, rtnetlink_handle: &RtNetLinkHandle) {
+        configure_access_port(rtnetlink_handle, self.vlan_id, self.ip).await;
     }
 
     fn get_veth_key(&self) -> VethKey {
@@ -37,7 +37,7 @@ pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     local_ethernet: EthernetAddr,
     peers: Arc<RwLock<Peers>>,
-    rtlink_handle: Handle,
+    rtnetlink_handle: RtNetLinkHandle,
 ) -> Result<(), Error> {
     let (outbound, grpc_rx) = mpsc::channel(64);
     let mut inbound = server
@@ -69,12 +69,12 @@ pub(crate) async fn control_channel(
 
         let mut join_set = JoinSet::new();
         if client_eth == local_ip {
-            let rtlink_handle = rtlink_handle.clone();
+            let rtnetlink_handle = rtnetlink_handle.clone();
             let peers = peers.clone();
             join_set.spawn(async move {
                 // setup VLAN on this machine
                 let init_t = std::time::Instant::now();
-                client_veth_interface.activate(&rtlink_handle).await;
+                client_veth_interface.activate(&rtnetlink_handle).await;
                 println!(
                     "veth {client_veth} setup completed in {} ms",
                     init_t.elapsed().as_millis()
@@ -95,12 +95,12 @@ pub(crate) async fn control_channel(
         }
 
         if server_eth == local_ip {
-            let rtlink_handle = rtlink_handle.clone();
+            let rtnetlink_handle = rtnetlink_handle.clone();
             let peers = peers.clone();
             join_set.spawn(async move {
                 // setup VLAN on this machine
                 let init_t = std::time::Instant::now();
-                server_veth_interface.activate(&rtlink_handle).await;
+                server_veth_interface.activate(&rtnetlink_handle).await;
                 println!(
                     "veth {server_veth} setup completed in {} ms",
                     init_t.elapsed().as_millis()

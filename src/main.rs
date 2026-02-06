@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
-use crate::commands::setup_br0;
+use crate::commands::{RtNetLinkHandle, setup_br0};
 use crate::control_channel::control_channel;
 use crate::forward::receive::receive;
 use crate::forward::send::send;
@@ -118,10 +118,9 @@ async fn main() -> Result<(), Error> {
 
     // listen on the gRPC control channel
     let local_ethernet = endpoints.ethernet;
-    let (rtlink_conn, rtlink_handle, _) = rtnetlink::new_connection().handle_err(location!())?;
-    tokio::spawn(rtlink_conn);
+    let rtnetlink_handle = RtNetLinkHandle::new()?;
     tokio::spawn(async move {
-        control_channel(grpc_server2, local_ethernet, peers_2, rtlink_handle)
+        control_channel(grpc_server2, local_ethernet, peers_2, rtnetlink_handle)
             .await
             .expect("Control channel failed");
     });

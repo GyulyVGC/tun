@@ -1,14 +1,17 @@
-use crate::commands::ip::IpCommand;
-use crate::commands::ovs::OvsCommand;
 use ipnetwork::Ipv4Network;
+use nullnet_liberror::{Error, ErrorHandler, location};
+use ovs::OvsCommand;
 use rtnetlink::Handle;
+use rtnetlink::RtNetLinkCommand;
 
-mod ip;
-pub mod ovs;
+mod ovs;
+mod rtnetlink;
 
-pub(crate) async fn setup_br0() {
+pub(crate) async fn setup_br0(rtnetlink_handle: &RtNetLinkHandle) {
     // clean up existing veth interfaces
-    IpCommand::DeleteAllVeths.execute().await;
+    rtnetlink_handle
+        .execute(RtNetLinkCommand::DeleteAllVeths)
+        .await;
 
     // delete existing bridge if any
     OvsCommand::DeleteBridge.execute();
@@ -17,8 +20,11 @@ pub(crate) async fn setup_br0() {
     OvsCommand::AddBridge.execute();
 
     // set the bridge up and ovs-system up
-    IpCommand::SetInterfacesUp(vec!["br0".to_string(), "ovs-system".to_string()])
-        .execute()
+    rtnetlink_handle
+        .execute(RtNetLinkCommand::SetInterfacesUp(vec![
+            "br0".to_string(),
+            "ovs-system".to_string(),
+        ]))
         .await;
 
     // delete existing OpenFlow rules
@@ -31,8 +37,32 @@ pub(crate) async fn setup_br0() {
     OvsCommand::AddTrunkPort.execute();
 }
 
-pub(crate) async fn configure_access_port(vlan_id: u16, net: Ipv4Network, rtlink_handle: &Handle) {
-    IpCommand::HandleVethPairCreation(vlan_id, net, rtlink_handle)
-        .execute()
+pub(crate) async fn configure_access_port(
+    rtnetlink_handle: &RtNetLinkHandle,
+    vlan_id: u16,
+    net: Ipv4Network,
+) {
+    rtnetlink_handle
+        .execute(RtNetLinkCommand::HandleVethPairCreation(vlan_id, net))
         .await;
+}
+
+#[derive(Clone)]
+pub(crate) struct RtNetLinkHandle {
+    handle: Handle,
+}
+
+impl RtNetLinkHandle {
+    pub(crate) fn new() -> Result<Self, Error> {
+        let (rtnetlink_conn, rtnetlink_handle, _) =
+            rtnetlink::new_connection().handle_err(location!())?;
+        tokio::spawn(rtnetlink_conn);
+        Ok(Self {
+            handle: rtnetlink_handle,
+        })
+    }
+
+    async fn execute(&self, command: RtNetLinkCommand) {
+        command.execute(self).await;
+    }
 }
