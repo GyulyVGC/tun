@@ -42,9 +42,20 @@ pub(crate) async fn configure_access_port(
     vlan_id: u16,
     net: Ipv4Network,
 ) {
+    let veth_name = format!("veth{}", net.ip().to_bits());
+    let veth_peer_name = format!("{veth_name}p");
+
+    // create the veth pair, set it up, and assign the IP address to the veth interface
     rtnetlink_handle
-        .execute(NetLinkCommand::HandleVethPairCreation(vlan_id, net))
+        .execute(NetLinkCommand::HandleVethPairCreation(
+            net,
+            veth_name,
+            veth_peer_name.clone(),
+        ))
         .await;
+
+    // add the peer interface to the bridge as an access port
+    OvsCommand::AddAccessPort(&veth_peer_name, vlan_id).execute();
 }
 
 #[derive(Clone)]

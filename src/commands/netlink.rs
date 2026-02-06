@@ -9,7 +9,7 @@ use std::net::IpAddr;
 
 #[derive(Debug)]
 pub(super) enum NetLinkCommand {
-    HandleVethPairCreation(u16, Ipv4Network),
+    HandleVethPairCreation(Ipv4Network, String, String),
     DeleteAllVeths,
     SetInterfacesUp(Vec<String>),
 }
@@ -19,8 +19,8 @@ impl NetLinkCommand {
         let handle = &rtnetlink_handle.handle;
         let init_t = std::time::Instant::now();
         match self {
-            NetLinkCommand::HandleVethPairCreation(vlan_id, addr) => {
-                let _ = handle_veth_pair_creation(handle, *vlan_id, *addr).await;
+            NetLinkCommand::HandleVethPairCreation(addr, veth_name, veth_peer_name) => {
+                let _ = handle_veth_pair_creation(handle, *addr, veth_name, veth_peer_name).await;
             }
             NetLinkCommand::DeleteAllVeths => {
                 delete_all_veths(handle).await;
@@ -39,13 +39,12 @@ impl NetLinkCommand {
 
 async fn handle_veth_pair_creation(
     handle: &Handle,
-    vlan_id: u16,
     net: Ipv4Network,
+    veth_name: &String,
+    veth_peer_name: &String,
 ) -> Result<(), Error> {
     let ip = net.ip();
     let prefix = net.prefix();
-    let veth_name = format!("veth{}", ip.to_bits());
-    let veth_peer_name = format!("{veth_name}p");
 
     // delete veth_name if it exists
     if let Some(Ok(link)) = handle
@@ -67,14 +66,14 @@ async fn handle_veth_pair_creation(
     // create veth pair veth_name <-> veth_peer_name
     handle
         .link()
-        .add(LinkVeth::new(&veth_name, &veth_peer_name).build())
+        .add(LinkVeth::new(veth_name, veth_peer_name).build())
         .execute()
         .await
         .handle_err(location!())?;
 
     // retrieve both ends of the veth pair
-    let veth = get_link_by_name(handle, &veth_name).await?;
-    let veth_peer = get_link_by_name(handle, &veth_peer_name).await?;
+    let veth = get_link_by_name(handle, veth_name).await?;
+    let veth_peer = get_link_by_name(handle, veth_peer_name).await?;
 
     // set both ends of the veth pair up
     for link in [&veth, &veth_peer] {
@@ -87,9 +86,6 @@ async fn handle_veth_pair_creation(
         .execute()
         .await
         .handle_err(location!())?;
-
-    // add the peer interface to the bridge as an access port
-    OvsCommand::AddAccessPort(&veth_peer_name, vlan_id).execute();
 
     Ok(())
 }
