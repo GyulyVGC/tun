@@ -28,7 +28,7 @@ futures = "0.3.31"
 network-interface = "2.0.5"
 
 [target.'cfg(target_os = "freebsd")'.dependencies]
-nix = { version = "0.30.1", features = ["net"] }
+nix = { version = "0.31.1", features = ["net"] }
 
 [dev-dependencies]
 #serde_test = "1.0.177"

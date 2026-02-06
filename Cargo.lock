@@ -1844,7 +1844,7 @@ dependencies = [
  "ipnetwork",
  "listeners",
  "network-interface",
- "nix 0.30.1",
+ "nix 0.31.1",
  "notify",
  "nullnet-firewall",
  "nullnet-grpc-lib",
