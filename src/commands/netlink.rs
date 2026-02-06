@@ -96,28 +96,25 @@ async fn handle_veth_pair_creation(
 }
 
 async fn delete_all_veths(handle: &Handle) {
-    let links = handle
-        .link()
-        .get()
-        .execute()
-        .filter_map(|link_res| {
-            link_res.map(|link| async {
-                link.attributes.iter().find_map(|attr| {
-                    if let LinkAttribute::IfName(name) = attr {
-                        if name.starts_with("veth") {
-                            return Some(link);
-                        }
-                    }
-                    None
-                })
-            })
-        })
-        .collect::<Vec<LinkMessage>>();
-
-    for link in links {
-        if let Ok(link) = link.await {
-            let _ = handle.link().del(link.header.index).execute().await;
+    let mut veth_links: Vec<LinkMessage> = Vec::new();
+    for link_res in handle.link().get().execute().try_next().await {
+        if let Some(link) = link_res {
+            if link.attributes.iter().any(|attr| {
+                if let LinkAttribute::IfName(name) = attr
+                    && name.starts_with("veth")
+                {
+                    true
+                } else {
+                    false
+                }
+            }) {
+                veth_links.push(link);
+            }
         }
+    }
+
+    for link in veth_links {
+        let _ = handle.link().del(link.header.index).execute().await;
     }
 }
 
