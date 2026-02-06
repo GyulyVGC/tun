@@ -12,7 +12,6 @@ use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::Services;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use rtnetlink::new_connection;
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
@@ -62,9 +61,7 @@ async fn main() -> Result<(), Error> {
         .handle_err(location!())?;
 
     // create a handle to execute netlink commands
-    let (rtnetlink_conn, handle, _) = new_connection().handle_err(location!())?;
-    tokio::spawn(rtnetlink_conn);
-    let rtnetlink_handle = RtNetLinkHandle::new(handle);
+    let rtnetlink_handle = RtNetLinkHandle::new().await?;
 
     // set up OVS bridge
     setup_br0(&rtnetlink_handle).await;

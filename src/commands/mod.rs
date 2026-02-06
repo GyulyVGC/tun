@@ -53,8 +53,12 @@ pub(crate) struct RtNetLinkHandle {
 }
 
 impl RtNetLinkHandle {
-    pub(crate) fn new(handle: Handle) -> Self {
-        Self { handle }
+    pub(crate) async fn new() -> Result<Self, Error> {
+        let (rtnetlink_conn, rtnetlink_handle, _) = new_connection().handle_err(location!())?;
+        tokio::spawn(rtnetlink_conn);
+        Ok(Self {
+            handle: rtnetlink_handle,
+        })
     }
 
     async fn execute(&self, command: NetLinkCommand) {
