@@ -49,7 +49,7 @@ async fn handle_veth_pair_creation(
     if let Some(Ok(link)) = handle
         .link()
         .get()
-        .match_name(veth_name.clone())
+        .match_name(veth_name.to_string())
         .execute()
         .next()
         .await
