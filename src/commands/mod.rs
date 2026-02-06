@@ -72,7 +72,7 @@ impl RtNetLinkHandle {
         })
     }
 
-    async fn execute(&self, command: NetLinkCommand) {
+    async fn execute(&self, command: NetLinkCommand<'_>) {
         command.execute(self).await;
     }
 }

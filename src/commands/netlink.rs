@@ -13,7 +13,7 @@ pub(super) enum NetLinkCommand<'a> {
     SetInterfaceUp(&'a str),
 }
 
-impl NetLinkCommand {
+impl NetLinkCommand<'_> {
     pub(super) async fn execute(&self, rtnetlink_handle: &RtNetLinkHandle) {
         let handle = &rtnetlink_handle.handle;
         let init_t = std::time::Instant::now();
