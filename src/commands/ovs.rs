@@ -4,10 +4,8 @@ use std::process::Command;
 
 #[derive(Debug)]
 pub(super) enum OvsCommand<'a> {
-    DeleteInterface(&'a str),
     DeleteBridge,
     AddBridge,
-    SetInterfaceUp(&'a str),
     DeleteFlows,
     AddFlow,
     AddTrunkPort,
