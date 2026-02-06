@@ -10,7 +10,7 @@ use std::net::IpAddr;
 pub(super) enum NetLinkCommand {
     HandleVethPairCreation(Ipv4Network, String, String),
     DeleteAllVeths,
-    SetInterfacesUp(Vec<String>),
+    SetInterfaceUp(String),
 }
 
 impl NetLinkCommand {
@@ -24,8 +24,8 @@ impl NetLinkCommand {
             NetLinkCommand::DeleteAllVeths => {
                 delete_all_veths(handle).await;
             }
-            NetLinkCommand::SetInterfacesUp(interfaces) => {
-                set_interfaces_up(handle, interfaces).await;
+            NetLinkCommand::SetInterfaceUp(interface) => {
+                set_interface_up(handle, interface).await;
             }
         }
         println!(
@@ -108,11 +108,9 @@ async fn delete_all_veths(handle: &Handle) {
     }
 }
 
-async fn set_interfaces_up(handle: &Handle, interfaces: &Vec<String>) {
-    for dev in interfaces {
-        if let Ok(link) = get_link_by_name(handle, dev).await {
-            let _ = set_link_up(handle, &link).await;
-        }
+async fn set_interface_up(handle: &Handle, interface: &str) {
+    if let Ok(link) = get_link_by_name(handle, interface).await {
+        let _ = set_link_up(handle, &link).await;
     }
 }
 
