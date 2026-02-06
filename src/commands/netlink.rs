@@ -95,7 +95,8 @@ async fn handle_veth_pair_creation(
 }
 
 async fn delete_all_veths(handle: &Handle) {
-    while let Some(link_res) = handle.link().get().execute().next().await {
+    let mut links = handle.link().get().execute();
+    while let Some(link_res) = links.next().await {
         if let Ok(link) = link_res
             && link.attributes.iter().any(|attr| {
                 if let LinkAttribute::IfName(name) = attr
