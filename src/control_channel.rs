@@ -27,7 +27,7 @@ impl VethInterface {
         configure_access_port(rtnetlink_handle, self.vlan_id, self.ip).await;
     }
 
-    fn get_veth_key(&self) -> VethKey {
+    fn get_veth_key(self) -> VethKey {
         VethKey::new(self.ip.ip(), self.vlan_id)
     }
 }
