@@ -3,7 +3,6 @@ use crate::commands::ovs::OvsCommand;
 use futures::StreamExt;
 use futures::stream::TryStreamExt;
 use ipnetwork::Ipv4Network;
-use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use rtnetlink::packet_route::link::{LinkAttribute, LinkMessage};
 use rtnetlink::{Handle, LinkUnspec, LinkVeth};
@@ -102,7 +101,7 @@ async fn delete_all_veths(handle: &Handle) {
         .get()
         .execute()
         .filter_map(|link_res| {
-            link_res.map(|link| {
+            link_res.map(|link| async {
                 link.attributes.iter().find_map(|attr| {
                     if let LinkAttribute::IfName(name) = attr {
                         if name.starts_with("veth") {

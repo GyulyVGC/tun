@@ -1,11 +1,11 @@
 use ipnetwork::Ipv4Network;
-use nullnet_liberror::{Error, ErrorHandler, location};
+use netlink::NetLinkCommand;
+use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use ovs::OvsCommand;
 use rtnetlink::{Handle, new_connection};
-use netlink::NetLinkCommand;
 
-mod ovs;
 mod netlink;
+mod ovs;
 
 pub(crate) async fn setup_br0(rtnetlink_handle: &RtNetLinkHandle) {
     // clean up existing veth interfaces
@@ -54,8 +54,7 @@ pub(crate) struct RtNetLinkHandle {
 
 impl RtNetLinkHandle {
     pub(crate) fn new() -> Result<Self, Error> {
-        let (rtnetlink_conn, rtnetlink_handle, _) =
-            new_connection().handle_err(location!())?;
+        let (rtnetlink_conn, rtnetlink_handle, _) = new_connection().handle_err(location!())?;
         tokio::spawn(rtnetlink_conn);
         Ok(Self {
             handle: rtnetlink_handle,

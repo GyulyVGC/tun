@@ -5,7 +5,6 @@ use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use rtnetlink::Handle;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;

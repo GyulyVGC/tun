@@ -60,8 +60,11 @@ async fn main() -> Result<(), Error> {
         .build_async()
         .handle_err(location!())?;
 
+    // create a handle to execute netlink commands
+    let rtnetlink_handle = RtNetLinkHandle::new()?;
+
     // set up OVS bridge
-    setup_br0().await;
+    setup_br0(&rtnetlink_handle).await;
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;
@@ -118,7 +121,6 @@ async fn main() -> Result<(), Error> {
 
     // listen on the gRPC control channel
     let local_ethernet = endpoints.ethernet;
-    let rtnetlink_handle = RtNetLinkHandle::new()?;
     tokio::spawn(async move {
         control_channel(grpc_server2, local_ethernet, peers_2, rtnetlink_handle)
             .await
