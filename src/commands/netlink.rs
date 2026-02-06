@@ -1,7 +1,6 @@
 use crate::commands::RtNetLinkHandle;
 use crate::commands::ovs::OvsCommand;
 use futures::StreamExt;
-use futures::stream::TryStreamExt;
 use ipnetwork::Ipv4Network;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use rtnetlink::packet_route::link::{LinkAttribute, LinkMessage};
