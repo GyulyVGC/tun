@@ -33,7 +33,6 @@ impl OvsCommand<'_> {
             | OvsCommand::DeleteBridge
             | OvsCommand::AddAccessPort(_, _)
             | OvsCommand::AddTrunkPort => "ovs-vsctl",
-            OvsCommand::SetInterfaceUp(_) | OvsCommand::DeleteInterface(_) => "ip",
             OvsCommand::DeleteFlows | OvsCommand::AddFlow => "ovs-ofctl",
         }
     }
