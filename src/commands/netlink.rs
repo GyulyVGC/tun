@@ -95,10 +95,9 @@ async fn handle_veth_pair_creation(
 }
 
 async fn delete_all_veths(handle: &Handle) {
-    let mut veth_links: Vec<LinkMessage> = Vec::new();
     while let Some(link_res) = handle.link().get().execute().next().await {
-        if let Ok(link) = link_res {
-            if link.attributes.iter().any(|attr| {
+        if let Ok(link) = link_res
+            && link.attributes.iter().any(|attr| {
                 if let LinkAttribute::IfName(name) = attr
                     && name.starts_with("veth")
                 {
@@ -106,14 +105,10 @@ async fn delete_all_veths(handle: &Handle) {
                 } else {
                     false
                 }
-            }) {
-                veth_links.push(link);
-            }
+            })
+        {
+            let _ = handle.link().del(link.header.index).execute().await;
         }
-    }
-
-    for link in veth_links {
-        let _ = handle.link().del(link.header.index).execute().await;
     }
 }
 
