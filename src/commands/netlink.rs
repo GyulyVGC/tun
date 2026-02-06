@@ -1,5 +1,4 @@
 use crate::commands::RtNetLinkHandle;
-use crate::commands::ovs::OvsCommand;
 use futures::StreamExt;
 use ipnetwork::Ipv4Network;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
@@ -40,8 +39,8 @@ impl NetLinkCommand {
 async fn handle_veth_pair_creation(
     handle: &Handle,
     net: Ipv4Network,
-    veth_name: &String,
-    veth_peer_name: &String,
+    veth_name: &str,
+    veth_peer_name: &str,
 ) -> Result<(), Error> {
     let ip = net.ip();
     let prefix = net.prefix();

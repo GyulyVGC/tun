@@ -45,13 +45,13 @@ pub(crate) async fn control_channel(
         .handle_err(location!())?;
 
     while let Ok(Some(message)) = inbound.message().await {
-        let Ok(client_eth) = message.client_eth.parse::<Ipv4Addr>() else {
+        let Ok(client_ethernet) = message.client_ethernet.parse::<Ipv4Addr>() else {
             continue;
         };
         let Ok(client_veth) = message.client_veth.parse::<Ipv4Addr>() else {
             continue;
         };
-        let Ok(server_eth) = message.server_eth.parse::<Ipv4Addr>() else {
+        let Ok(server_ethernet) = message.server_ethernet.parse::<Ipv4Addr>() else {
             continue;
         };
         let Ok(server_veth) = message.server_veth.parse::<Ipv4Addr>() else {
@@ -67,7 +67,7 @@ pub(crate) async fn control_channel(
         let server_veth_interface = VethInterface::new(server_veth, vlan_id)?;
 
         let mut join_set = JoinSet::new();
-        if client_eth == local_ip {
+        if client_ethernet == local_ip {
             let rtnetlink_handle = rtnetlink_handle.clone();
             let peers = peers.clone();
             join_set.spawn(async move {
@@ -80,11 +80,10 @@ pub(crate) async fn control_channel(
                 );
 
                 // register peer
-                // println!("registering peer {server_veth} on VLAN {vlan_id} for target IP {server_eth}");
                 peers
                     .write()
                     .await
-                    .insert(server_veth_interface.get_veth_key(), server_eth);
+                    .insert(server_veth_interface.get_veth_key(), server_ethernet);
 
                 // add host mapping if needed
                 if let Some(host_mapping) = &message.host_mapping {
@@ -93,7 +92,7 @@ pub(crate) async fn control_channel(
             });
         }
 
-        if server_eth == local_ip {
+        if server_ethernet == local_ip {
             let rtnetlink_handle = rtnetlink_handle.clone();
             let peers = peers.clone();
             join_set.spawn(async move {
@@ -106,11 +105,10 @@ pub(crate) async fn control_channel(
                 );
 
                 // register peer
-                // println!("registering peer {client_veth} on VLAN {vlan_id} for target IP {client_eth}");
                 peers
                     .write()
                     .await
-                    .insert(client_veth_interface.get_veth_key(), client_eth);
+                    .insert(client_veth_interface.get_veth_key(), client_ethernet);
             });
         }
 
