@@ -21,10 +21,10 @@ pub(crate) async fn setup_br0(rtnetlink_handle: &RtNetLinkHandle) {
 
     // set the bridge up and ovs-system up
     rtnetlink_handle
-        .execute(NetLinkCommand::SetInterfaceUp("br0".to_string()))
+        .execute(NetLinkCommand::SetInterfaceUp("br0"))
         .await;
     rtnetlink_handle
-        .execute(NetLinkCommand::SetInterfaceUp("ovs-system".to_string()))
+        .execute(NetLinkCommand::SetInterfaceUp("ovs-system"))
         .await;
 
     // delete existing OpenFlow rules
@@ -49,8 +49,8 @@ pub(crate) async fn configure_access_port(
     rtnetlink_handle
         .execute(NetLinkCommand::HandleVethPairCreation(
             net,
-            veth_name,
-            veth_peer_name.clone(),
+            &veth_name,
+            &veth_peer_name,
         ))
         .await;
 

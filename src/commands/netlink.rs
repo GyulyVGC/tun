@@ -7,10 +7,10 @@ use rtnetlink::{Handle, LinkUnspec, LinkVeth};
 use std::net::IpAddr;
 
 #[derive(Debug)]
-pub(super) enum NetLinkCommand {
-    HandleVethPairCreation(Ipv4Network, String, String),
+pub(super) enum NetLinkCommand<'a> {
+    HandleVethPairCreation(Ipv4Network, &'a str, &'a str),
     DeleteAllVeths,
-    SetInterfaceUp(String),
+    SetInterfaceUp(&'a str),
 }
 
 impl NetLinkCommand {
