@@ -2,6 +2,7 @@ use crate::commands::RtNetLinkHandle;
 use futures::StreamExt;
 use ipnetwork::Ipv4Network;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
+use rtnetlink::packet_route::address::AddressAttribute;
 use rtnetlink::packet_route::link::{LinkAttribute, LinkMessage};
 use rtnetlink::{Handle, LinkUnspec, LinkVeth};
 use std::net::{IpAddr, Ipv4Addr};
@@ -104,24 +105,15 @@ async fn set_interface_up(handle: &Handle, interface: &str) {
 }
 
 pub(super) async fn find_ethernet_ip(handle: &Handle) -> Option<Ipv4Addr> {
-    let mut links = handle.link().get().execute();
-    while let Some(link_res) = links.next().await {
-        if let Ok(link) = link_res
-            && link.attributes.iter().any(|attr| {
-                if let LinkAttribute::IfName(name) = attr
-                    && name.starts_with("veth")
+    let mut links = handle.address().get().execute();
+    while let Some(msg_res) = links.next().await {
+        if let Ok(msg) = msg_res
+            && let Some(addr) = msg.attributes.iter().find_map(|attr| {
+                if let AddressAttribute::Local(ip) = attr
+                    && let IpAddr::V4(ipv4) = ip
+                    && ipv4.is_private()
                 {
-                    false
-                } else {
-                    true
-                }
-            })
-            && let Some(addr) = link.attributes.iter().find_map(|attr| {
-                if let LinkAttribute::Address(vec) = attr
-                    && let Ok(addr) = TryInto::<[u8; 4]>::try_into(vec.as_slice())
-                    && Ipv4Addr::from_octets(addr).is_private()
-                {
-                    Some(Ipv4Addr::from_octets(addr))
+                    Some(*ipv4)
                 } else {
                     None
                 }
