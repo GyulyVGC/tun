@@ -3,6 +3,7 @@ use netlink::NetLinkCommand;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use ovs::OvsCommand;
 use rtnetlink::{Handle, new_connection};
+use std::net::Ipv4Addr;
 
 mod netlink;
 mod ovs;
@@ -56,6 +57,10 @@ pub(crate) async fn configure_access_port(
 
     // add the peer interface to the bridge as an access port
     OvsCommand::AddAccessPort(&veth_peer_name, vlan_id).execute();
+}
+
+pub(crate) async fn find_ethernet_ip(rtnetlink_handle: &RtNetLinkHandle) -> Option<Ipv4Addr> {
+    netlink::find_ethernet_ip(&rtnetlink_handle.handle).await
 }
 
 #[derive(Clone)]

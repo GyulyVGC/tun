@@ -4,7 +4,7 @@ use ipnetwork::Ipv4Network;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use rtnetlink::packet_route::link::{LinkAttribute, LinkMessage};
 use rtnetlink::{Handle, LinkUnspec, LinkVeth};
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Debug)]
 pub(super) enum NetLinkCommand<'a> {
@@ -101,6 +101,36 @@ async fn set_interface_up(handle: &Handle, interface: &str) {
     if let Ok(link) = get_link_by_name(handle, interface).await {
         let _ = set_link_up(handle, &link).await;
     }
+}
+
+pub(super) async fn find_ethernet_ip(handle: &Handle) -> Option<Ipv4Addr> {
+    let mut links = handle.link().get().execute();
+    while let Some(link_res) = links.next().await {
+        if let Ok(link) = link_res
+            && link.attributes.iter().any(|attr| {
+                if let LinkAttribute::IfName(name) = attr
+                    && name.starts_with("veth")
+                {
+                    false
+                } else {
+                    true
+                }
+            })
+            && let Some(addr) = link.attributes.iter().find_map(|attr| {
+                if let LinkAttribute::Address(vec) = attr
+                    && let Ok(addr) = TryInto::<[u8; 4]>::try_into(vec)
+                    && Ipv4Addr::from_octets(addr).is_private()
+                {
+                    Some(Ipv4Addr::from_octets(addr))
+                } else {
+                    None
+                }
+            })
+        {
+            return Some(addr);
+        }
+    }
+    None
 }
 
 // helpers -----------------------------------------------------------------------------------------

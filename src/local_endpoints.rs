@@ -1,4 +1,5 @@
 use crate::FORWARD_PORT;
+use crate::commands::{RtNetLinkHandle, find_ethernet_ip};
 use nullnet_liberror::Error;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -16,9 +17,9 @@ pub struct LocalEndpoints {
 impl LocalEndpoints {
     /// Parses and handles OVS configuration,
     /// tries to discover a local IP, and binds needed UDP sockets, retrying every 10 seconds in case of problems.
-    pub async fn setup() -> Result<Self, Error> {
+    pub async fn setup(rtnetlink_handle: &RtNetLinkHandle) -> Result<Self, Error> {
         loop {
-            if let Some(ethernet_ip) = find_suitable_ip() {
+            if let Some(ethernet_ip) = find_ethernet_ip(rtnetlink_handle) {
                 println!("Local IP address found: {ethernet_ip}");
                 let forward_socket_addr = SocketAddr::new(IpAddr::V4(ethernet_ip), FORWARD_PORT);
                 if let Ok(sock) = UdpSocket::bind(forward_socket_addr).await {
@@ -34,30 +35,4 @@ impl LocalEndpoints {
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }
-}
-
-/// Checks the available network devices and returns IP address of the first "suitable" interface.
-///
-/// A "suitable" interface satisfies the following:
-/// - its name does not start with "veth"
-/// - it has an IP address that:
-///   - is IP version 4
-///   - is a private address (defined by IETF RFC 1918)
-fn find_suitable_ip() -> Option<Ipv4Addr> {
-    // TODO: do this using rtnetlink
-    use network_interface::{NetworkInterface, NetworkInterfaceConfig};
-
-    if let Ok(devices) = NetworkInterface::show() {
-        for device in devices {
-            for address in device.addr {
-                if !device.name.starts_with("veth")
-                    && let IpAddr::V4(ip) = address.ip()
-                    && ip.is_private()
-                {
-                    return Some(ip);
-                }
-            }
-        }
-    }
-    None
 }

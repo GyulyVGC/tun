@@ -67,7 +67,7 @@ async fn main() -> Result<(), Error> {
     setup_br0(&rtnetlink_handle).await;
 
     // set up the local environment
-    let endpoints = LocalEndpoints::setup().await?;
+    let endpoints = LocalEndpoints::setup(&rtnetlink_handle).await?;
     let forward_socket = endpoints.forward_socket.clone();
 
     // maps of all the peers
@@ -139,7 +139,7 @@ fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
         return;
     };
     println!("\n{}", "=".repeat(40));
-    println!("UDP sockets bound successfully:");
+    println!("UDP socket bound successfully:");
     println!("    - forward:   {forward_socket}");
     println!("TAP device created successfully:");
     println!("    - name:      {TAP_NAME}");
