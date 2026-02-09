@@ -19,7 +19,7 @@ impl LocalEndpoints {
     /// tries to discover a local IP, and binds needed UDP sockets, retrying every 10 seconds in case of problems.
     pub async fn setup(rtnetlink_handle: &RtNetLinkHandle) -> Result<Self, Error> {
         loop {
-            if let Some(ethernet_ip) = find_ethernet_ip(rtnetlink_handle) {
+            if let Some(ethernet_ip) = find_ethernet_ip(rtnetlink_handle).await {
                 println!("Local IP address found: {ethernet_ip}");
                 let forward_socket_addr = SocketAddr::new(IpAddr::V4(ethernet_ip), FORWARD_PORT);
                 if let Ok(sock) = UdpSocket::bind(forward_socket_addr).await {

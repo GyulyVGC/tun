@@ -118,7 +118,7 @@ pub(super) async fn find_ethernet_ip(handle: &Handle) -> Option<Ipv4Addr> {
             })
             && let Some(addr) = link.attributes.iter().find_map(|attr| {
                 if let LinkAttribute::Address(vec) = attr
-                    && let Ok(addr) = TryInto::<[u8; 4]>::try_into(vec)
+                    && let Ok(addr) = TryInto::<[u8; 4]>::try_into(vec.as_slice())
                     && Ipv4Addr::from_octets(addr).is_private()
                 {
                     Some(Ipv4Addr::from_octets(addr))
