@@ -2,7 +2,7 @@ use crate::commands::{RtNetLinkHandle, configure_access_port};
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
-use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping, VlanSetup};
+use nullnet_grpc_lib::nullnet_grpc::{MsgId, HostMapping, VlanSetup};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
@@ -49,7 +49,7 @@ pub(crate) async fn control_channel(
         let peers = peers.clone();
         let outbound = outbound.clone();
         tokio::spawn(async move {
-            handle_controller_message(message, local_ip, rtnetlink_handle, peers, outbound).await
+            handle_controller_message(message, local_ip, rtnetlink_handle, peers, outbound).await;
         });
     }
 
@@ -61,8 +61,11 @@ async fn handle_controller_message(
     local_ip: Ipv4Addr,
     rtnetlink_handle: RtNetLinkHandle,
     peers: Arc<RwLock<Peers>>,
-    outbound: Sender<Empty>,
+    outbound: Sender<MsgId>,
 ) {
+    let Some(msg_id) = message.msg_id else {
+        return;
+    };
     let Ok(client_ethernet) = message.client_ethernet.parse::<Ipv4Addr>() else {
         return;
     };
@@ -135,7 +138,7 @@ async fn handle_controller_message(
     while join_set.join_next().await.is_some() {}
 
     // acknowledge message
-    let _ = outbound.send(Empty {}).await;
+    let _ = outbound.send(msg_id).await;
 }
 
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
