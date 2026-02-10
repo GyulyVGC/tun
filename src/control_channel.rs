@@ -2,11 +2,12 @@ use crate::commands::{RtNetLinkHandle, configure_access_port};
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
-use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping};
+use nullnet_grpc_lib::nullnet_grpc::{Empty, HostMapping, VlanSetup};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::{RwLock, mpsc};
 use tokio::task::JoinSet;
 
@@ -44,78 +45,97 @@ pub(crate) async fn control_channel(
         .handle_err(location!())?;
 
     while let Ok(Some(message)) = inbound.message().await {
-        let Ok(client_ethernet) = message.client_ethernet.parse::<Ipv4Addr>() else {
-            continue;
-        };
-        let Ok(client_veth) = message.client_veth.parse::<Ipv4Addr>() else {
-            continue;
-        };
-        let Ok(server_ethernet) = message.server_ethernet.parse::<Ipv4Addr>() else {
-            continue;
-        };
-        let Ok(server_veth) = message.server_veth.parse::<Ipv4Addr>() else {
-            continue;
-        };
-        let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
-            continue;
-        };
-
-        let client_veth_interface = VethInterface::new(client_veth, vlan_id)?;
-        let server_veth_interface = VethInterface::new(server_veth, vlan_id)?;
-
-        let mut join_set = JoinSet::new();
-        if client_ethernet == local_ip {
-            let rtnetlink_handle = rtnetlink_handle.clone();
-            let peers = peers.clone();
-            join_set.spawn(async move {
-                // setup VLAN on this machine
-                let init_t = std::time::Instant::now();
-                client_veth_interface.activate(&rtnetlink_handle).await;
-                println!(
-                    "veth {client_veth} setup completed in {} ms",
-                    init_t.elapsed().as_millis()
-                );
-
-                // register peer
-                peers
-                    .write()
-                    .await
-                    .insert(server_veth_interface.get_veth_key(), server_ethernet);
-
-                // add host mapping if needed
-                if let Some(host_mapping) = &message.host_mapping {
-                    let _ = add_host_mapping(host_mapping);
-                }
-            });
-        }
-
-        if server_ethernet == local_ip {
-            let rtnetlink_handle = rtnetlink_handle.clone();
-            let peers = peers.clone();
-            join_set.spawn(async move {
-                // setup VLAN on this machine
-                let init_t = std::time::Instant::now();
-                server_veth_interface.activate(&rtnetlink_handle).await;
-                println!(
-                    "veth {server_veth} setup completed in {} ms",
-                    init_t.elapsed().as_millis()
-                );
-
-                // register peer
-                peers
-                    .write()
-                    .await
-                    .insert(client_veth_interface.get_veth_key(), client_ethernet);
-            });
-        }
-
-        while join_set.join_next().await.is_some() {}
-
-        // acknowledge message
-        let _ = outbound.send(Empty {}).await;
+        let rtnetlink_handle = rtnetlink_handle.clone();
+        let peers = peers.clone();
+        let outbound = outbound.clone();
+        tokio::spawn(async move {
+            handle_controller_message(message, local_ip, rtnetlink_handle, peers, outbound).await
+        });
     }
 
     Ok(())
+}
+
+async fn handle_controller_message(
+    message: VlanSetup,
+    local_ip: Ipv4Addr,
+    rtnetlink_handle: RtNetLinkHandle,
+    peers: Arc<RwLock<Peers>>,
+    outbound: Sender<Empty>,
+) {
+    let Ok(client_ethernet) = message.client_ethernet.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(client_veth) = message.client_veth.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(server_ethernet) = message.server_ethernet.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(server_veth) = message.server_veth.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
+        return;
+    };
+
+    let Ok(client_veth_interface) = VethInterface::new(client_veth, vlan_id) else {
+        return;
+    };
+    let Ok(server_veth_interface) = VethInterface::new(server_veth, vlan_id) else {
+        return;
+    };
+
+    let mut join_set = JoinSet::new();
+    if client_ethernet == local_ip {
+        let rtnetlink_handle = rtnetlink_handle.clone();
+        let peers = peers.clone();
+        join_set.spawn(async move {
+            // setup VLAN on this machine
+            let init_t = std::time::Instant::now();
+            client_veth_interface.activate(&rtnetlink_handle).await;
+            println!(
+                "veth {client_veth} setup completed in {} ms",
+                init_t.elapsed().as_millis()
+            );
+
+            // register peer
+            peers
+                .write()
+                .await
+                .insert(server_veth_interface.get_veth_key(), server_ethernet);
+
+            // add host mapping if needed
+            if let Some(host_mapping) = &message.host_mapping {
+                let _ = add_host_mapping(host_mapping);
+            }
+        });
+    }
+
+    if server_ethernet == local_ip {
+        let rtnetlink_handle = rtnetlink_handle.clone();
+        let peers = peers.clone();
+        join_set.spawn(async move {
+            // setup VLAN on this machine
+            let init_t = std::time::Instant::now();
+            server_veth_interface.activate(&rtnetlink_handle).await;
+            println!(
+                "veth {server_veth} setup completed in {} ms",
+                init_t.elapsed().as_millis()
+            );
+
+            // register peer
+            peers
+                .write()
+                .await
+                .insert(client_veth_interface.get_veth_key(), client_ethernet);
+        });
+    }
+
+    while join_set.join_next().await.is_some() {}
+
+    // acknowledge message
+    let _ = outbound.send(Empty {}).await;
 }
 
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
