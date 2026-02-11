@@ -19,7 +19,7 @@ serde = { version = "1.0.228", default-features = false, features = ["derive", "
 nullnet-liberror = { git = "https://github.com/NullNet-ai/libguard.git", branch = "nullnet-liberror-print" }
 nullnet-grpc-lib = { git = "https://github.com/GyulyVGC/nullnet-grpc.git", branch = "perf" }
 ipnetwork = { version = "0.21.1", features = ["serde"] }
-toml = "0.9.11"
+toml = "0.9.12"
 listeners = "0.3.0"
 rtnetlink = "0.20.0"
 futures = "0.3.31"
