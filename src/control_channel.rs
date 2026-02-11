@@ -2,7 +2,7 @@ use crate::commands::{RtNetLinkHandle, configure_access_port};
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
-use nullnet_grpc_lib::nullnet_grpc::{MsgId, HostMapping, VlanSetup};
+use nullnet_grpc_lib::nullnet_grpc::{HostMapping, MsgId, VlanSetup};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
