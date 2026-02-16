@@ -22,7 +22,7 @@ ipnetwork = { version = "0.21.1", features = ["serde"] }
 toml = "0.9.11"
 listeners = "0.3.0"
 rtnetlink = "0.20.0"
-futures = "0.3.31"
+futures = "0.3.32"
 
 [dev-dependencies]
 #serde_test = "1.0.177"
