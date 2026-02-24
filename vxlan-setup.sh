@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Read CLI arguments:
+if [ "$#" -ne 6 ]; then
+    echo "Usage: $0 <ns_name> <ns_net> <br_name> <br_net> <local_ip> <remote_ip>"
+    exit 1
+fi
+
+NS_NAME=$1
+NS_NET=$2
+BR_NAME=$3
+BR_NET=$4
+LOCAL_IP=$5
+REMOTE_IP=$6
+
+BR_IP=$(echo $BR_NET | cut -d'/' -f1)
+
+# Create the namespace and configure the internal interface:
+sudo ip netns add $NS_NAME
+sudo ip link add $NS_NAME-in type veth peer name $NS_NAME-out
+sudo ip link set $NS_NAME-in netns $NS_NAME
+sudo ip netns exec $NS_NAME ip addr add $NS_NET dev $NS_NAME-in
+sudo ip netns exec $NS_NAME ip link set $NS_NAME-in up
+
+# Create the bridge, assign its internal IP, and attach $NS_NAME-out:
+sudo ip link add $BR_NAME type bridge
+sudo ip addr add $BR_NET dev $BR_NAME
+sudo ip link set $NS_NAME-out master $BR_NAME
+sudo ip link set $NS_NAME-out up
+sudo ip link set $BR_NAME up
+sudo ip netns exec $NS_NAME ip route add default via $BR_IP
+
+# Create the VXLAN tunnel using your physical IP and interface:
+sudo ip link add vxlan-$NS_NAME type vxlan id 100 local $LOCAL_IP remote $REMOTE_IP dev ens18
+
+# Attach the VXLAN to the bridge:
+sudo ip link set vxlan-$NS_NAME master $BR_NAME
+sudo ip link set vxlan-$NS_NAME up
