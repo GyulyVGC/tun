@@ -3,6 +3,7 @@
 # Read CLI arguments:
 if [ "$#" -ne 6 ]; then
     echo "Usage: $0 <ns_name> <ns_net> <br_name> <br_net> <local_ip> <remote_ip>"
+    echo "Example: $0 red 10.0.0.1/24 bridge-main 10.0.0.2/24 192.168.1.102 192.168.1.104"
     exit 1
 fi
 
