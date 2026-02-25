@@ -23,6 +23,7 @@ sudo ip link add $NS_NAME-in type veth peer name $NS_NAME-out
 sudo ip link set $NS_NAME-in netns $NS_NAME
 sudo ip netns exec $NS_NAME ip addr add $NS_NET dev $NS_NAME-in
 sudo ip netns exec $NS_NAME ip link set $NS_NAME-in up
+sudo ip netns exec $NS_NAME ip link set lo up
 
 # Create the bridge, assign its internal IP, and attach $NS_NAME-out:
 sudo ip link add $BR_NAME type bridge

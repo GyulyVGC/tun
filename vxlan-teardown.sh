@@ -10,7 +10,7 @@ fi
 NS_NAME=$1
 BR_NAME=$2
 
-ip link set vxlan-$NS_NAME down && ip link del vxlan-$NS_NAME
-ip link set $NS_NAME-out down && ip link del $NS_NAME-out
-ip netns del $NS_NAME
-ip link set $BR_NAME down && ip link del $BR_NAME
+sudo ip link set vxlan-$NS_NAME down && ip link del vxlan-$NS_NAME
+sudo ip link set $NS_NAME-out down && ip link del $NS_NAME-out
+sudo ip netns del $NS_NAME
+sudo ip link set $BR_NAME down && ip link del $BR_NAME
