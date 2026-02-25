@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Read CLI arguments:
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <ns_name> <br_name>"
+    echo "Example: $0 red bridge-main"
+    exit 1
+fi
+
+NS_NAME=$1
+BR_NAME=$2
+
+ip link set vxlan-$NS_NAME down && ip link del vxlan-$NS_NAME
+ip link set $NS_NAME-out down && ip link del $NS_NAME-out
+ip netns del $NS_NAME
+ip link set $BR_NAME down && ip link del $BR_NAME
