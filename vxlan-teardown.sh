@@ -3,7 +3,7 @@
 # Read CLI arguments:
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <ns_name> <br_name>"
-    echo "Example: $0 red bridge-main"
+    echo "Example: $0 ns1 br1"
     exit 1
 fi
 
