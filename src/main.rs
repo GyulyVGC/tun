@@ -13,21 +13,17 @@ use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::Services;
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::RwLock;
-use tun_rs::{DeviceBuilder, Layer};
 
 use crate::cli::Args;
-use crate::commands::{RtNetLinkHandle, setup_br0};
 use crate::control_channel::control_channel;
-use crate::forward::receive::receive;
-use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
 use crate::peers::peer::Peers;
 
 mod cli;
 mod commands;
 mod control_channel;
-mod craft;
-mod forward;
+// mod craft;
+// mod forward;
 mod local_endpoints;
 mod peers;
 
@@ -46,36 +42,34 @@ async fn main() -> Result<(), Error> {
 
     // read CLI arguments
     let Args {
-        mtu,
-        firewall_path,
-        num_tasks,
+        mtu, firewall_path, ..
     } = Args::parse();
 
     // create the asynchronous TAP device, and split it into reader & writer halves
-    let device = DeviceBuilder::new()
-        .name(TAP_NAME)
-        .layer(Layer::L2)
-        // TODO: MTU? GSO?
-        .mtu(mtu)
-        .build_async()
-        .handle_err(location!())?;
+    // let device = DeviceBuilder::new()
+    //     .name(TAP_NAME)
+    //     .layer(Layer::L2)
+    //     // TODO: MTU? GSO?
+    //     .mtu(mtu)
+    //     .build_async()
+    //     .handle_err(location!())?;
 
     // create a handle to execute netlink commands
-    let rtnetlink_handle = RtNetLinkHandle::new()?;
+    // let rtnetlink_handle = RtNetLinkHandle::new()?;
 
     // set up OVS bridge
-    setup_br0(&rtnetlink_handle).await;
+    // setup_br0(&rtnetlink_handle).await;
 
     // set up the local environment
-    let endpoints = LocalEndpoints::setup(&rtnetlink_handle).await?;
-    let forward_socket = endpoints.forward_socket.clone();
+    let endpoints = LocalEndpoints::setup().await?;
+    // let forward_socket = endpoints.forward_socket.clone();
 
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
     let peers_2 = peers.clone();
 
-    let reader_shared = Arc::new(device);
-    let writer_shared = reader_shared.clone();
+    // let reader_shared = Arc::new(device);
+    // let writer_shared = reader_shared.clone();
 
     // create firewall based on the defined rules
     let mut firewall = Firewall::new();
@@ -85,25 +79,25 @@ async fn main() -> Result<(), Error> {
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
     // spawn a number of asynchronous tasks to handle incoming and outgoing network traffic
-    for _ in 0..num_tasks / 2 {
-        let writer = writer_shared.clone();
-        let reader = reader_shared.clone();
-        let socket_1 = forward_socket.clone();
-        let socket_2 = socket_1.clone();
-        let firewall_1 = firewall_shared.clone();
-        let firewall_2 = firewall_shared.clone();
-        let peers_2 = peers.clone();
-
-        // handle incoming traffic
-        tokio::spawn(async move {
-            Box::pin(receive(&writer, &socket_1, &firewall_1)).await;
-        });
-
-        // handle outgoing traffic
-        tokio::spawn(async move {
-            Box::pin(send(&reader, &socket_2, &firewall_2, peers_2)).await;
-        });
-    }
+    // for _ in 0..num_tasks / 2 {
+    //     let writer = writer_shared.clone();
+    //     let reader = reader_shared.clone();
+    //     let socket_1 = forward_socket.clone();
+    //     let socket_2 = socket_1.clone();
+    //     let firewall_1 = firewall_shared.clone();
+    //     let firewall_2 = firewall_shared.clone();
+    //     let peers_2 = peers.clone();
+    //
+    //     handle incoming traffic
+    //     tokio::spawn(async move {
+    //         Box::pin(receive(&writer, &socket_1, &firewall_1)).await;
+    //     });
+    //
+    //     handle outgoing traffic
+    //     tokio::spawn(async move {
+    //         Box::pin(send(&reader, &socket_2, &firewall_2, peers_2)).await;
+    //     });
+    // }
 
     // print information about the overall setup
     print_info(&endpoints, mtu);
@@ -120,9 +114,9 @@ async fn main() -> Result<(), Error> {
     });
 
     // listen on the gRPC control channel
-    let local_ethernet = endpoints.ethernet_ip;
+    // let local_ethernet = endpoints.ethernet_ip;
     tokio::spawn(async move {
-        control_channel(grpc_server2, local_ethernet, peers_2, rtnetlink_handle)
+        control_channel(grpc_server2, peers_2)
             .await
             .expect("Control channel failed");
     });
