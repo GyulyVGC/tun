@@ -102,7 +102,7 @@ pub(crate) async fn control_channel(
             }
             Some(vxlan_message::Message::VxlanTeardown(vxlan_teardown)) => {
                 tokio::spawn(async move {
-                    handle_vxlan_teardown(vxlan_teardown, peers, outbound).await;
+                    handle_vxlan_teardown(vxlan_teardown);
                 });
             }
             None => {}
@@ -150,13 +150,23 @@ async fn handle_vxlan_setup(
     let _ = outbound.send(msg_id.clone()).await;
 }
 
-async fn handle_vxlan_teardown(
-    _message: VxlanTeardown,
-    // rtnetlink_handle: RtNetLinkHandle,
-    _peers: Arc<RwLock<Peers>>,
-    _outbound: Sender<MsgId>,
+fn handle_vxlan_teardown(
+    message: VxlanTeardown,
 ) {
-    // TODO!
+    // teardown VXLAN on this machine
+    let init_t = std::time::Instant::now();
+
+    let _ = std::process::Command::new("./vxlan-teardown.sh")
+        .arg(message.ns_name)
+        .arg(message.br_name)
+        .spawn()
+        .map(|mut c| c.wait())
+        .handle_err(location!());
+
+    println!(
+        "VXLAN teardown completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
 }
 
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
