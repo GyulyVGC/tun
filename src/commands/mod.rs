@@ -94,7 +94,7 @@ pub(crate) fn cleanup_network() {
         for device in devices {
             if let Some(ns_name) = device.name.strip_prefix("vxlan-") {
                 println!("Cleaning up existing namespace: {ns_name}");
-                let _ = std::process::Command::new("./ns-cleanup.sh")
+                let _ = std::process::Command::new("./ns-teardown.sh")
                     .arg(ns_name)
                     .spawn()
                     .map(|mut c| c.wait())
@@ -109,7 +109,7 @@ pub(crate) fn cleanup_network() {
             if device.name.starts_with("br_") {
                 let br_name = device.name;
                 println!("Cleaning up existing bridge: {br_name}");
-                let _ = std::process::Command::new("./br-cleanup.sh")
+                let _ = std::process::Command::new("./br-teardown.sh")
                     .arg(br_name)
                     .spawn()
                     .map(|mut c| c.wait())
