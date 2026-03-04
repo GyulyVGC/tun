@@ -1,7 +1,9 @@
-use crate::peers::peer::{Peers};
+use crate::peers::peer::Peers;
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
-use nullnet_grpc_lib::nullnet_grpc::{HostMapping, MsgId, VxlanSetup, vxlan_message, VxlanTeardown};
+use nullnet_grpc_lib::nullnet_grpc::{
+    HostMapping, MsgId, VxlanSetup, VxlanTeardown, vxlan_message,
+};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
@@ -154,7 +156,7 @@ async fn handle_vxlan_teardown(
     _peers: Arc<RwLock<Peers>>,
     _outbound: Sender<MsgId>,
 ) {
-   // TODO!
+    // TODO!
 }
 
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {

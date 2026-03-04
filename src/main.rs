@@ -15,6 +15,7 @@ use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use tokio::sync::RwLock;
 
 use crate::cli::Args;
+use crate::commands::cleanup_network;
 use crate::control_channel::control_channel;
 use crate::local_endpoints::LocalEndpoints;
 use crate::peers::peer::Peers;
@@ -57,8 +58,8 @@ async fn main() -> Result<(), Error> {
     // create a handle to execute netlink commands
     // let rtnetlink_handle = RtNetLinkHandle::new()?;
 
-    // set up OVS bridge
-    // setup_br0(&rtnetlink_handle).await;
+    // cleanup existing namespaces, VXLANs and bridges
+    cleanup_network();
 
     // set up the local environment
     let endpoints = LocalEndpoints::setup().await?;

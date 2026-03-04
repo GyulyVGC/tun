@@ -81,3 +81,40 @@
 //         command.execute(self).await;
 //     }
 // }
+
+use nullnet_liberror::{location, ErrorHandler, Location};
+
+/// Cleanup existing namespaces, VXLANs and bridges
+pub(crate) fn cleanup_network() {
+    // TODO: do this using rtnetlink
+    use network_interface::{NetworkInterface, NetworkInterfaceConfig};
+
+    // first clean up existing namespaces and VXLAN interfaces
+    if let Ok(devices) = NetworkInterface::show() {
+        for device in devices {
+            if let Some(ns_name) = device.name.strip_prefix("vxlan-") {
+                println!("Cleaning up existing namespace: {ns_name}");
+                let _ = std::process::Command::new("./ns-cleanup.sh")
+                    .arg(ns_name)
+                    .spawn()
+                    .map(|mut c| c.wait())
+                    .handle_err(location!());
+            }
+        }
+    }
+
+    // then clean up existing bridges
+    if let Ok(devices) = NetworkInterface::show() {
+        for device in devices {
+            if device.name.starts_with("br_") {
+                let br_name = device.name;
+                println!("Cleaning up existing bridge: {br_name}");
+                let _ = std::process::Command::new("./br-cleanup.sh")
+                    .arg(br_name)
+                    .spawn()
+                    .map(|mut c| c.wait())
+                    .handle_err(location!());
+            }
+        }
+    }
+}
