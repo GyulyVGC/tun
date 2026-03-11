@@ -1,7 +1,7 @@
 use crate::FORWARD_PORT;
 use crate::commands::{RtNetLinkHandle, find_ethernet_ip};
 use nullnet_liberror::Error;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;

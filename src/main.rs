@@ -46,7 +46,6 @@ async fn main() -> Result<(), Error> {
 
     // read CLI arguments
     let Args {
-        mtu,
         firewall_path,
         num_tasks,
         ..
@@ -55,7 +54,7 @@ async fn main() -> Result<(), Error> {
     // create a handle to execute netlink commands
     let rtnetlink_handle = RtNetLinkHandle::new()?;
 
-    // cleanup existing namespaces, VXLANs and bridges
+    // cleanup existing VLANs and VXLANs material
     cleanup_network(&rtnetlink_handle).await;
 
     // maps of all the peers
@@ -69,9 +68,6 @@ async fn main() -> Result<(), Error> {
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
-    // TODO: print information about the overall setup
-    // print_info(&endpoints, mtu);
-
     // initialize gRPC connection
     let grpc_server = grpc_init().await?;
     let grpc_server2 = grpc_server.clone();
@@ -82,6 +78,8 @@ async fn main() -> Result<(), Error> {
         setup_tap(num_tasks, peers, &firewall_shared, &rtnetlink_handle).await?;
         setup_br0(&rtnetlink_handle).await;
     }
+
+    print_info(net_type.net());
 
     // read our services list from file and send it to the gRPC server
     tokio::spawn(async move {
@@ -104,16 +102,10 @@ async fn main() -> Result<(), Error> {
 }
 
 /// Prints useful info about the local environment and the created interface.
-fn print_info(local_endpoints: &LocalEndpoints, mtu: u16) {
-    let Ok(forward_socket) = &local_endpoints.forward_socket.local_addr() else {
-        return;
-    };
+fn print_info(net: Net) {
     println!("\n{}", "=".repeat(40));
-    println!("UDP socket bound successfully:");
-    println!("    - forward:   {forward_socket}");
-    println!("TAP device created successfully:");
-    println!("    - name:      {TAP_NAME}");
-    println!("    - MTU:       {mtu} B");
+    println!("Nullnet is up and running!");
+    println!("Network type: {net:?}");
     println!("{}\n", "=".repeat(40));
 }
 

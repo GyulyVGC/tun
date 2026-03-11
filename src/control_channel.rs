@@ -6,7 +6,6 @@ use nullnet_grpc_lib::nullnet_grpc::{
     HostMapping, MsgId, VlanSetup, VlanTeardown, VxlanSetup, VxlanTeardown, net_message,
 };
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
