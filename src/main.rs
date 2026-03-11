@@ -19,7 +19,6 @@ use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Net, Services};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
