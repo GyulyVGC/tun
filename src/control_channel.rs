@@ -88,7 +88,7 @@ async fn handle_vlan_setup(
     configure_access_port(
         &rtnetlink_handle,
         vlan_id,
-        Ipv4Network::new(local_ip, 24).unwrap(),
+        Ipv4Network::new(local_veth, 24).unwrap(),
     )
     .await;
     println!(
