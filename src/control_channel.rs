@@ -1,8 +1,9 @@
-use crate::peers::peer::Peers;
+use crate::commands::{RtNetLinkHandle, configure_access_port};
+use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{
-    HostMapping, MsgId, VxlanSetup, VxlanTeardown, vxlan_message,
+    HostMapping, MsgId, VlanSetup, VlanTeardown, VxlanSetup, VxlanTeardown, net_message,
 };
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use serde::{Deserialize, Serialize};
@@ -82,7 +83,7 @@ impl VxlanInterface {
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     peers: Arc<RwLock<Peers>>,
-    // rtnetlink_handle: RtNetLinkHandle,
+    rtnetlink_handle: RtNetLinkHandle,
 ) -> Result<(), Error> {
     let (outbound, grpc_rx) = mpsc::channel(64);
     let mut inbound = server
@@ -91,16 +92,26 @@ pub(crate) async fn control_channel(
         .handle_err(location!())?;
 
     while let Ok(Some(message)) = inbound.message().await {
-        // let rtnetlink_handle = rtnetlink_handle.clone();
+        let rtnetlink_handle = rtnetlink_handle.clone();
         let peers = peers.clone();
         let outbound = outbound.clone();
         match message.message {
-            Some(vxlan_message::Message::VxlanSetup(vxlan_setup)) => {
+            Some(net_message::Message::VlanSetup(vlan_setup)) => {
                 tokio::spawn(async move {
-                    handle_vxlan_setup(vxlan_setup, peers, outbound).await;
+                    handle_vlan_setup(vlan_setup, rtnetlink_handle, peers, outbound).await;
                 });
             }
-            Some(vxlan_message::Message::VxlanTeardown(vxlan_teardown)) => {
+            Some(net_message::Message::VlanTeardown(vlan_teardown)) => {
+                tokio::spawn(async move {
+                    handle_vlan_teardown(vlan_teardown);
+                });
+            }
+            Some(net_message::Message::VxlanSetup(vxlan_setup)) => {
+                tokio::spawn(async move {
+                    handle_vxlan_setup(vxlan_setup, outbound).await;
+                });
+            }
+            Some(net_message::Message::VxlanTeardown(vxlan_teardown)) => {
                 tokio::spawn(async move {
                     handle_vxlan_teardown(vxlan_teardown);
                 });
@@ -112,12 +123,64 @@ pub(crate) async fn control_channel(
     Ok(())
 }
 
-async fn handle_vxlan_setup(
-    message: VxlanSetup,
-    // rtnetlink_handle: RtNetLinkHandle,
-    _peers: Arc<RwLock<Peers>>,
+async fn handle_vlan_setup(
+    message: VlanSetup,
+    rtnetlink_handle: RtNetLinkHandle,
+    peers: Arc<RwLock<Peers>>,
     outbound: Sender<MsgId>,
 ) {
+    let Some(msg_id) = message.msg_id else {
+        return;
+    };
+    let Ok(local_ip) = message.local_ip.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(local_veth) = message.local_veth.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(remote_ip) = message.remote_ip.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(remote_veth) = message.remote_veth.parse::<Ipv4Addr>() else {
+        return;
+    };
+    let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
+        return;
+    };
+
+    // setup VLAN on this machine
+    let init_t = std::time::Instant::now();
+    configure_access_port(
+        &rtnetlink_handle,
+        vlan_id,
+        Ipv4Network::new(local_ip, 24).unwrap(),
+    )
+    .await;
+    println!(
+        "veth {local_veth} setup completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
+
+    // register peer
+    peers
+        .write()
+        .await
+        .insert(VethKey::new(remote_veth, vlan_id), remote_ip);
+
+    // add host mapping if needed
+    if let Some(host_mapping) = &message.host_mapping {
+        let _ = add_host_mapping(host_mapping);
+    }
+
+    // acknowledge message
+    let _ = outbound.send(msg_id).await;
+}
+
+fn handle_vlan_teardown(_message: VlanTeardown) {
+    // TODO: teardown VLAN on this machine
+}
+
+async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) {
     let Some(msg_id) = &message.msg_id else {
         return;
     };
@@ -150,9 +213,7 @@ async fn handle_vxlan_setup(
     let _ = outbound.send(msg_id.clone()).await;
 }
 
-fn handle_vxlan_teardown(
-    message: VxlanTeardown,
-) {
+fn handle_vxlan_teardown(message: VxlanTeardown) {
     // teardown VXLAN on this machine
     let init_t = std::time::Instant::now();
 
