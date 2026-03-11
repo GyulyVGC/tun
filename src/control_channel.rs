@@ -76,23 +76,23 @@ async fn handle_vlan_setup(
         .msg_id
         .ok_or("Missing message ID in VXLAN setup message")
         .handle_err(location!())?;
-    let Ok(local_ip) = message
+    let local_ip = message
         .local_ip
         .parse::<Ipv4Addr>()
         .handle_err(location!())?;
-    let Ok(local_veth) = message
+    let local_veth = message
         .local_veth
         .parse::<Ipv4Addr>()
         .handle_err(location!())?;
-    let Ok(remote_ip) = message
+    let remote_ip = message
         .remote_ip
         .parse::<Ipv4Addr>()
         .handle_err(location!())?;
-    let Ok(remote_veth) = message
+    let remote_veth = message
         .remote_veth
         .parse::<Ipv4Addr>()
         .handle_err(location!())?;
-    let Ok(vlan_id) = u16::try_from(message.vlan_id).handle_err(location!())?;
+    let vlan_id = u16::try_from(message.vlan_id).handle_err(location!())?;
 
     // setup VLAN on this machine
     let init_t = std::time::Instant::now();
