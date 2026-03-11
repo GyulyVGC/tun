@@ -27,7 +27,7 @@ impl NetLinkCommand<'_> {
                 delete_all_veths(handle).await;
             }
             NetLinkCommand::DeleteVeth(vlan_id) => {
-                delete_veth(handle, vlan_id).await;
+                delete_veth(handle, *vlan_id).await;
             }
             NetLinkCommand::SetInterfaceUp(interface) => {
                 set_interface_up(handle, interface).await;
