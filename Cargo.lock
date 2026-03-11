@@ -1151,7 +1151,7 @@ dependencies = [
 [[package]]
 name = "nullnet-grpc-lib"
 version = "0.1.0"
-source = "git+https://github.com/GyulyVGC/nullnet-grpc.git?branch=VXLAN#3af196284818a8e86d1542b224c3b34420d9d9c9"
+source = "git+https://github.com/GyulyVGC/nullnet-grpc.git?branch=VXLAN#4e11092efe8e544cf9f18ab8228e3ca2f6a31c15"
 dependencies = [
  "prost",
  "serde",

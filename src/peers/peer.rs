@@ -23,6 +23,10 @@ impl Peers {
     pub fn insert(&mut self, veth_key: VethKey, eth_ip: Ipv4Addr) {
         self.ips.insert(veth_key, eth_ip);
     }
+
+    pub fn remove(&mut self, vlan_id: u16) {
+        self.ips.retain(|key, _| key.vlan_id != vlan_id);
+    }
 }
 
 /// Struct identifying veth on a VLAN.
