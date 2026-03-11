@@ -52,11 +52,9 @@ pub(crate) async fn configure_access_port(
 }
 
 pub(crate) async fn remove_vlan(rtnetlink_handle: &RtNetLinkHandle, vlan_id: u16) {
-    let veth_name = format!("veth-{vlan_id}");
-
     // delete the veth pair
     rtnetlink_handle
-        .execute(NetLinkCommand::DeleteVeth(veth_name))
+        .execute(NetLinkCommand::DeleteVeth(vlan_id))
         .await;
 }
 
