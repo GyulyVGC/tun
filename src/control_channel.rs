@@ -23,63 +23,6 @@ struct VxlanInterface {
     remote_ip: Ipv4Addr,
 }
 
-impl VxlanInterface {
-    // fn new(ip: Ipv4Addr, vlan_id: u16) -> Result<Self, Error> {
-    //     let ip = Ipv4Network::new(ip, 24).handle_err(location!())?;
-    //     Ok(Self { ip, vlan_id })
-    // }
-
-    // async fn activate(&self, rtnetlink_handle: &RtNetLinkHandle) {
-    //     configure_access_port(rtnetlink_handle, self.vlan_id, self.ip).await;
-    // }
-
-    // fn get_veth_key(self) -> VethKey {
-    //     VethKey::new(self.ip.ip(), self.vlan_id)
-    // }
-
-    fn new(vxlan_setup: &VxlanSetup) -> Result<Self, Error> {
-        let ns_net = vxlan_setup
-            .ns_net
-            .parse::<Ipv4Network>()
-            .handle_err(location!())?;
-        let br_net = vxlan_setup
-            .br_net
-            .parse::<Ipv4Network>()
-            .handle_err(location!())?;
-        let local_ip = vxlan_setup
-            .local_ip
-            .parse::<Ipv4Addr>()
-            .handle_err(location!())?;
-        let remote_ip = vxlan_setup
-            .remote_ip
-            .parse::<Ipv4Addr>()
-            .handle_err(location!())?;
-        Ok(Self {
-            vxlan_id: vxlan_setup.vxlan_id,
-            ns_name: vxlan_setup.ns_name.clone(),
-            ns_net,
-            br_name: vxlan_setup.br_name.clone(),
-            br_net,
-            local_ip,
-            remote_ip,
-        })
-    }
-
-    fn activate(&self) {
-        let _ = std::process::Command::new("./vxlan-setup.sh")
-            .arg(self.vxlan_id.to_string())
-            .arg(&self.ns_name)
-            .arg(self.ns_net.to_string())
-            .arg(&self.br_name)
-            .arg(self.br_net.to_string())
-            .arg(self.local_ip.to_string())
-            .arg(self.remote_ip.to_string())
-            .spawn()
-            .map(|mut c| c.wait())
-            .handle_err(location!());
-    }
-}
-
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     peers: Arc<RwLock<Peers>>,
@@ -184,25 +127,43 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) {
     let Some(msg_id) = &message.msg_id else {
         return;
     };
-    let Ok(vxlan_interface) = VxlanInterface::new(&message) else {
-        return;
-    };
+    let vxlan_id = message.vxlan_id;
+    let ns_name = message.ns_name;
+    let ns_net = message
+        .ns_net
+        .parse::<Ipv4Network>()
+        .handle_err(location!())?;
+    let br_name = message.br_name;
+    let br_net = message
+        .br_net
+        .parse::<Ipv4Network>()
+        .handle_err(location!())?;
+    let local_ip = message
+        .local_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let remote_ip = message
+        .remote_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
 
-    // let rtnetlink_handle = rtnetlink_handle.clone();
     // setup VLAN on this machine
     let init_t = std::time::Instant::now();
-    vxlan_interface.activate();
+    let _ = std::process::Command::new("./vxlan_scripts/vxlan-setup.sh")
+        .arg(vxlan_id.to_string())
+        .arg(ns_name)
+        .arg(ns_net.to_string())
+        .arg(br_name)
+        .arg(br_net.to_string())
+        .arg(local_ip.to_string())
+        .arg(remote_ip.to_string())
+        .spawn()
+        .map(|mut c| c.wait())
+        .handle_err(location!());
     println!(
-        "VXLAN {} setup completed in {} ms",
-        vxlan_interface.vxlan_id,
+        "VXLAN {vxlan_id} setup completed in {} ms",
         init_t.elapsed().as_millis()
     );
-
-    // register peer
-    // peers
-    //     .write()
-    //     .await
-    //     .insert(server_veth_interface.get_veth_key(), server_ethernet);
 
     // add host mapping if needed
     if let Some(host_mapping) = &message.host_mapping {
