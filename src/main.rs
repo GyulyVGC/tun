@@ -58,10 +58,6 @@ async fn main() -> Result<(), Error> {
     // cleanup existing namespaces, VXLANs and bridges
     cleanup_network(&rtnetlink_handle).await;
 
-    // set up the local environment
-    let endpoints = LocalEndpoints::setup().await?;
-    let forward_socket = endpoints.forward_socket.clone();
-
     // maps of all the peers
     let peers = Arc::new(RwLock::new(Peers::default()));
     let peers_2 = peers.clone();
@@ -73,8 +69,8 @@ async fn main() -> Result<(), Error> {
     let firewall_shared = Arc::new(RwLock::new(firewall));
     set_firewall_rules(&firewall_shared, &firewall_path, true).await?;
 
-    // print information about the overall setup
-    print_info(&endpoints, mtu);
+    // TODO: print information about the overall setup
+    // print_info(&endpoints, mtu);
 
     // initialize gRPC connection
     let grpc_server = grpc_init().await?;
@@ -83,7 +79,7 @@ async fn main() -> Result<(), Error> {
     let net_type = grpc_server.network_type().await.handle_err(location!())?;
 
     if net_type.net() == Net::Vlan {
-        setup_tap(num_tasks, peers, &firewall_shared, forward_socket).await?;
+        setup_tap(num_tasks, peers, &firewall_shared, &rtnetlink_handle).await?;
         setup_br0(&rtnetlink_handle).await;
     }
 
@@ -232,8 +228,12 @@ async fn setup_tap(
     num_tasks: u8,
     peers: Arc<RwLock<Peers>>,
     firewall_shared: &Arc<RwLock<Firewall>>,
-    forward_socket: Arc<UdpSocket>,
+    rtnetlink_handle: &RtNetLinkHandle,
 ) -> Result<(), Error> {
+    // set up the local environment
+    let endpoints = LocalEndpoints::setup(rtnetlink_handle).await?;
+    let forward_socket = endpoints.forward_socket.clone();
+
     // create the asynchronous TAP device, and split it into reader & writer halves
     let device = DeviceBuilder::new()
         .name(TAP_NAME)

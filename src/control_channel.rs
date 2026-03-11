@@ -12,17 +12,6 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{RwLock, mpsc};
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-struct VxlanInterface {
-    vxlan_id: u32,
-    ns_name: String,
-    ns_net: Ipv4Network,
-    br_name: String,
-    br_net: Ipv4Network,
-    local_ip: Ipv4Addr,
-    remote_ip: Ipv4Addr,
-}
-
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     peers: Arc<RwLock<Peers>>,
@@ -41,7 +30,7 @@ pub(crate) async fn control_channel(
         match message.message {
             Some(net_message::Message::VlanSetup(vlan_setup)) => {
                 tokio::spawn(async move {
-                    handle_vlan_setup(vlan_setup, rtnetlink_handle, peers, outbound).await;
+                    let _ = handle_vlan_setup(vlan_setup, rtnetlink_handle, peers, outbound).await;
                 });
             }
             Some(net_message::Message::VlanTeardown(vlan_teardown)) => {
@@ -51,7 +40,7 @@ pub(crate) async fn control_channel(
             }
             Some(net_message::Message::VxlanSetup(vxlan_setup)) => {
                 tokio::spawn(async move {
-                    handle_vxlan_setup(vxlan_setup, outbound).await;
+                    let _ = handle_vxlan_setup(vxlan_setup, outbound).await;
                 });
             }
             Some(net_message::Message::VxlanTeardown(vxlan_teardown)) => {
