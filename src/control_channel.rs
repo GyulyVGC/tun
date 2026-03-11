@@ -71,25 +71,28 @@ async fn handle_vlan_setup(
     rtnetlink_handle: RtNetLinkHandle,
     peers: Arc<RwLock<Peers>>,
     outbound: Sender<MsgId>,
-) {
-    let Some(msg_id) = message.msg_id else {
-        return;
-    };
-    let Ok(local_ip) = message.local_ip.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(local_veth) = message.local_veth.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(remote_ip) = message.remote_ip.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(remote_veth) = message.remote_veth.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
-        return;
-    };
+) -> Result<(), Error> {
+    let msg_id = &message
+        .msg_id
+        .ok_or("Missing message ID in VXLAN setup message")
+        .handle_err(location!())?;
+    let Ok(local_ip) = message
+        .local_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let Ok(local_veth) = message
+        .local_veth
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let Ok(remote_ip) = message
+        .remote_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let Ok(remote_veth) = message
+        .remote_veth
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let Ok(vlan_id) = u16::try_from(message.vlan_id).handle_err(location!())?;
 
     // setup VLAN on this machine
     let init_t = std::time::Instant::now();
@@ -116,17 +119,20 @@ async fn handle_vlan_setup(
     }
 
     // acknowledge message
-    let _ = outbound.send(msg_id).await;
+    let _ = outbound.send(msg_id.clone()).await;
+
+    Ok(())
 }
 
 fn handle_vlan_teardown(_message: VlanTeardown) {
     // TODO: teardown VLAN on this machine
 }
 
-async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) {
-    let Some(msg_id) = &message.msg_id else {
-        return;
-    };
+async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Result<(), Error> {
+    let msg_id = &message
+        .msg_id
+        .ok_or("Missing message ID in VXLAN setup message")
+        .handle_err(location!())?;
     let vxlan_id = message.vxlan_id;
     let ns_name = message.ns_name;
     let ns_net = message
@@ -172,6 +178,8 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) {
 
     // acknowledge message
     let _ = outbound.send(msg_id.clone()).await;
+
+    Ok(())
 }
 
 fn handle_vxlan_teardown(message: VxlanTeardown) {
