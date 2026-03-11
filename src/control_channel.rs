@@ -190,9 +190,13 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
     // teardown VXLAN on this machine
     let init_t = std::time::Instant::now();
 
+    let vxlan_id = message.vxlan_id;
+    let ns_name = format!("ns_{vxlan_id}");
+    let br_name = format!("br_{vxlan_id}");
+
     let _ = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh")
-        .arg(message.ns_name)
-        .arg(message.br_name)
+        .arg(ns_name)
+        .arg(br_name)
         .spawn()
         .map(|mut c| c.wait())
         .handle_err(location!());
