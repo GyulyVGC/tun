@@ -104,7 +104,7 @@ fn vxlan_cleanup_network() {
             if device.name.starts_with("br_") {
                 let br_name = device.name;
                 println!("Cleaning up existing bridge: {br_name}");
-                let _ = std::process::Command::new("./br-teardown.sh")
+                let _ = std::process::Command::new("./vxlan_scripts/br-teardown.sh")
                     .arg(br_name)
                     .spawn()
                     .map(|mut c| c.wait())

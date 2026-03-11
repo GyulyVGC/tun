@@ -175,7 +175,7 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
     // teardown VXLAN on this machine
     let init_t = std::time::Instant::now();
 
-    let _ = std::process::Command::new("./vxlan-teardown.sh")
+    let _ = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh")
         .arg(message.ns_name)
         .arg(message.br_name)
         .spawn()
