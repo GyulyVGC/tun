@@ -1,40 +1,18 @@
-use crate::commands::{RtNetLinkHandle, configure_access_port};
+use crate::commands::{RtNetLinkHandle, configure_access_port, remove_vlan};
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
-use nullnet_grpc_lib::nullnet_grpc::{HostMapping, MsgId, VlanSetup};
+use nullnet_grpc_lib::nullnet_grpc::{
+    HostMapping, MsgId, VlanSetup, VlanTeardown, VxlanSetup, VxlanTeardown, net_message,
+};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
-use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{RwLock, mpsc};
-use tokio::task::JoinSet;
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
-struct VethInterface {
-    ip: Ipv4Network,
-    vlan_id: u16,
-}
-
-impl VethInterface {
-    fn new(ip: Ipv4Addr, vlan_id: u16) -> Result<Self, Error> {
-        let ip = Ipv4Network::new(ip, 24).handle_err(location!())?;
-        Ok(Self { ip, vlan_id })
-    }
-
-    async fn activate(&self, rtnetlink_handle: &RtNetLinkHandle) {
-        configure_access_port(rtnetlink_handle, self.vlan_id, self.ip).await;
-    }
-
-    fn get_veth_key(self) -> VethKey {
-        VethKey::new(self.ip.ip(), self.vlan_id)
-    }
-}
 
 pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
-    local_ip: Ipv4Addr,
     peers: Arc<RwLock<Peers>>,
     rtnetlink_handle: RtNetLinkHandle,
 ) -> Result<(), Error> {
@@ -48,97 +26,184 @@ pub(crate) async fn control_channel(
         let rtnetlink_handle = rtnetlink_handle.clone();
         let peers = peers.clone();
         let outbound = outbound.clone();
-        tokio::spawn(async move {
-            handle_controller_message(message, local_ip, rtnetlink_handle, peers, outbound).await;
-        });
+        match message.message {
+            Some(net_message::Message::VlanSetup(vlan_setup)) => {
+                tokio::spawn(async move {
+                    let _ = handle_vlan_setup(vlan_setup, rtnetlink_handle, peers, outbound).await;
+                });
+            }
+            Some(net_message::Message::VlanTeardown(vlan_teardown)) => {
+                tokio::spawn(async move {
+                    let _ = handle_vlan_teardown(vlan_teardown, rtnetlink_handle, peers).await;
+                });
+            }
+            Some(net_message::Message::VxlanSetup(vxlan_setup)) => {
+                tokio::spawn(async move {
+                    let _ = handle_vxlan_setup(vxlan_setup, outbound).await;
+                });
+            }
+            Some(net_message::Message::VxlanTeardown(vxlan_teardown)) => {
+                tokio::spawn(async move {
+                    handle_vxlan_teardown(vxlan_teardown);
+                });
+            }
+            None => {}
+        }
     }
 
     Ok(())
 }
 
-async fn handle_controller_message(
+async fn handle_vlan_setup(
     message: VlanSetup,
-    local_ip: Ipv4Addr,
     rtnetlink_handle: RtNetLinkHandle,
     peers: Arc<RwLock<Peers>>,
     outbound: Sender<MsgId>,
-) {
-    let Some(msg_id) = message.msg_id else {
-        return;
-    };
-    let Ok(client_ethernet) = message.client_ethernet.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(client_veth) = message.client_veth.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(server_ethernet) = message.server_ethernet.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(server_veth) = message.server_veth.parse::<Ipv4Addr>() else {
-        return;
-    };
-    let Ok(vlan_id) = u16::try_from(message.vlan_id) else {
-        return;
-    };
+) -> Result<(), Error> {
+    let msg_id = &message
+        .msg_id
+        .ok_or("Missing message ID in VXLAN setup message")
+        .handle_err(location!())?;
+    let local_veth = message
+        .local_veth
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let remote_ip = message
+        .remote_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let remote_veth = message
+        .remote_veth
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let vlan_id = u16::try_from(message.vlan_id).handle_err(location!())?;
 
-    let Ok(client_veth_interface) = VethInterface::new(client_veth, vlan_id) else {
-        return;
-    };
-    let Ok(server_veth_interface) = VethInterface::new(server_veth, vlan_id) else {
-        return;
-    };
+    // setup VLAN on this machine
+    let init_t = std::time::Instant::now();
+    configure_access_port(
+        &rtnetlink_handle,
+        vlan_id,
+        Ipv4Network::new(local_veth, 24).unwrap(),
+    )
+    .await;
+    println!(
+        "veth {local_veth} setup completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
 
-    let mut join_set = JoinSet::new();
-    if client_ethernet == local_ip {
-        let rtnetlink_handle = rtnetlink_handle.clone();
-        let peers = peers.clone();
-        join_set.spawn(async move {
-            // setup VLAN on this machine
-            let init_t = std::time::Instant::now();
-            client_veth_interface.activate(&rtnetlink_handle).await;
-            println!(
-                "veth {client_veth} setup completed in {} ms",
-                init_t.elapsed().as_millis()
-            );
+    // register peer
+    peers
+        .write()
+        .await
+        .insert(VethKey::new(remote_veth, vlan_id), remote_ip);
 
-            // register peer
-            peers
-                .write()
-                .await
-                .insert(server_veth_interface.get_veth_key(), server_ethernet);
-
-            // add host mapping if needed
-            if let Some(host_mapping) = &message.host_mapping {
-                let _ = add_host_mapping(host_mapping);
-            }
-        });
+    // add host mapping if needed
+    if let Some(host_mapping) = &message.host_mapping {
+        let _ = add_host_mapping(host_mapping);
     }
-
-    if server_ethernet == local_ip {
-        let rtnetlink_handle = rtnetlink_handle.clone();
-        let peers = peers.clone();
-        join_set.spawn(async move {
-            // setup VLAN on this machine
-            let init_t = std::time::Instant::now();
-            server_veth_interface.activate(&rtnetlink_handle).await;
-            println!(
-                "veth {server_veth} setup completed in {} ms",
-                init_t.elapsed().as_millis()
-            );
-
-            // register peer
-            peers
-                .write()
-                .await
-                .insert(client_veth_interface.get_veth_key(), client_ethernet);
-        });
-    }
-
-    while join_set.join_next().await.is_some() {}
 
     // acknowledge message
-    let _ = outbound.send(msg_id).await;
+    let _ = outbound.send(msg_id.clone()).await;
+
+    Ok(())
+}
+
+async fn handle_vlan_teardown(
+    message: VlanTeardown,
+    rtnetlink_handle: RtNetLinkHandle,
+    peers: Arc<RwLock<Peers>>,
+) -> Result<(), Error> {
+    let vlan_id = u16::try_from(message.vlan_id).handle_err(location!())?;
+
+    // teardown VLAN on this machine
+    let init_t = std::time::Instant::now();
+
+    remove_vlan(&rtnetlink_handle, vlan_id).await;
+
+    println!(
+        "VLAN teardown completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
+
+    // remove peer
+    peers.write().await.remove(vlan_id);
+
+    Ok(())
+}
+
+async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Result<(), Error> {
+    let msg_id = &message
+        .msg_id
+        .ok_or("Missing message ID in VXLAN setup message")
+        .handle_err(location!())?;
+    let vxlan_id = message.vxlan_id;
+    let ns_name = message.ns_name;
+    let ns_net = message
+        .ns_net
+        .parse::<Ipv4Network>()
+        .handle_err(location!())?;
+    let br_name = message.br_name;
+    let br_net = message
+        .br_net
+        .parse::<Ipv4Network>()
+        .handle_err(location!())?;
+    let local_ip = message
+        .local_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+    let remote_ip = message
+        .remote_ip
+        .parse::<Ipv4Addr>()
+        .handle_err(location!())?;
+
+    // setup VLAN on this machine
+    let init_t = std::time::Instant::now();
+    let _ = std::process::Command::new("./vxlan_scripts/vxlan-setup.sh")
+        .arg(vxlan_id.to_string())
+        .arg(ns_name)
+        .arg(ns_net.to_string())
+        .arg(br_name)
+        .arg(br_net.to_string())
+        .arg(local_ip.to_string())
+        .arg(remote_ip.to_string())
+        .spawn()
+        .map(|mut c| c.wait())
+        .handle_err(location!());
+    println!(
+        "VXLAN {vxlan_id} setup completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
+
+    // add host mapping if needed
+    if let Some(host_mapping) = &message.host_mapping {
+        let _ = add_host_mapping(host_mapping);
+    }
+
+    // acknowledge message
+    let _ = outbound.send(msg_id.clone()).await;
+
+    Ok(())
+}
+
+fn handle_vxlan_teardown(message: VxlanTeardown) {
+    // teardown VXLAN on this machine
+    let init_t = std::time::Instant::now();
+
+    let vxlan_id = message.vxlan_id;
+    let ns_name = format!("ns_{vxlan_id}");
+    let br_name = format!("br_{vxlan_id}");
+
+    let _ = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh")
+        .arg(ns_name)
+        .arg(br_name)
+        .spawn()
+        .map(|mut c| c.wait())
+        .handle_err(location!());
+
+    println!(
+        "VXLAN teardown completed in {} ms",
+        init_t.elapsed().as_millis()
+    );
 }
 
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {

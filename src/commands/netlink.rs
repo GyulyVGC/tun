@@ -11,6 +11,7 @@ use std::net::{IpAddr, Ipv4Addr};
 pub(super) enum NetLinkCommand<'a> {
     HandleVethPairCreation(Ipv4Network, &'a str, &'a str),
     DeleteAllVeths,
+    DeleteVeth(u16),
     SetInterfaceUp(&'a str),
 }
 
@@ -24,6 +25,9 @@ impl NetLinkCommand<'_> {
             }
             NetLinkCommand::DeleteAllVeths => {
                 delete_all_veths(handle).await;
+            }
+            NetLinkCommand::DeleteVeth(vlan_id) => {
+                delete_veth(handle, *vlan_id).await;
             }
             NetLinkCommand::SetInterfaceUp(interface) => {
                 set_interface_up(handle, interface).await;
@@ -86,6 +90,25 @@ async fn delete_all_veths(handle: &Handle) {
             && link.attributes.iter().any(|attr| {
                 if let LinkAttribute::IfName(name) = attr
                     && name.starts_with("veth")
+                {
+                    true
+                } else {
+                    false
+                }
+            })
+        {
+            let _ = delete_link(handle, link).await;
+        }
+    }
+}
+
+async fn delete_veth(handle: &Handle, vlan_id: u16) {
+    let mut links = handle.link().get().execute();
+    while let Some(link_res) = links.next().await {
+        if let Ok(link) = link_res
+            && link.attributes.iter().any(|attr| {
+                if let LinkAttribute::IfName(name) = attr
+                    && name.starts_with(&format!("veth-{vlan_id}"))
                 {
                     true
                 } else {

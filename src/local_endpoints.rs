@@ -1,7 +1,7 @@
 use crate::FORWARD_PORT;
 use crate::commands::{RtNetLinkHandle, find_ethernet_ip};
 use nullnet_liberror::Error;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
@@ -10,7 +10,6 @@ use tokio::net::UdpSocket;
 /// and to correctly communicate with peers in the same network.
 #[derive(Clone)]
 pub struct LocalEndpoints {
-    pub ethernet_ip: Ipv4Addr,
     pub forward_socket: Arc<UdpSocket>,
 }
 
@@ -25,10 +24,7 @@ impl LocalEndpoints {
                 if let Ok(sock) = UdpSocket::bind(forward_socket_addr).await {
                     let forward_socket = Arc::new(sock);
                     println!("Forward socket bound successfully");
-                    return Ok(Self {
-                        ethernet_ip,
-                        forward_socket,
-                    });
+                    return Ok(Self { forward_socket });
                 }
             }
             println!("Could not bind all needed sockets; will retry again in 10 seconds...");
