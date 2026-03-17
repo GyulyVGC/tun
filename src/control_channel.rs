@@ -156,22 +156,24 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
         .parse::<Ipv4Addr>()
         .handle_err(location!())?;
 
-    // setup VLAN on this machine
+    // setup VXLAN on this machine (optionally attaching a Docker container)
     let init_t = std::time::Instant::now();
-    let _ = std::process::Command::new("./vxlan_scripts/vxlan-setup.sh")
-        .arg(vxlan_id.to_string())
-        .arg(ns_name)
+    let mut cmd = std::process::Command::new("./vxlan_scripts/vxlan-setup.sh");
+    cmd.arg(vxlan_id.to_string())
+        .arg(&ns_name)
         .arg(ns_net.to_string())
         .arg(br_name)
         .arg(br_net.to_string())
         .arg(local_ip.to_string())
-        .arg(remote_ip.to_string())
-        .spawn()
-        .map(|mut c| c.wait())
-        .handle_err(location!());
+        .arg(remote_ip.to_string());
+    if let Some(container) = &message.docker_container {
+        cmd.arg(container);
+    }
+    let _ = cmd.spawn().map(|mut c| c.wait()).handle_err(location!());
     println!(
-        "VXLAN {vxlan_id} setup completed in {} ms",
-        init_t.elapsed().as_millis()
+        "VXLAN {vxlan_id} setup completed in {} ms (docker: {})",
+        init_t.elapsed().as_millis(),
+        message.docker_container.as_deref().unwrap_or("none"),
     );
 
     // add host mapping if needed
@@ -193,12 +195,12 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
     let ns_name = format!("ns_{vxlan_id}");
     let br_name = format!("br_{vxlan_id}");
 
-    let _ = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh")
-        .arg(ns_name)
-        .arg(br_name)
-        .spawn()
-        .map(|mut c| c.wait())
-        .handle_err(location!());
+    let mut cmd = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh");
+    cmd.arg(&ns_name).arg(&br_name);
+    if let Some(container) = &message.docker_container {
+        cmd.arg(container);
+    }
+    let _ = cmd.spawn().map(|mut c| c.wait()).handle_err(location!());
 
     println!(
         "VXLAN teardown completed in {} ms",
