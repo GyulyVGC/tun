@@ -44,7 +44,10 @@ sudo ip addr add $BR_NET dev $BR_NAME
 sudo ip link set $BR_NAME up
 sudo ip link set $NS_NAME-out master $BR_NAME
 sudo ip link set $NS_NAME-out up
-$NS_EXEC ip route add default via $BR_IP
+if [ -z "$DOCKER_CONTAINER" ]; then
+    # Standalone mode: set default route through the bridge
+    $NS_EXEC ip route add default via $BR_IP
+fi
 
 # Create the VXLAN tunnel using your physical IP and interface:
 sudo ip link add vxlan-$NS_NAME type vxlan id $VXLAN_ID local $LOCAL_IP remote $REMOTE_IP dstport 4789 dev ens18
@@ -55,3 +58,6 @@ sudo ip link set vxlan-$NS_NAME up
 
 # Enable IP forwarding:
 sudo sysctl -w net.ipv4.ip_forward=1
+
+# Allow forwarding (Docker sets FORWARD policy to DROP):
+sudo iptables -P FORWARD ACCEPT
