@@ -194,12 +194,21 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
             .handle_err(location!())?;
         let mut services: Services = toml::from_str(&services_toml).handle_err(location!())?;
 
+        // get the set of currently running Docker container names
+        let running_containers = get_running_docker_containers().await;
+
         // only declare services that are actually running
         let listeners = listeners::get_all().handle_err(location!())?;
         services.services.retain(|service| {
-            listeners
-                .iter()
-                .any(|listener| u32::from(listener.socket.port()) == service.port)
+            if let Some(container) = &service.docker_container {
+                // Docker services: only declare if the container is running
+                running_containers.contains(container)
+            } else {
+                // Host services: only declare if the port is actively listening
+                listeners
+                    .iter()
+                    .any(|listener| u32::from(listener.socket.port()) == service.port)
+            }
         });
 
         println!("Declaring services to gRPC server: {services:?}");
@@ -212,6 +221,22 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
 
         // wait before re-declaring services
         tokio::time::sleep(Duration::from_secs(10)).await;
+    }
+}
+
+/// Returns the names of all currently running Docker containers.
+async fn get_running_docker_containers() -> Vec<String> {
+    let output = tokio::process::Command::new("docker")
+        .args(["ps", "--format", "{{.Names}}"])
+        .output()
+        .await;
+    match output {
+        Ok(out) => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
+        Err(_) => Vec::new(),
     }
 }
 
