@@ -1151,7 +1151,7 @@ dependencies = [
 [[package]]
 name = "nullnet-grpc-lib"
 version = "0.1.0"
-source = "git+https://github.com/GyulyVGC/nullnet-grpc.git#a1054d32d35bfca2ec1b2a3ce949faba0a24e088"
+source = "git+https://github.com/GyulyVGC/nullnet-grpc.git?branch=docker#1e3cec0c4aeda297ecaf9665a77fd8ea195dae5a"
 dependencies = [
  "prost",
  "serde",
