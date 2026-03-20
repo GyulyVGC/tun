@@ -190,6 +190,7 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
     Ok(())
 }
 
+// TODO: change implementation for this (DNS? other way than modifying /etc/hosts?)
 fn add_host_mapping_docker(hm: &HostMapping, container: &str) -> Result<(), Error> {
     let entry = format!("{} {}", hm.ip, hm.name);
 
@@ -272,5 +273,3 @@ fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
     std::fs::write(path, lines.join("\n") + "\n").handle_err(location!())?;
     Ok(())
 }
-
-// TODO: inactive peer removal

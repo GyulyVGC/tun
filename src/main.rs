@@ -9,6 +9,7 @@ use std::{panic, process};
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
+use crate::env::{CONTROL_SERVICE_ADDR, CONTROL_SERVICE_PORT};
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
@@ -26,6 +27,7 @@ mod cli;
 mod commands;
 mod control_channel;
 mod craft;
+mod env;
 mod forward;
 mod local_endpoints;
 mod peers;
@@ -174,12 +176,10 @@ async fn set_firewall_rules(
 }
 
 async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
-    // TODO: read env at runtime
-    let host = option_env!("CONTROL_SERVICE_ADDR").unwrap_or("0.0.0.0");
-    let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
-    let port = port_str.parse::<u16>().handle_err(location!())?;
+    let host = CONTROL_SERVICE_ADDR.to_string();
+    let port = *CONTROL_SERVICE_PORT;
 
-    let server = NullnetGrpcInterface::new(host, port, false)
+    let server = NullnetGrpcInterface::new(&host, port, false)
         .await
         .handle_err(location!())?;
 
