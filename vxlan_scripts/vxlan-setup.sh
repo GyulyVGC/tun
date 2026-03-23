@@ -25,6 +25,8 @@ if [ -n "$DOCKER_CONTAINER" ]; then
     NS_EXEC="sudo nsenter -t $PID -n"
     # Move a veth into the container's namespace using its PID
     NS_SET="sudo ip link set $NS_NAME-in netns $PID"
+    # Bind-mount the host's /etc/hosts into the container
+    sudo nsenter -t $PID -m -- mount --bind /etc/hosts /etc/hosts
 else
     # Standalone mode: create a new network namespace
     sudo ip netns add $NS_NAME

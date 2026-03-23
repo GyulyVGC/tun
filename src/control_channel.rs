@@ -179,53 +179,10 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
     // add host mapping if needed
     if let Some(host_mapping) = &message.host_mapping {
         let _ = add_host_mapping(host_mapping);
-        if let Some(container) = &message.docker_container {
-            let _ = add_host_mapping_docker(host_mapping, container);
-        }
     }
 
     // acknowledge message
     let _ = outbound.send(msg_id.clone()).await;
-
-    Ok(())
-}
-
-// TODO: change implementation for this (DNS? other way than modifying /etc/hosts?)
-fn add_host_mapping_docker(hm: &HostMapping, container: &str) -> Result<(), Error> {
-    let entry = format!("{} {}", hm.ip, hm.name);
-
-    // read the container's /etc/hosts
-    let output = std::process::Command::new("docker")
-        .args(["exec", container, "cat", "/etc/hosts"])
-        .output()
-        .handle_err(location!())?;
-    let content = String::from_utf8_lossy(&output.stdout);
-
-    let mut lines: Vec<String> = content.lines().map(ToString::to_string).collect();
-    let mut found = false;
-    for line in &mut lines {
-        if line.contains(&hm.name) {
-            line.clone_from(&entry);
-            found = true;
-        }
-    }
-    if !found {
-        lines.push(entry);
-    }
-
-    // write back to the container's /etc/hosts
-    let new_content = lines.join("\n") + "\n";
-    let _ = std::process::Command::new("docker")
-        .args([
-            "exec",
-            container,
-            "sh",
-            "-c",
-            &format!("echo '{new_content}' > /etc/hosts"),
-        ])
-        .spawn()
-        .map(|mut c| c.wait())
-        .handle_err(location!());
 
     Ok(())
 }
@@ -254,8 +211,6 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
 fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
     let path = "/etc/hosts";
     let entry = format!("{} {}", hm.ip, hm.name);
-
-    // println!("Adding host mapping: {entry}");
 
     // parse each line IP and name: if name exists replace the line, else append
     let content = std::fs::read_to_string(path).handle_err(location!())?;
