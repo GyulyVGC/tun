@@ -231,7 +231,13 @@ fn add_host_mapping(hm: &HostMapping, docker_container: Option<&str>) -> Result<
     if let Some(container) = docker_container {
         let content = std::fs::read_to_string(path).handle_err(location!())?;
         let _ = std::process::Command::new("docker")
-            .args(["exec", container, "sh", "-c", &format!("echo '{content}' > {path}")])
+            .args([
+                "exec",
+                container,
+                "sh",
+                "-c",
+                &format!("echo '{content}' > {path}"),
+            ])
             .spawn()
             .map(|mut c| c.wait())
             .handle_err(location!());
