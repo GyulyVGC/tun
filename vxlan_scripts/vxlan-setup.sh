@@ -26,7 +26,7 @@ if [ -n "$DOCKER_CONTAINER" ]; then
     # Move a veth into the container's namespace using its PID
     NS_SET="sudo ip link set $NS_NAME-in netns $PID"
     # Bind-mount the host's /etc/hosts into the container
-    sudo nsenter -t $PID -m -- mount --bind /etc/hosts /etc/hosts
+    sudo mount --bind /etc/hosts $(docker inspect -f '{{.HostsPath}}' $DOCKER_CONTAINER)
 else
     # Standalone mode: create a new network namespace
     sudo ip netns add $NS_NAME
