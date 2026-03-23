@@ -99,7 +99,7 @@ async fn handle_vlan_setup(
 
     // add host mapping if needed
     if let Some(host_mapping) = &message.host_mapping {
-        let _ = add_host_mapping(host_mapping);
+        let _ = add_host_mapping(host_mapping, None);
     }
 
     // acknowledge message
@@ -178,7 +178,7 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
 
     // add host mapping if needed
     if let Some(host_mapping) = &message.host_mapping {
-        let _ = add_host_mapping(host_mapping);
+        let _ = add_host_mapping(host_mapping, message.docker_container.as_deref());
     }
 
     // acknowledge message
@@ -208,7 +208,7 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
     );
 }
 
-fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
+fn add_host_mapping(hm: &HostMapping, docker_container: Option<&str>) -> Result<(), Error> {
     let path = "/etc/hosts";
     let entry = format!("{} {}", hm.ip, hm.name);
 
@@ -226,5 +226,16 @@ fn add_host_mapping(hm: &HostMapping) -> Result<(), Error> {
         lines.push(entry);
     }
     std::fs::write(path, lines.join("\n") + "\n").handle_err(location!())?;
+
+    // copy /etc/hosts content into the container
+    if let Some(container) = docker_container {
+        let content = std::fs::read_to_string(path).handle_err(location!())?;
+        let _ = std::process::Command::new("docker")
+            .args(["exec", container, "sh", "-c", &format!("echo '{content}' > {path}")])
+            .spawn()
+            .map(|mut c| c.wait())
+            .handle_err(location!());
+    }
+
     Ok(())
 }
