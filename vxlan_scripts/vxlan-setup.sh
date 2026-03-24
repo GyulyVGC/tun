@@ -3,8 +3,8 @@
 # Read CLI arguments:
 if [ "$#" -lt 7 ] || [ "$#" -gt 8 ]; then
     echo "Usage: $0 <vxlan_id> <ns_name> <ns_net> <br_name> <br_net> <local_ip> <remote_ip> [docker_container]"
-    echo "Example (standalone): $0 100 ns1 10.0.0.1/24 br1 10.0.0.2/24 192.168.1.102 192.168.1.104"
-    echo "Example (docker):     $0 100 ns1 10.0.0.1/24 br1 10.0.0.2/24 192.168.1.102 192.168.1.104 my_container"
+    echo "Example (standalone): $0 100 ns1 10.0.0.1/29 br1 10.0.0.2/29 192.168.1.102 192.168.1.104"
+    echo "Example (docker):     $0 100 ns1 10.0.0.1/29 br1 10.0.0.2/29 192.168.1.102 192.168.1.104 my_container"
     exit 1
 fi
 
