@@ -1,5 +1,6 @@
 #![allow(clippy::used_underscore_binding)]
 
+use std::collections::HashMap;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -194,15 +195,20 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
             .handle_err(location!())?;
         let mut services: Services = toml::from_str(&services_toml).handle_err(location!())?;
 
-        // get the set of currently running Docker container names
+        // get the map of logical name -> real container name (supports both standalone and Swarm)
         let running_containers = get_running_docker_containers().await;
 
         // only declare services that are actually running
         let listeners = listeners::get_all().handle_err(location!())?;
-        services.services.retain(|service| {
+        services.services.retain_mut(|service| {
             if let Some(container) = &service.docker_container {
-                // Docker services: only declare if the container is running
-                running_containers.contains(container)
+                if let Some(real_name) = running_containers.get(container.as_str()) {
+                    // resolve to real container name (may differ in Swarm mode)
+                    service.docker_container = Some(real_name.clone());
+                    true
+                } else {
+                    false
+                }
             } else {
                 // Host services: only declare if the port is actively listening
                 listeners
@@ -224,20 +230,41 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
     }
 }
 
-/// Returns the names of all currently running Docker containers.
-async fn get_running_docker_containers() -> Vec<String> {
+/// Returns a map of logical name -> real container name for all running Docker containers.
+///
+/// Supports both standalone Docker (name -> name) and Swarm mode (swarm service label -> name).
+async fn get_running_docker_containers() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+
+    // Query container name and Swarm service label together
     let output = tokio::process::Command::new("docker")
-        .args(["ps", "--format", "{{.Names}}"])
+        .args([
+            "ps",
+            "--format",
+            "{{.Names}}\t{{.Label \"com.docker.swarm.service.name\"}}",
+        ])
         .output()
         .await;
-    match output {
-        Ok(out) => String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .filter(|l| !l.is_empty())
-            .map(|l| l.to_string())
-            .collect(),
-        Err(_) => Vec::new(),
+
+    if let Ok(out) = output {
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            if line.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.split('\t').collect();
+            let real_name = parts[0].to_string();
+            let swarm_label = parts.get(1).unwrap_or(&"").trim();
+            if swarm_label.is_empty() {
+                // standalone: logical name = container name
+                map.insert(real_name.clone(), real_name);
+            } else {
+                // Swarm: logical name = swarm service label (e.g. "mystack_actix-sample")
+                map.insert(swarm_label.to_string(), real_name);
+            }
+        }
     }
+
+    map
 }
 
 async fn setup_tap(
