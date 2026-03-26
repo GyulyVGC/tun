@@ -197,25 +197,33 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
 
         // get the map of logical name -> real container name (supports both standalone and Swarm)
         let running_containers = get_running_docker_containers().await;
+        // get the list of actively listening ports on the host
+        let listeners = listeners::get_all().handle_err(location!())?;
 
         // only declare services that are actually running
-        let listeners = listeners::get_all().handle_err(location!())?;
-        services.services.retain_mut(|service| {
+        // For Swarm, a single service name may map to multiple containers (replicas),
+        // so we expand each service entry into one entry per running container.
+        let file_services = services.services;
+        services.services = Vec::new();
+        for service in file_services {
             if let Some(container) = &service.docker_container {
-                if let Some(real_name) = running_containers.get(container.as_str()) {
-                    // resolve to real container name (may differ in Swarm mode)
-                    service.docker_container = Some(real_name.clone());
-                    true
-                } else {
-                    false
+                if let Some(real_names) = running_containers.get(container.as_str()) {
+                    for real_name in real_names {
+                        let mut s = service.clone();
+                        s.docker_container = Some(real_name.clone());
+                        services.services.push(s);
+                    }
                 }
             } else {
                 // Host services: only declare if the port is actively listening
-                listeners
+                if listeners
                     .iter()
                     .any(|listener| u32::from(listener.socket.port()) == service.port)
+                {
+                    services.services.push(service);
+                }
             }
-        });
+        }
 
         println!("Declaring services to gRPC server: {services:?}");
 
@@ -230,11 +238,11 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
     }
 }
 
-/// Returns a map of logical name -> real container name for all running Docker containers.
+/// Returns a map of logical name -> real container names for all running Docker containers.
 ///
-/// Supports both standalone Docker (name -> name) and Swarm mode (swarm service label -> name).
-async fn get_running_docker_containers() -> HashMap<String, String> {
-    let mut map = HashMap::new();
+/// Supports both standalone Docker (name -> [name]) and Swarm mode (swarm service label -> [replicas]).
+async fn get_running_docker_containers() -> HashMap<String, Vec<String>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
 
     // Query container name and Swarm service label together
     let output = tokio::process::Command::new("docker")
@@ -256,10 +264,12 @@ async fn get_running_docker_containers() -> HashMap<String, String> {
             let swarm_label = parts.get(1).unwrap_or(&"").trim();
             if swarm_label.is_empty() {
                 // standalone: logical name = container name
-                map.insert(real_name.clone(), real_name);
+                map.entry(real_name.clone()).or_default().push(real_name);
             } else {
-                // Swarm: logical name = swarm service label (e.g. "mystack_actix-sample")
-                map.insert(swarm_label.to_string(), real_name);
+                // Swarm: logical name = swarm service label, may have multiple replicas
+                map.entry(swarm_label.to_string())
+                    .or_default()
+                    .push(real_name);
             }
         }
     }
