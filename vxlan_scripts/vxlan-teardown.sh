@@ -1,19 +1,23 @@
 #!/bin/bash
 
 # Read CLI arguments:
-if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-    echo "Usage: $0 <ns_name> <br_name> [docker_container]"
-    echo "Example (standalone): $0 ns_1 br_1"
-    echo "Example (docker):     $0 ns_1 br_1 my_container"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+    echo "Usage: $0 <vxlan_id> <ns_name> <br_name> [docker_container]"
+    echo "Example (standalone): $0 100 ns_100_s br_100_s"
+    echo "Example (docker):     $0 100 ns_100_s br_100_s my_container"
     exit 1
 fi
 
-NS_NAME=$1
-BR_NAME=$2
-DOCKER_CONTAINER=$3
+VXLAN_ID=$1
+NS_NAME=$2
+BR_NAME=$3
+DOCKER_CONTAINER=$4
 
-# Remove the VXLAN tunnel and veth pair:
+# Remove the VXLAN tunnel or same-host veth pair:
 sudo ip link set vxlan-$NS_NAME down && sudo ip link del vxlan-$NS_NAME
+sudo ip link set veth-${VXLAN_ID}-s down && sudo ip link del veth-${VXLAN_ID}-s
+
+# Remove the namespace veth pair:
 sudo ip link set $NS_NAME-out down && sudo ip link del $NS_NAME-out
 
 if [ -z "$DOCKER_CONTAINER" ]; then

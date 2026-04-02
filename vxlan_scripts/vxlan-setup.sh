@@ -3,8 +3,8 @@
 # Read CLI arguments:
 if [ "$#" -lt 7 ] || [ "$#" -gt 8 ]; then
     echo "Usage: $0 <vxlan_id> <ns_name> <ns_net> <br_name> <br_net> <local_ip> <remote_ip> [docker_container]"
-    echo "Example (standalone): $0 100 ns1 10.0.0.1/29 br1 10.0.0.2/29 192.168.1.102 192.168.1.104"
-    echo "Example (docker):     $0 100 ns1 10.0.0.1/29 br1 10.0.0.2/29 192.168.1.102 192.168.1.104 my_container"
+    echo "Example (standalone): $0 100 ns_100_s 10.0.0.1/29 br_100_s 10.0.0.2/29 192.168.1.102 192.168.1.104"
+    echo "Example (docker):     $0 100 ns_100_s 10.0.0.1/29 br_100_s 10.0.0.2/29 192.168.1.102 192.168.1.104 my_container"
     exit 1
 fi
 
@@ -49,12 +49,27 @@ if [ -z "$DOCKER_CONTAINER" ]; then
     $NS_EXEC ip route add default via $BR_IP
 fi
 
-# Create the VXLAN tunnel using your physical IP and interface:
-sudo ip link add vxlan-$NS_NAME type vxlan id $VXLAN_ID local $LOCAL_IP remote $REMOTE_IP dstport 4789 dev ens18
-
-# Attach the VXLAN to the bridge:
-sudo ip link set vxlan-$NS_NAME master $BR_NAME
-sudo ip link set vxlan-$NS_NAME up
+if [ "$LOCAL_IP" == "$REMOTE_IP" ]; then
+      # Same host: connect bridges with a veth pair instead of a VXLAN tunnel
+      VETH_S="veth-${VXLAN_ID}-s"
+      VETH_C="veth-${VXLAN_ID}-c"
+      # Both ends are created atomically; the losing task's EEXIST is harmless
+      sudo ip link add "$VETH_S" type veth peer name "$VETH_C" 2>/dev/null
+      # Attach our end to our bridge
+      if [[ "$BR_NAME" == *_s ]]; then
+          LOCAL_VETH="$VETH_S"
+      else
+          LOCAL_VETH="$VETH_C"
+      fi
+      sudo ip link set "$LOCAL_VETH" master "$BR_NAME"
+      sudo ip link set "$LOCAL_VETH" up
+  else
+      # Create the VXLAN tunnel using your physical IP and interface:
+      sudo ip link add vxlan-$NS_NAME type vxlan id $VXLAN_ID local $LOCAL_IP remote $REMOTE_IP dstport 4789 dev ens18
+      # Attach the VXLAN to the bridge:
+      sudo ip link set vxlan-$NS_NAME master $BR_NAME
+      sudo ip link set vxlan-$NS_NAME up
+  fi
 
 # Enable IP forwarding:
 sudo sysctl -w net.ipv4.ip_forward=1
