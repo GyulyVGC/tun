@@ -191,11 +191,12 @@ fn handle_vxlan_teardown(message: VxlanTeardown) {
     // teardown VXLAN on this machine
     let init_t = std::time::Instant::now();
 
+    let vxlan_id = message.vxlan_id.to_string();
     let ns_name = message.ns_name;
     let br_name = message.br_name;
 
     let mut cmd = std::process::Command::new("./vxlan_scripts/vxlan-teardown.sh");
-    cmd.arg(&ns_name).arg(&br_name);
+    cmd.arg(&vxlan_id).arg(&ns_name).arg(&br_name);
     if let Some(container) = &message.docker_container {
         cmd.arg(container);
     }

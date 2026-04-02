@@ -91,13 +91,30 @@ fn vxlan_cleanup_network() {
     // TODO: do this using rtnetlink
     use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 
-    // first clean up existing namespaces and VXLAN interfaces
+    // first clean up existing namespaces, VXLAN interfaces, and same-host veth pairs
     if let Ok(devices) = NetworkInterface::show() {
         for device in devices {
             if let Some(ns_name) = device.name.strip_prefix("vxlan-") {
                 println!("Cleaning up existing namespace: {ns_name}");
                 let _ = std::process::Command::new("./vxlan_scripts/ns-teardown.sh")
                     .arg(ns_name)
+                    .spawn()
+                    .map(|mut c| c.wait())
+                    .handle_err(location!());
+            } else if device.name.starts_with("ns_") {
+                if let Some(ns_name) = device.name.strip_suffix("-out") {
+                    // same-host case: no vxlan- interface, discover namespaces via their veth-out
+                    println!("Cleaning up existing namespace: {ns_name}");
+                    let _ = std::process::Command::new("./vxlan_scripts/ns-teardown.sh")
+                        .arg(ns_name)
+                        .spawn()
+                        .map(|mut c| c.wait())
+                        .handle_err(location!());
+                }
+            } else if device.name.starts_with("veth-") {
+                println!("Cleaning up existing same-host veth pair: {}", device.name);
+                let _ = std::process::Command::new("sudo")
+                    .args(["ip", "link", "del", &device.name])
                     .spawn()
                     .map(|mut c| c.wait())
                     .handle_err(location!());
