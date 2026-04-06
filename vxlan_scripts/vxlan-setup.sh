@@ -65,7 +65,7 @@ if [ "$LOCAL_IP" == "$REMOTE_IP" ]; then
       sudo ip link set "$LOCAL_VETH" up
   else
       # Create the VXLAN tunnel using your physical IP and interface:
-      sudo ip link add vxlan-$NS_NAME type vxlan id $VXLAN_ID local $LOCAL_IP remote $REMOTE_IP dstport 4789 dev ens18
+      sudo ip link add vxlan-$NS_NAME type vxlan id $VXLAN_ID local $LOCAL_IP remote $REMOTE_IP dstport 4789 # dev ens18
       # Attach the VXLAN to the bridge:
       sudo ip link set vxlan-$NS_NAME master $BR_NAME
       sudo ip link set vxlan-$NS_NAME up
