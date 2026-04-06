@@ -12,6 +12,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/%H/tun
+EnvironmentFile=/home/%H/tun/.env
 ExecStart=/home/%H/tun/target/release/tun
 Restart=always
 

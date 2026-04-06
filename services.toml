@@ -3,3 +3,4 @@ services = []
 #[[services]]
 #name = "color.com"
 #port = 3001
+#docker_container = "actix-sample"

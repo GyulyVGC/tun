@@ -1,5 +1,6 @@
 #![allow(clippy::used_underscore_binding)]
 
+use std::collections::HashMap;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use std::{panic, process};
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
+use crate::env::{CONTROL_SERVICE_ADDR, CONTROL_SERVICE_PORT};
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
@@ -26,6 +28,7 @@ mod cli;
 mod commands;
 mod control_channel;
 mod craft;
+mod env;
 mod forward;
 mod local_endpoints;
 mod peers;
@@ -174,12 +177,10 @@ async fn set_firewall_rules(
 }
 
 async fn grpc_init() -> Result<NullnetGrpcInterface, Error> {
-    // TODO: read env at runtime
-    let host = option_env!("CONTROL_SERVICE_ADDR").unwrap_or("0.0.0.0");
-    let port_str = option_env!("CONTROL_SERVICE_PORT").unwrap_or("50051");
-    let port = port_str.parse::<u16>().handle_err(location!())?;
+    let host = CONTROL_SERVICE_ADDR.to_string();
+    let port = *CONTROL_SERVICE_PORT;
 
-    let server = NullnetGrpcInterface::new(host, port, false)
+    let server = NullnetGrpcInterface::new(&host, port, false)
         .await
         .handle_err(location!())?;
 
@@ -194,13 +195,35 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
             .handle_err(location!())?;
         let mut services: Services = toml::from_str(&services_toml).handle_err(location!())?;
 
-        // only declare services that are actually running
+        // get the map of logical name -> real container name (supports both standalone and Swarm)
+        let running_containers = get_running_docker_containers().await;
+        // get the list of actively listening ports on the host
         let listeners = listeners::get_all().handle_err(location!())?;
-        services.services.retain(|service| {
-            listeners
-                .iter()
-                .any(|listener| u32::from(listener.socket.port()) == service.port)
-        });
+
+        // only declare services that are actually running
+        // For Swarm, a single service name may map to multiple containers (replicas),
+        // so we expand each service entry into one entry per running container.
+        let file_services = services.services;
+        services.services = Vec::new();
+        for service in file_services {
+            if let Some(container) = &service.docker_container {
+                if let Some(real_names) = running_containers.get(container.as_str()) {
+                    for real_name in real_names {
+                        let mut s = service.clone();
+                        s.docker_container = Some(real_name.clone());
+                        services.services.push(s);
+                    }
+                }
+            } else {
+                // Host services: only declare if the port is actively listening
+                if listeners
+                    .iter()
+                    .any(|listener| u32::from(listener.socket.port()) == service.port)
+                {
+                    services.services.push(service);
+                }
+            }
+        }
 
         println!("Declaring services to gRPC server: {services:?}");
 
@@ -213,6 +236,45 @@ async fn declare_services(grpc_server: NullnetGrpcInterface) -> Result<(), Error
         // wait before re-declaring services
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
+}
+
+/// Returns a map of logical name -> real container names for all running Docker containers.
+///
+/// Supports both standalone Docker (name -> [name]) and Swarm mode (swarm service label -> [replicas]).
+async fn get_running_docker_containers() -> HashMap<String, Vec<String>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+
+    // Query container name and Swarm service label together
+    let output = tokio::process::Command::new("docker")
+        .args([
+            "ps",
+            "--format",
+            "{{.Names}}\t{{.Label \"com.docker.swarm.service.name\"}}",
+        ])
+        .output()
+        .await;
+
+    if let Ok(out) = output {
+        for line in String::from_utf8_lossy(&out.stdout).lines() {
+            if line.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.split('\t').collect();
+            let real_name = parts[0].to_string();
+            let swarm_label = parts.get(1).unwrap_or(&"").trim();
+            if swarm_label.is_empty() {
+                // standalone: logical name = container name
+                map.entry(real_name.clone()).or_default().push(real_name);
+            } else {
+                // Swarm: logical name = swarm service label, may have multiple replicas
+                map.entry(swarm_label.to_string())
+                    .or_default()
+                    .push(real_name);
+            }
+        }
+    }
+
+    map
 }
 
 async fn setup_tap(
