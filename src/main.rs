@@ -1,12 +1,5 @@
 #![allow(clippy::used_underscore_binding)]
 
-use std::collections::HashMap;
-use std::ops::Sub;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use std::{panic, process};
-use std::fs::create_dir_all;
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
@@ -21,6 +14,13 @@ use nullnet_firewall::{DataLink, Firewall, FirewallError, LogLevel};
 use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Net, Services};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
+use std::collections::HashMap;
+use std::fs::create_dir_all;
+use std::ops::Sub;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use std::{panic, process};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
@@ -333,7 +333,7 @@ async fn setup_tap(
 }
 
 fn redirect_stdout_stderr_to_file()
-    -> Option<(gag::Redirect<std::fs::File>, gag::Redirect<std::fs::File>)> {
+-> Option<(gag::Redirect<std::fs::File>, gag::Redirect<std::fs::File>)> {
     let dir = "/var/log/nullnet";
     create_dir_all(dir).handle_err(location!()).ok()?;
     let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
