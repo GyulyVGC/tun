@@ -24,6 +24,8 @@ listeners = "0.5.1"
 rtnetlink = "0.20.0"
 futures = "0.3.32"
 network-interface = "2.0.5"
+gag = "1.0.0"
+chrono = "0.4.44"
 
 [dev-dependencies]
 #serde_test = "1.0.177"

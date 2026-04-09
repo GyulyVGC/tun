@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{panic, process};
-
+use std::fs::create_dir_all;
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
@@ -38,6 +38,15 @@ pub const TAP_NAME: &str = "nullnet0";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let _gag1: gag::Redirect<std::fs::File>;
+    let _gag2: gag::Redirect<std::fs::File>;
+    if let Some((gag1, gag2)) = redirect_stdout_stderr_to_file() {
+        _gag1 = gag1;
+        _gag2 = gag2;
+    } else {
+        println!("Failed to redirect stdout and stderr to file, logs will be printed to console");
+    }
+
     // kill the main thread as soon as a secondary thread panics
     let orig_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
@@ -321,4 +330,24 @@ async fn setup_tap(
     }
 
     Ok(())
+}
+
+fn redirect_stdout_stderr_to_file()
+    -> Option<(gag::Redirect<std::fs::File>, gag::Redirect<std::fs::File>)> {
+    let dir = "/var/log/nullnet";
+    create_dir_all(dir).handle_err(location!()).ok()?;
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
+    let file_path = format!("{dir}/tun_{timestamp}.txt");
+    if let Ok(logs_file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+    {
+        println!("Writing logs to '{file_path}'");
+        return Some((
+            gag::Redirect::stdout(logs_file.try_clone().ok()?).ok()?,
+            gag::Redirect::stderr(logs_file).ok()?,
+        ));
+    }
+    None
 }
