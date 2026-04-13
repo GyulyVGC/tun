@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# Update tun.service file
-sudo cp tun.service /etc/systemd/system/ && \
-sudo systemctl enable tun && \
 git pull && \
-cargo update && \
 cargo b --release && \
-sudo systemctl restart tun
+sudo cp nullnet-client.service /etc/systemd/system/ && \
+sudo systemctl enable nullnet-client && \
+sudo systemctl restart nullnet-client
