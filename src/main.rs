@@ -15,7 +15,6 @@ use nullnet_grpc_lib::NullnetGrpcInterface;
 use nullnet_grpc_lib::nullnet_grpc::{Net, Services};
 use nullnet_liberror::{Error, ErrorHandler, Location, location};
 use std::collections::HashMap;
-use std::fs::create_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -335,7 +334,7 @@ async fn setup_tap(
 // fn redirect_stdout_stderr_to_file()
 // -> Option<(gag::Redirect<std::fs::File>, gag::Redirect<std::fs::File>)> {
 //     let dir = "/var/log/nullnet";
-//     create_dir_all(dir).handle_err(location!()).ok()?;
+//     std::fs::create_dir_all(dir).handle_err(location!()).ok()?;
 //     let timestamp = chrono::Utc::now().format("%Y-%m-%d_%H-%M-%S");
 //     let file_path = format!("{dir}/tun_{timestamp}.txt");
 //     if let Ok(logs_file) = std::fs::OpenOptions::new()
