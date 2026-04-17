@@ -23,6 +23,7 @@ use std::{panic, process};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
+mod backend_trigger;
 mod cli;
 mod commands;
 mod control_channel;
@@ -81,6 +82,7 @@ async fn main() -> Result<(), Error> {
     // initialize gRPC connection
     let grpc_server = grpc_init().await?;
     let grpc_server2 = grpc_server.clone();
+    let grpc_server3 = grpc_server.clone();
 
     let net_type = grpc_server.network_type().await.handle_err(location!())?;
 
@@ -104,6 +106,10 @@ async fn main() -> Result<(), Error> {
             .await
             .expect("Control channel failed");
     });
+
+    // expose the local HTTP endpoint that backend services hit to trigger
+    // a non-proxy VXLAN/VLAN chain to their deps
+    backend_trigger::spawn(grpc_server3);
 
     // watch the file defining rules and update the firewall accordingly
     set_firewall_rules(&firewall_shared, &firewall_path, false).await?;
