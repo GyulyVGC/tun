@@ -1,9 +1,9 @@
-use actix_web::{App, HttpResponse, HttpServer, Responder, post, web};
+use actix_web::{App, HttpResponse, HttpServer, Responder, get, web};
 use nullnet_grpc_lib::NullnetGrpcInterface;
 
 pub const TRIGGER_PORT: u16 = 8888;
 
-#[post("/trigger/{service_name}")]
+#[get("/trigger/{service_name}")]
 async fn trigger(grpc: web::Data<NullnetGrpcInterface>, path: web::Path<String>) -> impl Responder {
     let service_name = path.into_inner();
     match grpc.backend_trigger(service_name.clone()).await {
