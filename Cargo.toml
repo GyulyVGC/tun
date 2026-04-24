@@ -1,3 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["xtask"]
+
 [package]
 name = "nullnet-client"
 version = "0.1.0"
@@ -26,7 +30,9 @@ futures = "0.3.32"
 network-interface = "2.0.5"
 gag = "1.0.0"
 chrono = "0.4.44"
-actix-web = "4.11"
+aya = "0.13"
+libc = "0.2"
+log = "0.4"
 
 [dev-dependencies]
 #serde_test = "1.0.177"

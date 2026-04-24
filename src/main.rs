@@ -3,7 +3,7 @@
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
-use crate::env::{CONTROL_SERVICE_ADDR, CONTROL_SERVICE_PORT};
+use crate::env::{CONTROL_SERVICE_ADDR, CONTROL_SERVICE_PORT, ETH_NAME};
 use crate::forward::receive::receive;
 use crate::forward::send::send;
 use crate::local_endpoints::LocalEndpoints;
@@ -23,11 +23,11 @@ use std::{panic, process};
 use tokio::sync::RwLock;
 use tun_rs::{DeviceBuilder, Layer};
 
-mod backend_trigger;
 mod cli;
 mod commands;
 mod control_channel;
 mod craft;
+mod ebpf;
 mod env;
 mod forward;
 mod local_endpoints;
@@ -107,9 +107,16 @@ async fn main() -> Result<(), Error> {
             .expect("Control channel failed");
     });
 
-    // expose the local HTTP endpoint that backend services hit to trigger
-    // a non-proxy VXLAN/VLAN chain to their deps
-    backend_trigger::spawn(grpc_server3);
+    // observe outgoing dependency-port traffic via eBPF and forward triggers to the gRPC server
+    let (trigger_tx, mut trigger_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    ebpf::load::load_ebpf(&ETH_NAME, trigger_tx);
+    tokio::spawn(async move {
+        while let Some(service_name) = trigger_rx.recv().await {
+            if let Err(e) = grpc_server3.backend_trigger(service_name.clone()).await {
+                eprintln!("backend_trigger for '{service_name}' failed: {e}");
+            }
+        }
+    });
 
     // watch the file defining rules and update the firewall accordingly
     set_firewall_rules(&firewall_shared, &firewall_path, false).await?;

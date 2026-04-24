@@ -3,3 +3,9 @@ CONTROL_SERVICE_ADDR="0.0.0.0"
 CONTROL_SERVICE_PORT="50051"
 #INSTALLATION_CODE="CTR2"
 #RUST_LOG="appguard,nullnet"
+
+[alias]
+xtask = "run --package xtask --"
+
+[build]
+target-dir = "target"
