@@ -9,13 +9,14 @@ use tokio::io::Interest;
 use tokio::io::unix::AsyncFd;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::ebpf::triggers;
-
-pub fn load_ebpf(eth_name: &str, trigger_tx: UnboundedSender<String>) {
+pub fn load_ebpf(
+    eth_name: &str,
+    port_to_services: HashMap<u16, Vec<String>>,
+    trigger_tx: UnboundedSender<String>,
+) {
     crate::ebpf::log::init();
     raise_memlock_rlimit();
 
-    let port_to_services = triggers::load();
     println!(
         "[load_ebpf] eth={eth_name} triggers={} ports={:?}",
         port_to_services.len(),
@@ -79,9 +80,9 @@ fn attach(eth_name: &str, direction: TcAttachType) -> Result<Ebpf, String> {
 
     match tc::qdisc_add_clsact(eth_name) {
         Ok(()) => println!("[{direction:?}] clsact qdisc added on {eth_name}"),
-        Err(e) => println!(
-            "[{direction:?}] clsact qdisc add returned: {e} (ok if already present)"
-        ),
+        Err(e) => {
+            println!("[{direction:?}] clsact qdisc add returned: {e} (ok if already present)")
+        }
     }
 
     let program: &mut SchedClassifier = bpf
@@ -149,9 +150,7 @@ async fn run_observer(
             if let Some(services) = port_to_services.get(&port) {
                 for service_name in services {
                     if let Err(e) = trigger_tx.send(service_name.clone()) {
-                        eprintln!(
-                            "[observer] failed to enqueue trigger for '{service_name}': {e}"
-                        );
+                        eprintln!("[observer] failed to enqueue trigger for '{service_name}': {e}");
                     } else {
                         println!("[observer] enqueued trigger for '{service_name}'");
                     }

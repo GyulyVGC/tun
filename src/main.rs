@@ -3,6 +3,7 @@
 use crate::cli::Args;
 use crate::commands::{RtNetLinkHandle, cleanup_network, setup_br0};
 use crate::control_channel::control_channel;
+use crate::ebpf::triggers::TriggersState;
 use crate::env::{CONTROL_SERVICE_ADDR, CONTROL_SERVICE_PORT, ETH_NAME};
 use crate::forward::receive::receive;
 use crate::forward::send::send;
@@ -100,20 +101,32 @@ async fn main() -> Result<(), Error> {
             .expect("Failed to declare services");
     });
 
+    // load trigger config and shared dedup state (one-shot per service until teardown)
+    let port_to_services = ebpf::triggers::load();
+    let service_to_ports = ebpf::triggers::reverse(&port_to_services);
+    let triggers_state = Arc::new(TriggersState::new(service_to_ports));
+    let triggers_state_cc = triggers_state.clone();
+    let triggers_state_tr = triggers_state.clone();
+
     // listen on the gRPC control channel
     tokio::spawn(async move {
-        control_channel(grpc_server2, peers_2, rtnetlink_handle)
+        control_channel(grpc_server2, peers_2, rtnetlink_handle, triggers_state_cc)
             .await
             .expect("Control channel failed");
     });
 
     // observe outgoing dependency-port traffic via eBPF and forward triggers to the gRPC server
     let (trigger_tx, mut trigger_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    ebpf::load::load_ebpf(&ETH_NAME, trigger_tx);
+    ebpf::load::load_ebpf(&ETH_NAME, port_to_services, trigger_tx);
     tokio::spawn(async move {
         while let Some(service_name) = trigger_rx.recv().await {
+            if !triggers_state_tr.try_mark_pending(&service_name) {
+                continue;
+            }
             if let Err(e) = grpc_server3.backend_trigger(service_name.clone()).await {
                 eprintln!("backend_trigger for '{service_name}' failed: {e}");
+                // allow re-trigger on next observed packet
+                triggers_state_tr.forget(&service_name);
             }
         }
     });

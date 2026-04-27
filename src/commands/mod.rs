@@ -5,6 +5,7 @@ use ovs::OvsCommand;
 use rtnetlink::{Handle, new_connection};
 use std::net::Ipv4Addr;
 
+pub(crate) mod dnat;
 mod netlink;
 mod ovs;
 
@@ -82,6 +83,7 @@ impl RtNetLinkHandle {
 }
 
 pub(crate) async fn cleanup_network(rtnetlink_handle: &RtNetLinkHandle) {
+    dnat::init();
     vxlan_cleanup_network();
     vlan_cleanup_network(rtnetlink_handle).await;
 }

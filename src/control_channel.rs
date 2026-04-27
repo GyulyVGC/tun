@@ -1,4 +1,5 @@
-use crate::commands::{RtNetLinkHandle, configure_access_port, remove_vlan};
+use crate::commands::{RtNetLinkHandle, configure_access_port, dnat, remove_vlan};
+use crate::ebpf::triggers::TriggersState;
 use crate::peers::peer::{Peers, VethKey};
 use ipnetwork::Ipv4Network;
 use nullnet_grpc_lib::NullnetGrpcInterface;
@@ -15,6 +16,7 @@ pub(crate) async fn control_channel(
     server: NullnetGrpcInterface,
     peers: Arc<RwLock<Peers>>,
     rtnetlink_handle: RtNetLinkHandle,
+    triggers_state: Arc<TriggersState>,
 ) -> Result<(), Error> {
     let (outbound, grpc_rx) = mpsc::channel(64);
     let mut inbound = server
@@ -38,13 +40,15 @@ pub(crate) async fn control_channel(
                 });
             }
             Some(net_message::Message::VxlanSetup(vxlan_setup)) => {
+                let triggers_state = triggers_state.clone();
                 tokio::spawn(async move {
-                    let _ = handle_vxlan_setup(vxlan_setup, outbound).await;
+                    let _ = handle_vxlan_setup(vxlan_setup, outbound, triggers_state).await;
                 });
             }
             Some(net_message::Message::VxlanTeardown(vxlan_teardown)) => {
+                let triggers_state = triggers_state.clone();
                 tokio::spawn(async move {
-                    handle_vxlan_teardown(vxlan_teardown);
+                    handle_vxlan_teardown(vxlan_teardown, triggers_state);
                 });
             }
             None => {}
@@ -131,7 +135,11 @@ async fn handle_vlan_teardown(
     Ok(())
 }
 
-async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Result<(), Error> {
+async fn handle_vxlan_setup(
+    message: VxlanSetup,
+    outbound: Sender<MsgId>,
+    triggers_state: Arc<TriggersState>,
+) -> Result<(), Error> {
     let msg_id = &message
         .msg_id
         .ok_or("Missing message ID in VXLAN setup message")
@@ -179,6 +187,22 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
     // add host mapping if needed
     if let Some(host_mapping) = &message.host_mapping {
         let _ = add_host_mapping(host_mapping, message.docker_container.as_deref());
+
+        // install DNAT for every port mapped to this service so the next SYN retransmit
+        // gets rewritten to the overlay IP and routed through the new VXLAN
+        if let Ok(overlay_ip) = host_mapping.ip.parse::<Ipv4Addr>() {
+            let ports = triggers_state
+                .service_to_ports
+                .get(&host_mapping.name)
+                .cloned()
+                .unwrap_or_default();
+            for &port in &ports {
+                dnat::install(port, overlay_ip);
+            }
+            if !ports.is_empty() {
+                triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, ports);
+            }
+        }
     }
 
     // acknowledge message
@@ -187,7 +211,14 @@ async fn handle_vxlan_setup(message: VxlanSetup, outbound: Sender<MsgId>) -> Res
     Ok(())
 }
 
-fn handle_vxlan_teardown(message: VxlanTeardown) {
+fn handle_vxlan_teardown(message: VxlanTeardown, triggers_state: Arc<TriggersState>) {
+    // remove DNAT before tearing the tunnel down so existing flows reset cleanly
+    if let Some((overlay_ip, ports)) = triggers_state.remove_by_vxlan(message.vxlan_id) {
+        for port in ports {
+            dnat::remove(port, overlay_ip);
+        }
+    }
+
     // teardown VXLAN on this machine
     let init_t = std::time::Instant::now();
 
