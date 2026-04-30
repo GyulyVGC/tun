@@ -193,7 +193,7 @@ async fn handle_vxlan_setup(
         if let Ok(overlay_ip) = host_mapping.ip.parse::<Ipv4Addr>() {
             // TODO: generalize code
             dnat::install(5555, overlay_ip);
-            triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, Vec::from[5555]);
+            triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, Vec::from([5555]));
             // let ports = triggers_state
             //     .service_to_ports
             //     .get(&host_mapping.name)
