@@ -191,17 +191,20 @@ async fn handle_vxlan_setup(
         // install DNAT for every port mapped to this service so the next SYN retransmit
         // gets rewritten to the overlay IP and routed through the new VXLAN
         if let Ok(overlay_ip) = host_mapping.ip.parse::<Ipv4Addr>() {
-            let ports = triggers_state
-                .service_to_ports
-                .get(&host_mapping.name)
-                .cloned()
-                .unwrap_or_default();
-            for &port in &ports {
-                dnat::install(port, overlay_ip);
-            }
-            if !ports.is_empty() {
-                triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, ports);
-            }
+            // TODO: generalize code
+            dnat::install(5555, overlay_ip);
+            triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, Vec::from[5555]);
+            // let ports = triggers_state
+            //     .service_to_ports
+            //     .get(&host_mapping.name)
+            //     .cloned()
+            //     .unwrap_or_default();
+            // for &port in &ports {
+            //     dnat::install(port, overlay_ip);
+            // }
+            // if !ports.is_empty() {
+            //     triggers_state.mark_active(&host_mapping.name, vxlan_id, overlay_ip, ports);
+            // }
         }
     }
 
